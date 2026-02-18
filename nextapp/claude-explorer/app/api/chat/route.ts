@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
       permissionMode: "bypassPermissions",
       allowDangerouslySkipPermissions: true,
       mcpServers: MCP_SERVERS,
-      ...(resume ? { resume: { id: resume, transcript: [] } } : {}),
+      ...(resume ? { resume: resume } : {}),
       ...(cwd ? { cwd } : {}),
     },
   })

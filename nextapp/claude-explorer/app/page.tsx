@@ -1,31 +1,11 @@
 "use client"
 
-import { useSearchParams } from "next/navigation"
-import { useEffect, useState, Suspense } from "react"
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
-import { SessionList } from "@/components/session-list"
 import type { Project } from "@/lib/types"
-
-function DashboardContent() {
-  const searchParams = useSearchParams()
-  const selectedProject = searchParams.get("project")
-
-  if (selectedProject) {
-    return (
-      <div className="flex-1 overflow-auto p-4">
-        <h2 className="mb-4 text-sm font-medium">
-          Sessions for {selectedProject.replace(/-/g, "/").split("/").slice(-2).join("/")}
-        </h2>
-        <SessionList projectSlug={selectedProject} />
-      </div>
-    )
-  }
-
-  return <ProjectGrid />
-}
 
 function ProjectGrid() {
   const [projects, setProjects] = useState<Project[]>([])
@@ -64,7 +44,7 @@ function ProjectGrid() {
       {projects.map((project) => {
         const shortPath = project.path.split("/").slice(-2).join("/")
         return (
-          <Link key={project.slug} href={`/?project=${project.slug}`}>
+          <Link key={project.slug} href={`/project/${project.slug}`}>
             <Card size="sm" className="cursor-pointer transition-colors hover:bg-accent/50">
               <CardHeader>
                 <CardTitle>{shortPath}</CardTitle>
@@ -105,9 +85,5 @@ function getTimeAgo(timestamp: string): string {
 }
 
 export default function DashboardPage() {
-  return (
-    <Suspense fallback={<div className="p-4"><Skeleton className="h-28" /></div>}>
-      <DashboardContent />
-    </Suspense>
-  )
+  return <ProjectGrid />
 }

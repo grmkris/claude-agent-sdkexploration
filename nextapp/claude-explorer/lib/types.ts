@@ -17,7 +17,7 @@ export type SessionMeta = {
 
 export type ContentBlock =
   | { type: "text"; text: string }
-  | { type: "tool_use"; id: string; name: string; input: Record<string, unknown> }
+  | { type: "tool_use"; id: string; name: string; input: Record<string, unknown>; output?: string; is_error?: boolean }
   | { type: "tool_result"; tool_use_id: string; content: string; is_error?: boolean }
 
 export type ChatMessage = {

@@ -15,7 +15,7 @@ export function SessionCard({
   const timeAgo = getTimeAgo(session.timestamp)
 
   return (
-    <Link href={`/chat?project=${projectSlug}&session=${session.id}`}>
+    <Link href={`/project/${projectSlug}/chat/${session.id}`}>
       <Card size="sm" className="cursor-pointer transition-colors hover:bg-accent/50">
         <CardHeader>
           <CardTitle className="line-clamp-2">{session.firstPrompt}</CardTitle>

@@ -39,6 +39,8 @@ export function MessageBubble({
                 key={i}
                 name={block.name}
                 input={block.input}
+                output={block.output}
+                is_error={block.is_error}
               />
             )
           }

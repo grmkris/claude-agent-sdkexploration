@@ -168,11 +168,31 @@ export async function getSessionMessages(slug: string, sessionId: string): Promi
   const lines = content.trim().split("\n")
   const messages: ChatMessage[] = []
 
+  // First pass: collect tool results keyed by tool_use_id
+  const toolResults = new Map<string, { content: string; is_error?: boolean }>()
   for (const line of lines) {
     try {
       const parsed = JSON.parse(line) as RawJSONLLine
       if (parsed.type === "user" && "message" in parsed) {
-        // Filter to only text content (skip tool_result from auto tool calls)
+        for (const block of parsed.message.content) {
+          if (block.type === "tool_result") {
+            toolResults.set(block.tool_use_id, {
+              content: typeof block.content === "string" ? block.content : JSON.stringify(block.content),
+              is_error: block.is_error,
+            })
+          }
+        }
+      }
+    } catch {
+      // skip
+    }
+  }
+
+  // Second pass: build messages, enriching tool_use with outputs
+  for (const line of lines) {
+    try {
+      const parsed = JSON.parse(line) as RawJSONLLine
+      if (parsed.type === "user" && "message" in parsed) {
         const textBlocks = parsed.message.content.filter(
           (b: { type: string }) => b.type === "text"
         )
@@ -185,9 +205,20 @@ export async function getSessionMessages(slug: string, sessionId: string): Promi
           uuid: parsed.uuid,
         })
       } else if (parsed.type === "assistant" && "message" in parsed) {
+        // Enrich tool_use blocks with their results
+        const enrichedContent = parsed.message.content.map((block) => {
+          if (block.type === "tool_use") {
+            const result = toolResults.get(block.id)
+            if (result) {
+              return { ...block, output: result.content, is_error: result.is_error }
+            }
+          }
+          return block
+        })
+
         messages.push({
           role: "assistant",
-          content: parsed.message.content as ContentBlock[],
+          content: enrichedContent as ContentBlock[],
           timestamp: parsed.timestamp,
           uuid: parsed.uuid,
           model: (parsed.message as { model?: string }).model,
