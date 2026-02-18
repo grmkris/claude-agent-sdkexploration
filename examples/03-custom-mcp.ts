@@ -19,8 +19,6 @@ await using session = unstable_v2_createSession({
   model: "claude-sonnet-4-6",
   executable: 'bun',
   permissionMode: 'bypassPermissions',
-  executableArgs: ['--mcp-config ./.mcp.json']
-
 });
 
 await session.send(
@@ -34,7 +32,7 @@ for await (const message of session.stream()) {
       if (msg.subtype === "init") {
         console.log(msg)
         console.log(`[init] agents: ${msg.agents?.join(", ") ?? "none"}`);
-        console.log(`[init] MCP servers: ${msg.mcp_servers.join(", ")}`);
+        console.log(`[init] MCP servers: ${msg.mcp_servers.map(s => `${s.name} (${s.status})`).join(", ")}`);
         console.log(`[init] tools: ${message.tools.join(", ")}\n`);
       }
       break;

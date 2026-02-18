@@ -8,7 +8,6 @@ import { unstable_v2_createSession } from "@anthropic-ai/claude-agent-sdk";
 import type { SDKMessage } from "./types";
 await using session = unstable_v2_createSession({
   model: "claude-sonnet-4-6",
-  allowedTools: ["Read", "Glob", "Grep"],
 });
 
 await session.send("List all files in this project and briefly describe what each one does. Be concise.");
@@ -18,8 +17,10 @@ for await (const message of session.stream()) {
   switch (msg.type) {
     case "system":
       if (msg.subtype === "init") {
-        console.log(`[init] session=${msg.session_id}`);
-        console.log(`[init] tools: ${msg.tools.join(", ")}\n`);
+        console.log(msg)
+        console.log(`[init] agents: ${msg.agents?.join(", ") ?? "none"}`);
+        console.log(`[init] MCP servers: ${msg.mcp_servers.map(s => `${s.name} (${s.status})`).join(", ")}`);
+        console.log(`[init] tools: ${message.tools.join(", ")}\n`);
       }
       break;
 
