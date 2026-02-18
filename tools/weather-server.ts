@@ -25,12 +25,14 @@ const WEATHER_DATA: Record<string, { temp: number; condition: string }> = {
   "tallinn": { temp: -5, condition: "snowy" },
 };
 
-server.tool(
+server.registerTool(
   "get_weather",
-  "Get current weather for a city",
   {
-    city: z.string().describe("City name"),
-    unit: z.enum(["celsius", "fahrenheit"]).optional().describe("Temperature unit (default: celsius)"),
+    description: "Get current weather for a city",
+    inputSchema: {
+      city: z.string().describe("City name"),
+      unit: z.enum(["celsius", "fahrenheit"]).optional().describe("Temperature unit (default: celsius)"),
+    },
   },
   async ({ city, unit }) => {
     const weather = WEATHER_DATA[city.toLowerCase()] ?? { temp: 20, condition: "clear" };
@@ -50,12 +52,14 @@ server.tool(
   }
 );
 
-server.tool(
+server.registerTool(
   "convert_temperature",
-  "Convert temperature between Celsius and Fahrenheit",
   {
-    value: z.number().describe("Temperature value"),
-    from: z.enum(["celsius", "fahrenheit"]).describe("Source unit"),
+    description: "Convert temperature between Celsius and Fahrenheit",
+    inputSchema: {
+      value: z.number().describe("Temperature value"),
+      from: z.enum(["celsius", "fahrenheit"]).describe("Source unit"),
+    },
   },
   async ({ value, from }) => {
     const converted = from === "celsius"

@@ -5,7 +5,7 @@
  * Run: bun examples/02-file-tools.ts
  */
 import { unstable_v2_createSession } from "@anthropic-ai/claude-agent-sdk";
-
+import type { SDKMessage } from "./types";
 await using session = unstable_v2_createSession({
   model: "claude-sonnet-4-6",
   allowedTools: ["Read", "Glob", "Grep"],
@@ -14,16 +14,17 @@ await using session = unstable_v2_createSession({
 await session.send("List all files in this project and briefly describe what each one does. Be concise.");
 
 for await (const message of session.stream()) {
-  switch (message.type) {
+  const msg = message as SDKMessage;
+  switch (msg.type) {
     case "system":
-      if (message.subtype === "init") {
-        console.log(`[init] session=${message.session_id}`);
-        console.log(`[init] tools: ${message.tools.join(", ")}\n`);
+      if (msg.subtype === "init") {
+        console.log(`[init] session=${msg.session_id}`);
+        console.log(`[init] tools: ${msg.tools.join(", ")}\n`);
       }
       break;
 
     case "assistant":
-      for (const block of message.message.content) {
+      for (const block of msg.message.content) {
         if (block.type === "text") {
           console.log(block.text);
         } else if (block.type === "tool_use") {

@@ -1,75 +1,84 @@
 /**
  * 07 - Sessions Deep Dive
- * Create session, resume it, inspect JSONL file, show CLI interop.
+ * Create session, close it, resume it, then inspect the JSONL file.
  * Uses unstable_v2_createSession + unstable_v2_resumeSession.
  *
  * Run: bun examples/07-sessions.ts
  */
-import { unstable_v2_createSession, unstable_v2_resumeSession } from "@anthropic-ai/claude-agent-sdk";
+import {
+  unstable_v2_createSession,
+  unstable_v2_resumeSession,
+} from "@anthropic-ai/claude-agent-sdk";
 import { homedir } from "os";
+import type { SDKMessage } from "./types";
 
-const sessionOpts = { model: "claude-sonnet-4-6" } as const;
-
-let sessionId: string;
-let sessionCwd: string | undefined;
+function getAssistantText(msg: SDKMessage): string | null {
+  if (msg.type !== "assistant") return null;
+  return msg.message.content // TODO get types for this
+    .filter((block) => block.type === "text")
+    .map((block) => block.text)
+    .join("");
+}
 
 // --- Step 1: Create a session ---
-console.log("=== Step 1: Creating a new V2 session ===\n");
-{
-  await using session = unstable_v2_createSession(sessionOpts);
+console.log("=== Step 1: Create session ===\n");
 
-  await session.send("Remember this: the secret code is ALPHA-7742. Confirm you've noted it.");
+const session = unstable_v2_createSession({ model: "claude-sonnet-4-6" });
 
-  for await (const message of session.stream()) {
-    if (message.type === "system" && message.subtype === "init") {
-      sessionCwd = message.cwd;
-      console.log(`[init] Session ID: ${session.sessionId}`);
-      console.log(`[init] CWD: ${sessionCwd}`);
-    } else if (message.type === "assistant") {
-      for (const block of message.message.content) {
-        if (block.type === "text") console.log(`[assistant] ${block.text}`);
-      }
-    } else if (message.type === "result" && message.subtype === "success") {
-      console.log(`[result] Cost: $${message.total_cost_usd.toFixed(4)}`);
-    }
+await session.send("Remember this number: 42");
+
+let sessionId: string | undefined;
+for await (const msg of session.stream()) {
+  sessionId = msg.session_id;
+  const text = getAssistantText(msg);
+  if (text) console.log(`[assistant] ${text}`);
+  if (msg.type === "result" && msg.subtype === "success") {
+    console.log(`[result] Cost: $${msg.total_cost_usd.toFixed(4)}`);
   }
-
-  sessionId = session.sessionId;
 }
+
+console.log(`\nSession ID: ${sessionId}`);
+session.close();
 
 // --- Step 2: Resume the session ---
-console.log("\n=== Step 2: Resuming via unstable_v2_resumeSession ===\n");
-{
-  await using session = unstable_v2_resumeSession(sessionId, sessionOpts);
+console.log("\n=== Step 2: Resume session ===\n");
 
-  await session.send("What was the secret code I told you earlier?");
+await using resumed = unstable_v2_resumeSession(sessionId!, {
+  model: "claude-sonnet-4-6",
+});
 
-  for await (const message of session.stream()) {
-    if (message.type === "assistant") {
-      for (const block of message.message.content) {
-        if (block.type === "text") console.log(`[assistant] ${block.text}`);
+await resumed.send("What number did I ask you to remember?");
+
+for await (const msgs of resumed.stream()) {
+  const msg = msgs as SDKMessage;
+  switch (msg.type) {
+    case "assistant":
+      for (const block of msg.message.content) {
+        if (block.type === "text") {
+          console.log(block.text);
+        }
       }
-    } else if (message.type === "result" && message.subtype === "success") {
-      console.log(`[result] Cost: $${message.total_cost_usd.toFixed(4)}`);
-    }
+      break;
+    case "result":
+      if (msg.subtype === "success") {
+        console.log(`[result] Cost: $${msg.total_cost_usd.toFixed(4)}`);
+      }
+      break;
   }
 }
+console.log("\n=== Step 3: Session file ===\n");
 
-// --- Step 3: Inspect session file ---
-console.log("\n=== Step 3: Session file inspection ===\n");
-
-const cwd = sessionCwd ?? process.cwd();
+const cwd = process.cwd();
 const slug = cwd.replace(/\//g, "-");
 const sessionFile = `${homedir()}/.claude/projects/${slug}/${sessionId}.jsonl`;
-console.log(`Session file: ${sessionFile}`);
+console.log(`Path: ${sessionFile}`);
 
 const file = Bun.file(sessionFile);
 if (await file.exists()) {
   const content = await file.text();
   const lines = content.trim().split("\n");
-  console.log(`Total lines (messages): ${lines.length}\n`);
+  console.log(`Lines: ${lines.length}\n`);
 
-  console.log("Message types:");
   const typeCounts: Record<string, number> = {};
   for (const line of lines) {
     try {
@@ -82,14 +91,9 @@ if (await file.exists()) {
     console.log(`  ${type}: ${count}`);
   }
 } else {
-  console.log("Session file not found (session persistence may be disabled)");
+  console.log("Session file not found");
 }
 
-// --- Step 4: CLI interop instructions ---
+// --- Step 4: CLI interop ---
 console.log("\n=== Step 4: CLI Interop ===\n");
-console.log("You can resume this exact session in the Claude Code CLI:");
-console.log(`  claude --resume ${sessionId}`);
-console.log("\nOr continue the most recent session:");
-console.log("  claude --continue");
-console.log("\nBrowse all sessions interactively:");
-console.log("  claude --resume");
+console.log(`Resume in CLI: claude --resume ${sessionId}`);

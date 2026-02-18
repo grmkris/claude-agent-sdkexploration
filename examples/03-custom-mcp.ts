@@ -10,26 +10,31 @@
  * Run: bun examples/03-custom-mcp.ts
  */
 import { unstable_v2_createSession } from "@anthropic-ai/claude-agent-sdk";
+import type { SDKMessage } from "./types";
 
+const PROMPT = `What's the weather in San Francisco and Tokyo? Convert both temperatures to Fahrenheit.`;
 console.log("Starting V2 session with custom MCP tools from .mcp.json...\n");
 
 await using session = unstable_v2_createSession({
   model: "claude-sonnet-4-6",
-  allowedTools: ["mcp__weather__get_weather", "mcp__weather__convert_temperature"],
+  executable: 'bun',
+  permissionMode: 'bypassPermissions',
+  executableArgs: ['--mcp-config ./.mcp.json']
+
 });
 
 await session.send(
-  "What's the weather in San Francisco and Tokyo? Convert both temperatures to Fahrenheit."
+  PROMPT
 );
 
 for await (const message of session.stream()) {
-  switch (message.type) {
+  const msg = message as SDKMessage;
+  switch (msg.type) {
     case "system":
-      if (message.subtype === "init") {
-        const mcpStatus = message.mcp_servers
-          .map((s) => `${s.name}(${s.status})`)
-          .join(", ");
-        console.log(`[init] MCP servers: ${mcpStatus}`);
+      if (msg.subtype === "init") {
+        console.log(msg)
+        console.log(`[init] agents: ${msg.agents?.join(", ") ?? "none"}`);
+        console.log(`[init] MCP servers: ${msg.mcp_servers.join(", ")}`);
         console.log(`[init] tools: ${message.tools.join(", ")}\n`);
       }
       break;
@@ -56,3 +61,6 @@ for await (const message of session.stream()) {
       break;
   }
 }
+
+
+console.log(session.sessionId);

@@ -11,7 +11,7 @@
  * Run: bun examples/04-subagents.ts
  */
 import { unstable_v2_createSession } from "@anthropic-ai/claude-agent-sdk";
-
+import type { SDKMessage } from "./types";
 console.log("Starting V2 session with file-based subagents...\n");
 
 await using session = unstable_v2_createSession({
@@ -27,18 +27,19 @@ Use both agents.`
 );
 
 for await (const message of session.stream()) {
-  switch (message.type) {
+  const msg = message as SDKMessage;
+  switch (msg.type) {
     case "system":
-      if (message.subtype === "init") {
-        console.log(`[init] agents: ${message.agents?.join(", ") ?? "none"}`);
-        console.log(`[init] tools: ${message.tools.join(", ")}\n`);
-      } else if (message.subtype === "task_started") {
+      if (msg.subtype === "init") {
+        console.log(`[init] agents: ${msg.agents?.join(", ") ?? "none"}`);
+        console.log(`[init] tools: ${msg.tools.join(", ")}\n`);
+      } else if (msg.subtype === "task_started") {
         console.log(
-          `\n[task_started] ${message.description} (id: ${message.task_id})`
+          `\n[task_started] ${msg.description} (id: ${msg.task_id})`
         );
-      } else if (message.subtype === "task_notification") {
+      } else if (msg.subtype === "task_notification") {
         console.log(
-          `[task_done] ${message.status}: ${message.summary.slice(0, 200)}`
+          `[task_done] ${msg.status}: ${msg.summary.slice(0, 200)}`
         );
       }
       break;
@@ -57,13 +58,13 @@ for await (const message of session.stream()) {
 
     case "result":
       console.log("\n--- Done ---");
-      if (message.subtype === "success") {
+      if (msg.subtype === "success") {
         console.log(
-          `Cost: $${message.total_cost_usd.toFixed(4)} | Turns: ${message.num_turns}`
+          `Cost: $${msg.total_cost_usd.toFixed(4)} | Turns: ${msg.num_turns}`
         );
-        if (message.modelUsage) {
+        if (msg.modelUsage) {
           console.log("Model usage breakdown:");
-          for (const [model, usage] of Object.entries(message.modelUsage)) {
+          for (const [model, usage] of Object.entries(msg.modelUsage)) {
             console.log(
               `  ${model}: $${usage.costUSD.toFixed(4)} (${usage.inputTokens} in / ${usage.outputTokens} out)`
             );
