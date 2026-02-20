@@ -5,6 +5,7 @@ import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/s
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { ProjectSidebar } from "@/components/project-sidebar"
 import { Separator } from "@/components/ui/separator"
+import { ActiveBadge } from "@/components/active-badge"
 import { Providers } from "./providers"
 
 const jetbrainsMono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-sans" })
@@ -41,6 +42,7 @@ export default function RootLayout({
                 <SidebarTrigger className="-ml-1" />
                 <Separator orientation="vertical" className="mr-2 h-4" />
                 <span className="text-xs text-muted-foreground">Claude Explorer</span>
+                <ActiveBadge />
               </header>
               <div className="flex flex-1 flex-col overflow-hidden">
                 {children}

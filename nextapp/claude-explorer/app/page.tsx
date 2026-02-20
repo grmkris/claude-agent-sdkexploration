@@ -21,13 +21,53 @@ function getTimeAgo(timestamp: string): string {
   return new Date(timestamp).toLocaleDateString()
 }
 
+function ActiveNow() {
+  const queryClient = useQueryClient()
+  const { data: sessions } = useQuery({
+    ...orpc.sessions.recent.queryOptions({ input: { limit: 50 } }),
+    refetchInterval: 5000,
+  })
+  const { data: favorites } = useQuery(orpc.favorites.get.queryOptions())
+
+  const toggleSession = useMutation({
+    mutationFn: (id: string) => client.favorites.toggleSession({ id }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: orpc.favorites.get.queryOptions().queryKey }),
+  })
+
+  const activeSessions = sessions?.filter((s) => s.isActive) ?? []
+  if (activeSessions.length === 0) return null
+
+  return (
+    <section className="p-4">
+      <h2 className="mb-3 flex items-center gap-2 text-sm font-medium text-muted-foreground">
+        <span className="h-2 w-2 animate-pulse rounded-full bg-green-500" />
+        Active Now
+      </h2>
+      <div className="flex flex-col gap-2">
+        {activeSessions.map((session) => (
+          <SessionCard
+            key={session.id}
+            session={session}
+            projectSlug={session.projectSlug}
+            projectLabel={session.projectPath.split("/").slice(-2).join("/")}
+            isFavorite={favorites?.sessions.includes(session.id)}
+            onToggleFavorite={() => toggleSession.mutate(session.id)}
+            compact
+          />
+        ))}
+      </div>
+    </section>
+  )
+}
+
 function FavoritesSection() {
   const queryClient = useQueryClient()
   const { data: favorites } = useQuery(orpc.favorites.get.queryOptions())
   const { data: projects } = useQuery(orpc.projects.list.queryOptions())
-  const { data: recentSessions } = useQuery(
-    orpc.sessions.recent.queryOptions({ input: { limit: 50 } })
-  )
+  const { data: recentSessions } = useQuery({
+    ...orpc.sessions.recent.queryOptions({ input: { limit: 50 } }),
+    refetchInterval: 5000,
+  })
 
   const toggleProject = useMutation({
     mutationFn: (slug: string) => client.favorites.toggleProject({ slug }),
@@ -103,9 +143,10 @@ function FavoritesSection() {
 
 function RecentChats() {
   const queryClient = useQueryClient()
-  const { data: sessions, isLoading } = useQuery(
-    orpc.sessions.recent.queryOptions({ input: { limit: 15 } })
-  )
+  const { data: sessions, isLoading } = useQuery({
+    ...orpc.sessions.recent.queryOptions({ input: { limit: 15 } }),
+    refetchInterval: 5000,
+  })
   const { data: favorites } = useQuery(orpc.favorites.get.queryOptions())
 
   const toggleSession = useMutation({
@@ -232,6 +273,7 @@ function ProjectGrid() {
 export default function DashboardPage() {
   return (
     <div>
+      <ActiveNow />
       <FavoritesSection />
       <RecentChats />
       <ProjectGrid />

@@ -8,9 +8,10 @@ import { client } from "@/lib/orpc-client"
 
 export function SessionList({ projectSlug }: { projectSlug: string }) {
   const queryClient = useQueryClient()
-  const { data: sessions, isLoading } = useQuery(
-    orpc.sessions.list.queryOptions({ input: { slug: projectSlug } })
-  )
+  const { data: sessions, isLoading } = useQuery({
+    ...orpc.sessions.list.queryOptions({ input: { slug: projectSlug } }),
+    refetchInterval: 5000,
+  })
   const { data: favorites } = useQuery(orpc.favorites.get.queryOptions())
 
   const toggleSession = useMutation({

@@ -77,9 +77,10 @@ function ProjectListSidebar({ pathname }: { pathname: string }) {
 }
 
 function SessionSidebar({ slug, pathname }: { slug: string; pathname: string }) {
-  const { data: sessions, isLoading } = useQuery(
-    orpc.sessions.list.queryOptions({ input: { slug } })
-  )
+  const { data: sessions, isLoading } = useQuery({
+    ...orpc.sessions.list.queryOptions({ input: { slug } }),
+    refetchInterval: 5000,
+  })
   const shortPath = slug.replace(/-/g, "/").split("/").slice(-2).join("/")
 
   return (
@@ -109,11 +110,14 @@ function SessionSidebar({ slug, pathname }: { slug: string; pathname: string }) 
                   </SidebarMenuItem>
                 ))}
               {sessions?.map((session) => {
-                const isActive = pathname === `/project/${slug}/chat/${session.id}`
+                const isSelected = pathname === `/project/${slug}/chat/${session.id}`
                 return (
                   <SidebarMenuItem key={session.id}>
                     <Link href={`/project/${slug}/chat/${session.id}`}>
-                      <SidebarMenuButton isActive={isActive} tooltip={session.firstPrompt}>
+                      <SidebarMenuButton isActive={isSelected} tooltip={session.firstPrompt}>
+                        {session.isActive && (
+                          <span className="h-2 w-2 shrink-0 rounded-full bg-green-500" />
+                        )}
                         <span className="truncate">{session.firstPrompt}</span>
                       </SidebarMenuButton>
                     </Link>
