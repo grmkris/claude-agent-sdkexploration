@@ -1,17 +1,11 @@
 "use client"
 
 import { useState, useCallback, useRef } from "react"
-import type { ContentBlock } from "@/lib/types"
-
-type StreamMessage = {
-  role: "user" | "assistant"
-  content: ContentBlock[]
-  timestamp: string
-  uuid: string
-}
+import { client } from "@/lib/orpc-client"
+import type { ParsedMessage, SDKMessage } from "@/lib/types"
 
 type UseChatStreamReturn = {
-  messages: StreamMessage[]
+  messages: ParsedMessage[]
   send: (prompt: string) => void
   isStreaming: boolean
   sessionId: string | null
@@ -22,20 +16,20 @@ export function useChatStream(opts?: {
   resume?: string
   cwd?: string
 }): UseChatStreamReturn {
-  const [messages, setMessages] = useState<StreamMessage[]>([])
+  const [messages, setMessages] = useState<ParsedMessage[]>([])
   const [isStreaming, setIsStreaming] = useState(false)
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const abortRef = useRef<AbortController | null>(null)
+  const streamingRef = useRef(false)
 
   const send = useCallback(
     (prompt: string) => {
-      if (isStreaming) return
+      if (streamingRef.current) return
+      streamingRef.current = true
 
-      // Add user message
-      const userMsg: StreamMessage = {
+      const userMsg: ParsedMessage = {
         role: "user",
-        content: [{ type: "text", text: prompt }],
+        content: [{ type: "text", text: prompt, citations: null }],
         timestamp: new Date().toISOString(),
         uuid: crypto.randomUUID(),
       }
@@ -43,18 +37,6 @@ export function useChatStream(opts?: {
       setIsStreaming(true)
       setError(null)
 
-      const params = new URLSearchParams({ prompt })
-      if (opts?.resume || sessionId) {
-        params.set("resume", (opts?.resume || sessionId)!)
-      }
-      if (opts?.cwd) {
-        params.set("cwd", opts.cwd)
-      }
-
-      const controller = new AbortController()
-      abortRef.current = controller
-
-      // Create placeholder assistant message
       const assistantUuid = crypto.randomUUID()
       setMessages((prev) => [
         ...prev,
@@ -66,81 +48,103 @@ export function useChatStream(opts?: {
         },
       ])
 
-      const eventSource = new EventSource(`/api/chat?${params.toString()}`)
+      ;(async () => {
+        try {
+          const iterator = await client.chat({
+            prompt,
+            resume: opts?.resume ?? sessionId ?? undefined,
+            cwd: opts?.cwd,
+          })
 
-      eventSource.addEventListener("init", (e) => {
-        const data = JSON.parse(e.data)
-        setSessionId(data.sessionId)
-      })
-
-      eventSource.addEventListener("text", (e) => {
-        const data = JSON.parse(e.data)
-        setMessages((prev) => {
-          const msgs = [...prev]
-          const last = msgs[msgs.length - 1]
-          if (last?.role === "assistant") {
-            const lastContent = last.content
-            const lastBlock = lastContent[lastContent.length - 1]
-            if (lastBlock?.type === "text") {
-              // Append to existing text block
-              msgs[msgs.length - 1] = {
-                ...last,
-                content: [
-                  ...lastContent.slice(0, -1),
-                  { type: "text", text: lastBlock.text + data.text },
-                ],
-              }
-            } else {
-              // New text block
-              msgs[msgs.length - 1] = {
-                ...last,
-                content: [...lastContent, { type: "text", text: data.text }],
-              }
-            }
+          for await (const msg of iterator) {
+            handleSDKMessage(msg, setSessionId, setMessages, setIsStreaming, setError, streamingRef)
           }
-          return msgs
-        })
-      })
 
-      eventSource.addEventListener("tool_use", (e) => {
-        const data = JSON.parse(e.data)
-        setMessages((prev) => {
-          const msgs = [...prev]
-          const last = msgs[msgs.length - 1]
-          if (last?.role === "assistant") {
-            msgs[msgs.length - 1] = {
-              ...last,
-              content: [
-                ...last.content,
-                { type: "tool_use", id: crypto.randomUUID(), name: data.name, input: data.input },
-              ],
-            }
+          if (streamingRef.current) {
+            setIsStreaming(false)
+            streamingRef.current = false
           }
-          return msgs
-        })
-      })
-
-      eventSource.addEventListener("result", () => {
-        eventSource.close()
-        setIsStreaming(false)
-      })
-
-      eventSource.addEventListener("error", (e) => {
-        if (e instanceof MessageEvent) {
-          const data = JSON.parse(e.data)
-          setError(data.message)
+        } catch (err) {
+          setError(String(err))
+          setIsStreaming(false)
+          streamingRef.current = false
         }
-        eventSource.close()
-        setIsStreaming(false)
-      })
-
-      eventSource.onerror = () => {
-        eventSource.close()
-        setIsStreaming(false)
-      }
+      })()
     },
-    [isStreaming, sessionId, opts?.resume, opts?.cwd]
+    [sessionId, opts?.resume, opts?.cwd]
   )
 
   return { messages, send, isStreaming, sessionId, error }
+}
+
+function handleSDKMessage(
+  msg: SDKMessage,
+  setSessionId: (id: string) => void,
+  setMessages: React.Dispatch<React.SetStateAction<ParsedMessage[]>>,
+  setIsStreaming: (v: boolean) => void,
+  setError: (v: string | null) => void,
+  streamingRef: React.MutableRefObject<boolean>,
+) {
+  switch (msg.type) {
+    case "system":
+      if (msg.subtype === "init") {
+        setSessionId(msg.session_id)
+      }
+      break
+
+    case "assistant":
+      for (const block of msg.message.content) {
+        if (block.type === "text") {
+          setMessages((prev) => {
+            const msgs = [...prev]
+            const last = msgs[msgs.length - 1]
+            if (last?.role === "assistant") {
+              const lastBlock = last.content[last.content.length - 1]
+              if (lastBlock?.type === "text") {
+                msgs[msgs.length - 1] = {
+                  ...last,
+                  content: [
+                    ...last.content.slice(0, -1),
+                    { type: "text" as const, text: lastBlock.text + block.text, citations: null },
+                  ],
+                }
+              } else {
+                msgs[msgs.length - 1] = {
+                  ...last,
+                  content: [...last.content, { type: "text" as const, text: block.text, citations: block.citations ?? null }],
+                }
+              }
+            }
+            return msgs
+          })
+        } else if (block.type === "tool_use") {
+          setMessages((prev) => {
+            const msgs = [...prev]
+            const last = msgs[msgs.length - 1]
+            if (last?.role === "assistant") {
+              msgs[msgs.length - 1] = {
+                ...last,
+                content: [
+                  ...last.content,
+                  {
+                    type: "tool_use",
+                    id: block.id,
+                    name: block.name,
+                    input: block.input as Record<string, unknown>,
+                  },
+                ],
+              }
+            }
+            return msgs
+          })
+        }
+      }
+      break
+
+    case "result":
+      setIsStreaming(false)
+      streamingRef.current = false
+      break
+
+  }
 }

@@ -3,20 +3,13 @@
 import { useEffect, useRef } from "react"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { MessageBubble } from "./message-bubble"
-import type { ContentBlock } from "@/lib/types"
-
-type Message = {
-  role: "user" | "assistant"
-  content: ContentBlock[]
-  timestamp: string
-  uuid: string
-}
+import type { ParsedMessage } from "@/lib/types"
 
 export function ChatView({
   messages,
   isStreaming,
 }: {
-  messages: Message[]
+  messages: ParsedMessage[]
   isStreaming?: boolean
 }) {
   const bottomRef = useRef<HTMLDivElement>(null)

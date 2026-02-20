@@ -5,6 +5,7 @@ import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/s
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { ProjectSidebar } from "@/components/project-sidebar"
 import { Separator } from "@/components/ui/separator"
+import { Providers } from "./providers"
 
 const jetbrainsMono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-sans" })
 
@@ -31,6 +32,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${jetbrainsMono.variable} dark`}>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+        <Providers>
         <TooltipProvider>
           <SidebarProvider>
             <ProjectSidebar />
@@ -46,6 +48,7 @@ export default function RootLayout({
             </SidebarInset>
           </SidebarProvider>
         </TooltipProvider>
+        </Providers>
       </body>
     </html>
   )

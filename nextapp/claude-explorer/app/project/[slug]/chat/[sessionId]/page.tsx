@@ -1,10 +1,11 @@
 "use client"
 
-import { use, useEffect, useState } from "react"
+import { use } from "react"
+import { useQuery } from "@tanstack/react-query"
 import { ChatView } from "@/components/chat-view"
 import { ChatInput } from "@/components/chat-input"
 import { useChatStream } from "@/hooks/use-chat-stream"
-import type { ChatMessage } from "@/lib/types"
+import { orpc } from "@/lib/orpc"
 
 export default function SessionChatPage({
   params,
@@ -14,27 +15,18 @@ export default function SessionChatPage({
   const { slug, sessionId } = use(params)
   const cwd = slug.replace(/-/g, "/")
 
-  const [history, setHistory] = useState<ChatMessage[]>([])
-  const [historyLoaded, setHistoryLoaded] = useState(false)
+  const { data: history, isLoading } = useQuery(
+    orpc.sessions.messages.queryOptions({ input: { slug, sessionId } })
+  )
 
   const { messages: streamMessages, send, isStreaming, error } = useChatStream({
     resume: sessionId,
     cwd,
   })
 
-  useEffect(() => {
-    fetch(`/api/sessions/${sessionId}/messages?project=${slug}`)
-      .then((r) => r.json())
-      .then((data) => {
-        setHistory(data)
-        setHistoryLoaded(true)
-      })
-      .catch(() => setHistoryLoaded(true))
-  }, [sessionId, slug])
+  const allMessages = [...(history ?? []), ...streamMessages]
 
-  const allMessages = [...history, ...streamMessages]
-
-  if (!historyLoaded) {
+  if (isLoading) {
     return (
       <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground animate-pulse">
         Loading session...

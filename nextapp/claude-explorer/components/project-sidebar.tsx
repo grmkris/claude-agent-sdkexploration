@@ -1,8 +1,8 @@
 "use client"
 
-import { useEffect, useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
+import { useQuery } from "@tanstack/react-query"
 import {
   Sidebar,
   SidebarContent,
@@ -16,12 +16,11 @@ import {
   SidebarMenuSkeleton,
 } from "@/components/ui/sidebar"
 import { Button } from "@/components/ui/button"
-import type { Project, SessionMeta } from "@/lib/types"
+import { orpc } from "@/lib/orpc"
 
 export function ProjectSidebar() {
   const pathname = usePathname()
 
-  // Extract slug from /project/[slug]... paths
   const projectMatch = pathname.match(/^\/project\/([^/]+)/)
   const activeSlug = projectMatch?.[1] ?? null
 
@@ -33,18 +32,7 @@ export function ProjectSidebar() {
 }
 
 function ProjectListSidebar({ pathname }: { pathname: string }) {
-  const [projects, setProjects] = useState<Project[]>([])
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    fetch("/api/projects")
-      .then((r) => r.json())
-      .then((data) => {
-        setProjects(data)
-        setLoading(false)
-      })
-      .catch(() => setLoading(false))
-  }, [])
+  const { data: projects, isLoading } = useQuery(orpc.projects.list.queryOptions())
 
   return (
     <Sidebar>
@@ -58,13 +46,13 @@ function ProjectListSidebar({ pathname }: { pathname: string }) {
           <SidebarGroupLabel>Projects</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {loading &&
+              {isLoading &&
                 Array.from({ length: 6 }).map((_, i) => (
                   <SidebarMenuItem key={i}>
                     <SidebarMenuSkeleton showIcon />
                   </SidebarMenuItem>
                 ))}
-              {projects.map((project) => {
+              {projects?.map((project) => {
                 const shortPath = project.path.split("/").slice(-2).join("/")
                 const isActive = pathname === `/project/${project.slug}`
                 return (
@@ -89,19 +77,10 @@ function ProjectListSidebar({ pathname }: { pathname: string }) {
 }
 
 function SessionSidebar({ slug, pathname }: { slug: string; pathname: string }) {
-  const [sessions, setSessions] = useState<SessionMeta[]>([])
-  const [loading, setLoading] = useState(true)
+  const { data: sessions, isLoading } = useQuery(
+    orpc.sessions.list.queryOptions({ input: { slug } })
+  )
   const shortPath = slug.replace(/-/g, "/").split("/").slice(-2).join("/")
-
-  useEffect(() => {
-    fetch(`/api/projects/${slug}/sessions`)
-      .then((r) => r.json())
-      .then((data) => {
-        setSessions(data)
-        setLoading(false)
-      })
-      .catch(() => setLoading(false))
-  }, [slug])
 
   return (
     <Sidebar>
@@ -123,13 +102,13 @@ function SessionSidebar({ slug, pathname }: { slug: string; pathname: string }) 
           <SidebarGroupLabel>Sessions</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {loading &&
+              {isLoading &&
                 Array.from({ length: 6 }).map((_, i) => (
                   <SidebarMenuItem key={i}>
                     <SidebarMenuSkeleton />
                   </SidebarMenuItem>
                 ))}
-              {sessions.map((session) => {
+              {sessions?.map((session) => {
                 const isActive = pathname === `/project/${slug}/chat/${session.id}`
                 return (
                   <SidebarMenuItem key={session.id}>
@@ -141,7 +120,7 @@ function SessionSidebar({ slug, pathname }: { slug: string; pathname: string }) 
                   </SidebarMenuItem>
                 )
               })}
-              {!loading && sessions.length === 0 && (
+              {!isLoading && (!sessions || sessions.length === 0) && (
                 <div className="px-2 py-4 text-center text-xs text-muted-foreground">
                   No sessions yet
                 </div>
