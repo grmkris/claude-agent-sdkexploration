@@ -71,16 +71,6 @@ function ProjectListSidebar({ pathname }: { pathname: string }) {
           <SidebarGroupContent>
             <SidebarMenu>
               <SidebarMenuItem>
-                <Link href="/root">
-                  <SidebarMenuButton
-                    isActive={pathname.startsWith("/root")}
-                    tooltip="Root workspace"
-                  >
-                    <span>Root</span>
-                  </SidebarMenuButton>
-                </Link>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
                 <Link href="/analytics">
                   <SidebarMenuButton
                     isActive={pathname === "/analytics"}

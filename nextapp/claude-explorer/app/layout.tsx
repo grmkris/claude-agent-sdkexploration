@@ -4,6 +4,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 
 import "./globals.css";
 import { ProjectSidebar } from "@/components/project-sidebar";
+import { SshBadge } from "@/components/ssh-badge";
 import { Separator } from "@/components/ui/separator";
 import {
   SidebarProvider,
@@ -50,6 +51,7 @@ export default function RootLayout({
                   <span className="text-xs text-muted-foreground">
                     Claude Explorer
                   </span>
+                  <SshBadge />
                 </header>
                 <div className="flex flex-1 flex-col overflow-hidden">
                   {children}

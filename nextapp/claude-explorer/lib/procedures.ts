@@ -240,6 +240,7 @@ const tmuxPanesProc = os
 
 const serverConfigProc = os.output(ServerConfigSchema).handler(async () => ({
   sshHost: process.env.SSH_HOST ?? null,
+  homeDir: homedir(),
 }));
 
 // --- Chat ---

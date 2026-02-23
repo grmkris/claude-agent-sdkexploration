@@ -85,6 +85,7 @@ export const AgentMessageSchema = z.object({
 
 export const ServerConfigSchema = z.object({
   sshHost: z.string().nullable(),
+  homeDir: z.string(),
 });
 
 export const TmuxPaneSchema = z.object({
