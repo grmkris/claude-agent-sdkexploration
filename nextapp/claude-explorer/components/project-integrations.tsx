@@ -168,6 +168,14 @@ function AddIntegrationForm({
   const [selectedTeamId, setSelectedTeamId] = useState("");
   const [selectedProjectId, setSelectedProjectId] = useState("");
   const [gitRemoteUrl, setGitRemoteUrl] = useState("");
+  const [selectedApiKeyId, setSelectedApiKeyId] = useState("");
+  const [saveToVault, setSaveToVault] = useState(true);
+  const [vaultLabel, setVaultLabel] = useState("");
+
+  // Vault keys
+  const { data: vaultKeys } = useQuery(orpc.apiKeys.list.queryOptions());
+  const matchingKeys = vaultKeys?.filter((k) => k.provider === type) ?? [];
+  const useVaultKey = selectedApiKeyId !== "";
 
   // Auto-detect gitRemoteUrl from project
   const { data: projects } = useQuery(orpc.projects.list.queryOptions());
@@ -181,13 +189,19 @@ function AddIntegrationForm({
       if (type === "github" && (project?.gitRemoteUrl || gitRemoteUrl)) {
         config.gitRemoteUrl = gitRemoteUrl || project?.gitRemoteUrl;
       }
-      const result = await client.integrations.test({
-        type,
-        token,
-        config: Object.keys(config).length ? config : undefined,
-      });
-      setTestResult(result);
-      if (result.ok && !name) {
+      if (useVaultKey) {
+        // Test via vault key
+        const result = await client.apiKeys.test({ id: selectedApiKeyId });
+        setTestResult(result);
+      } else {
+        const result = await client.integrations.test({
+          type,
+          token,
+          config: Object.keys(config).length ? config : undefined,
+        });
+        setTestResult(result);
+      }
+      if (testResult?.ok !== false && !name) {
         setName(type.charAt(0).toUpperCase() + type.slice(1));
       }
     } catch (e) {
@@ -208,11 +222,27 @@ function AddIntegrationForm({
     if (type === "github")
       config.gitRemoteUrl = gitRemoteUrl || project?.gitRemoteUrl;
 
+    let apiKeyId = useVaultKey ? selectedApiKeyId : undefined;
+
+    // Save to vault if requested
+    if (!useVaultKey && saveToVault && token) {
+      const newKey = await client.apiKeys.create({
+        label: vaultLabel || `${type.charAt(0).toUpperCase() + type.slice(1)} - ${name || slug}`,
+        provider: type,
+        token,
+      });
+      apiKeyId = newKey.id;
+      void queryClient.invalidateQueries({
+        queryKey: orpc.apiKeys.list.queryOptions().queryKey,
+      });
+    }
+
     await client.integrations.create({
       type,
       name: name || type,
       projectSlug: slug,
-      token,
+      ...(apiKeyId ? { apiKeyId } : {}),
+      ...(token && !useVaultKey ? { token } : {}),
       config: Object.keys(config).length ? config : undefined,
     });
     void queryClient.invalidateQueries({
@@ -229,6 +259,7 @@ function AddIntegrationForm({
           onChange={(e) => {
             setType(e.target.value as typeof type);
             setTestResult(null);
+            setSelectedApiKeyId("");
           }}
           className="rounded border bg-background px-2 text-xs"
         >
@@ -236,47 +267,91 @@ function AddIntegrationForm({
           <option value="railway">Railway</option>
           <option value="github">GitHub</option>
         </select>
-        <div className="flex flex-1 flex-col gap-0.5">
-          <Input
-            type="password"
-            placeholder={
-              type === "github" ? "PAT (optional for public)" : "API token"
-            }
-            value={token}
+
+        {matchingKeys.length > 0 ? (
+          <select
+            value={selectedApiKeyId}
             onChange={(e) => {
-              setToken(e.target.value);
+              setSelectedApiKeyId(e.target.value);
               setTestResult(null);
             }}
-            className="text-xs"
-          />
-          <a
-            href={
-              type === "linear"
-                ? "https://linear.app/settings/api"
-                : type === "railway"
-                  ? "https://railway.com/account/tokens"
-                  : "https://github.com/settings/tokens/new"
-            }
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-[10px] text-muted-foreground hover:text-foreground"
+            className="flex-1 rounded border bg-background px-2 text-xs"
           >
-            {type === "linear"
-              ? "Get API key"
-              : type === "railway"
-                ? "Get token"
-                : "Get PAT"}{" "}
-            &rarr;
-          </a>
-        </div>
+            <option value="">Enter new token...</option>
+            {matchingKeys.map((k) => (
+              <option key={k.id} value={k.id}>
+                {k.label}
+              </option>
+            ))}
+          </select>
+        ) : null}
+
+        {!useVaultKey && (
+          <div className="flex flex-1 flex-col gap-0.5">
+            <Input
+              type="password"
+              placeholder={
+                type === "github" ? "PAT (optional for public)" : "API token"
+              }
+              value={token}
+              onChange={(e) => {
+                setToken(e.target.value);
+                setTestResult(null);
+              }}
+              className="text-xs"
+            />
+            <a
+              href={
+                type === "linear"
+                  ? "https://linear.app/settings/api"
+                  : type === "railway"
+                    ? "https://railway.com/account/tokens"
+                    : "https://github.com/settings/tokens/new"
+              }
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[10px] text-muted-foreground hover:text-foreground"
+            >
+              {type === "linear"
+                ? "Get API key"
+                : type === "railway"
+                  ? "Get token"
+                  : "Get PAT"}{" "}
+              &rarr;
+            </a>
+          </div>
+        )}
+
         <Button
           size="sm"
           onClick={handleTest}
-          disabled={testing || (!token && type !== "github")}
+          disabled={
+            testing || (!useVaultKey && !token && type !== "github")
+          }
         >
           {testing ? "..." : "Test"}
         </Button>
       </div>
+
+      {!useVaultKey && token && (
+        <label className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+          <input
+            type="checkbox"
+            checked={saveToVault}
+            onChange={(e) => setSaveToVault(e.target.checked)}
+            className="h-3 w-3"
+          />
+          Save to vault
+          {saveToVault && (
+            <Input
+              placeholder="Key label"
+              value={vaultLabel}
+              onChange={(e) => setVaultLabel(e.target.value)}
+              className="ml-1 h-5 w-36 text-[10px]"
+            />
+          )}
+        </label>
+      )}
 
       {type === "github" && !project?.gitRemoteUrl && (
         <Input

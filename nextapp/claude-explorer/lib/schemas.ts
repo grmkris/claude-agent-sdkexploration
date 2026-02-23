@@ -132,6 +132,22 @@ export const CronEventSchema = z.object({
   error: z.string().optional(),
 });
 
+export const ApiKeyProviderSchema = z.enum([
+  "anthropic",
+  "linear",
+  "github",
+  "railway",
+  "other",
+]);
+
+export const ApiKeySchema = z.object({
+  id: z.string(),
+  label: z.string(),
+  provider: ApiKeyProviderSchema,
+  token: z.string(),
+  createdAt: z.string(),
+});
+
 export const IntegrationConfigSchema = z.object({
   id: z.string(),
   type: z.enum(["linear", "railway", "github"]),
@@ -140,6 +156,7 @@ export const IntegrationConfigSchema = z.object({
   enabled: z.boolean(),
   createdAt: z.string(),
   auth: z.object({ token: z.string() }),
+  apiKeyId: z.string().optional(),
   config: z.record(z.string(), z.unknown()).optional(),
   lastFetched: z.string().optional(),
   lastError: z.string().optional(),
@@ -177,6 +194,7 @@ export const ExplorerStoreSchema = z.object({
   webhookEvents: z.array(WebhookEventSchema),
   cronEvents: z.array(CronEventSchema),
   integrations: z.array(IntegrationConfigSchema),
+  apiKeys: z.array(ApiKeySchema).optional(),
   rootWorkspace: RootWorkspaceSchema.optional(),
 });
 
@@ -192,6 +210,8 @@ export type WebhookConfig = z.infer<typeof WebhookConfigSchema>;
 export type WebhookEvent = z.infer<typeof WebhookEventSchema>;
 export type CronEvent = z.infer<typeof CronEventSchema>;
 export type ExplorerStore = z.infer<typeof ExplorerStoreSchema>;
+export type ApiKeyProvider = z.infer<typeof ApiKeyProviderSchema>;
+export type ApiKey = z.infer<typeof ApiKeySchema>;
 export type IntegrationConfig = z.infer<typeof IntegrationConfigSchema>;
 export type IntegrationWidget = z.infer<typeof IntegrationWidgetSchema>;
 export type WidgetItem = z.infer<typeof WidgetItemSchema>;

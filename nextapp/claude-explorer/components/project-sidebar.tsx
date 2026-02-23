@@ -90,6 +90,16 @@ function ProjectListSidebar({ pathname }: { pathname: string }) {
                   </SidebarMenuButton>
                 </Link>
               </SidebarMenuItem>
+              <SidebarMenuItem>
+                <Link href="/keys">
+                  <SidebarMenuButton
+                    isActive={pathname === "/keys"}
+                    tooltip="API Key Vault"
+                  >
+                    <span>Keys</span>
+                  </SidebarMenuButton>
+                </Link>
+              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

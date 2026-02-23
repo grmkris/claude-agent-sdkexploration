@@ -1,12 +1,14 @@
 FROM oven/bun:1 AS base
 
 # Install runtime deps + Tailscale
-RUN apt-get update && apt-get install -y dumb-init curl \
+RUN apt-get update && apt-get install -y dumb-init curl locales \
     && curl -fsSL https://tailscale.com/install.sh | sh \
+    && sed -i '/en_GB.UTF-8/s/^# //g' /etc/locale.gen && locale-gen \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Claude CLI
 RUN curl -fsSL https://claude.ai/install.sh | bash
+ENV PATH="/root/.claude/bin:$PATH"
 
 WORKDIR /app
 

@@ -11,6 +11,7 @@ import type {
   WebhookEvent,
   CronEvent,
   IntegrationConfig,
+  ApiKey,
 } from "./types";
 
 function getStorePath() {
@@ -33,6 +34,7 @@ const EMPTY_STORE: ExplorerStore = {
   webhookEvents: [],
   cronEvents: [],
   integrations: [],
+  apiKeys: [],
   rootWorkspace: { primarySessionId: null },
 };
 
@@ -370,6 +372,59 @@ export async function updateIntegrationError(
   integration.lastError = error ?? undefined;
   integration.lastFetched = new Date().toISOString();
   await writeStore(store);
+}
+
+// --- API Keys ---
+
+export async function getApiKeys(): Promise<ApiKey[]> {
+  const store = await readStore();
+  return store.apiKeys ?? [];
+}
+
+export async function getApiKey(id: string): Promise<ApiKey | null> {
+  const store = await readStore();
+  return (store.apiKeys ?? []).find((k) => k.id === id) ?? null;
+}
+
+export async function addApiKey(key: ApiKey): Promise<ApiKey> {
+  const store = await readStore();
+  if (!store.apiKeys) store.apiKeys = [];
+  store.apiKeys.push(key);
+  await writeStore(store);
+  return key;
+}
+
+export async function updateApiKey(
+  id: string,
+  updates: { label?: string; token?: string }
+): Promise<ApiKey | null> {
+  const store = await readStore();
+  const key = (store.apiKeys ?? []).find((k) => k.id === id);
+  if (!key) return null;
+  if (updates.label !== undefined) key.label = updates.label;
+  if (updates.token !== undefined) key.token = updates.token;
+  await writeStore(store);
+  return key;
+}
+
+export async function removeApiKey(id: string): Promise<boolean> {
+  const store = await readStore();
+  if (!store.apiKeys) return false;
+  const idx = store.apiKeys.findIndex((k) => k.id === id);
+  if (idx < 0) return false;
+  store.apiKeys.splice(idx, 1);
+  await writeStore(store);
+  return true;
+}
+
+export async function resolveIntegrationToken(
+  integration: IntegrationConfig
+): Promise<string> {
+  if (integration.apiKeyId) {
+    const key = await getApiKey(integration.apiKeyId);
+    if (key) return key.token;
+  }
+  return integration.auth.token;
 }
 
 // --- Root Workspace ---

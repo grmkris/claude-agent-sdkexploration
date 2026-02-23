@@ -50,6 +50,12 @@ import {
   removeIntegration,
   toggleIntegration,
   updateIntegrationError,
+  getApiKeys,
+  getApiKey,
+  addApiKey,
+  updateApiKey,
+  removeApiKey,
+  resolveIntegrationToken,
   getRootPrimarySessionId,
   setRootPrimarySessionId,
 } from "./explorer-store";
@@ -76,6 +82,8 @@ import {
   SessionFacetSchema,
   IntegrationConfigSchema,
   IntegrationWidgetSchema,
+  ApiKeySchema,
+  ApiKeyProviderSchema,
 } from "./schemas";
 import { getTmuxPanes } from "./tmux";
 import {
@@ -436,12 +444,18 @@ const createIntegrationProc = os
       type: z.enum(["linear", "railway", "github"]),
       name: z.string(),
       projectSlug: z.string().optional(),
-      token: z.string(),
+      token: z.string().optional(),
+      apiKeyId: z.string().optional(),
       config: z.record(z.string(), z.unknown()).optional(),
     })
   )
   .output(IntegrationConfigSchema.omit({ auth: true }))
   .handler(async ({ input }) => {
+    let token = input.token ?? "";
+    if (input.apiKeyId) {
+      const vaultKey = await getApiKey(input.apiKeyId);
+      if (vaultKey) token = vaultKey.token;
+    }
     const integration = {
       id: crypto.randomUUID(),
       type: input.type,
@@ -449,7 +463,8 @@ const createIntegrationProc = os
       projectSlug: input.projectSlug,
       enabled: true,
       createdAt: new Date().toISOString(),
-      auth: { token: input.token },
+      auth: { token },
+      apiKeyId: input.apiKeyId,
       config: input.config,
     };
     const saved = await addIntegration(integration);
@@ -498,7 +513,9 @@ const integrationDataProc = os
     if (cached) return { widgets: cached };
 
     try {
-      const widgets = await provider.fetchWidgets(integration);
+      const token = await resolveIntegrationToken(integration);
+      const resolved = { ...integration, auth: { token } };
+      const widgets = await provider.fetchWidgets(resolved);
       setCachedWidgets(integration.id, widgets);
       await updateIntegrationError(integration.id, null);
       return { widgets };
@@ -847,10 +864,11 @@ const createWebhookForIntegrationProc = os
     // Attempt auto-creation
     let autoCreated = false;
     let autoCreateError: string | undefined;
+    const resolvedToken = await resolveIntegrationToken(integration);
 
     if (provider === "linear") {
       const result = await autoCreateLinearWebhook({
-        apiKey: integration.auth.token,
+        apiKey: resolvedToken,
         webhookUrl,
         subscribedEvents: input.subscribedEvents,
         teamId: integration.config?.teamId as string | undefined,
@@ -864,7 +882,7 @@ const createWebhookForIntegrationProc = os
       const match = gitUrl?.match(/github\.com[:/]([^/]+)\/([^/.]+)/);
       if (match) {
         const result = await autoCreateGithubWebhook({
-          token: integration.auth.token,
+          token: resolvedToken,
           owner: match[1],
           repo: match[2],
           webhookUrl,
@@ -880,6 +898,105 @@ const createWebhookForIntegrationProc = os
     // Railway: skip auto-creation (no API)
 
     return { webhook, autoCreated, autoCreateError };
+  });
+
+// --- API Keys ---
+
+const ApiKeySafeSchema = ApiKeySchema.omit({ token: true });
+
+const TestResultSchema = z.object({
+  ok: z.boolean(),
+  error: z.string().optional(),
+  meta: z
+    .object({
+      userName: z.string().optional(),
+      teams: z
+        .array(z.object({ id: z.string(), name: z.string() }))
+        .optional(),
+      projects: z
+        .array(z.object({ id: z.string(), name: z.string() }))
+        .optional(),
+    })
+    .optional(),
+});
+
+const listApiKeysProc = os
+  .output(z.array(ApiKeySafeSchema))
+  .handler(async () => {
+    const all = await getApiKeys();
+    return all.map(({ token: _token, ...rest }) => rest);
+  });
+
+const createApiKeyProc = os
+  .input(
+    z.object({
+      label: z.string(),
+      provider: ApiKeyProviderSchema,
+      token: z.string(),
+    })
+  )
+  .output(ApiKeySafeSchema)
+  .handler(async ({ input }) => {
+    const key = {
+      id: crypto.randomUUID(),
+      label: input.label,
+      provider: input.provider,
+      token: input.token,
+      createdAt: new Date().toISOString(),
+    };
+    const saved = await addApiKey(key);
+    const { token: _token, ...rest } = saved;
+    return rest;
+  });
+
+const updateApiKeyProc = os
+  .input(
+    z.object({
+      id: z.string(),
+      label: z.string().optional(),
+      token: z.string().optional(),
+    })
+  )
+  .output(ApiKeySafeSchema.nullable())
+  .handler(async ({ input }) => {
+    const { id, ...updates } = input;
+    const result = await updateApiKey(id, updates);
+    if (!result) return null;
+    const { token: _token, ...rest } = result;
+    return rest;
+  });
+
+const deleteApiKeyProc = os
+  .input(z.object({ id: z.string() }))
+  .output(z.object({ success: z.boolean() }))
+  .handler(async ({ input }) => ({
+    success: await removeApiKey(input.id),
+  }));
+
+const testApiKeyProc = os
+  .input(z.object({ id: z.string() }))
+  .output(TestResultSchema)
+  .handler(async ({ input }) => {
+    const key = await getApiKey(input.id);
+    if (!key) return { ok: false, error: "Key not found" };
+    if (key.provider === "anthropic" || key.provider === "other") {
+      return { ok: true };
+    }
+    const provider = getProvider(key.provider);
+    if (!provider)
+      return { ok: false, error: `Unknown provider: ${key.provider}` };
+    return provider.testConnection(key.token);
+  });
+
+const apiKeyUsageProc = os
+  .output(z.record(z.string(), z.number()))
+  .handler(async () => {
+    const integrations = await getIntegrations();
+    const counts: Record<string, number> = {};
+    for (const i of integrations) {
+      if (i.apiKeyId) counts[i.apiKeyId] = (counts[i.apiKeyId] ?? 0) + 1;
+    }
+    return counts;
   });
 
 export const router = {
@@ -926,6 +1043,14 @@ export const router = {
     data: integrationDataProc,
     test: testIntegrationProc,
     suggest: suggestIntegrationsProc,
+  },
+  apiKeys: {
+    list: listApiKeysProc,
+    create: createApiKeyProc,
+    update: updateApiKeyProc,
+    delete: deleteApiKeyProc,
+    test: testApiKeyProc,
+    usage: apiKeyUsageProc,
   },
   messages: {
     send: sendMessageProc,

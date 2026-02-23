@@ -99,6 +99,8 @@ export type {
   GlobalStats,
   SessionFacet,
   SkillUsageEntry,
+  ApiKey,
+  ApiKeyProvider,
   IntegrationConfig,
   IntegrationWidget,
   WidgetItem,
