@@ -66,7 +66,7 @@ function RootWorkspaceSection() {
             from ~/home and can create projects, manage files, and help you
             build.
           </p>
-          <Link href="/root/chat?onboard=1">
+          <Link href="/chat?onboard=1">
             <Button size="sm">Start Conversation</Button>
           </Link>
         </div>
@@ -99,7 +99,7 @@ function RootWorkspaceSection() {
               {new Date(primarySession.lastModified).toLocaleString()}
             </p>
             <div className="flex gap-2">
-              <Link href={`/root/chat/${primarySession.id}`}>
+              <Link href={`/chat/${primarySession.id}`}>
                 <Button size="sm">Continue</Button>
               </Link>
               <Button
@@ -116,7 +116,7 @@ function RootWorkspaceSection() {
             <p className="text-xs text-muted-foreground">
               No primary session set. Start one or pin an existing session.
             </p>
-            <Link href="/root/chat">
+            <Link href="/chat">
               <Button size="sm">Start Primary Session</Button>
             </Link>
           </div>
@@ -144,7 +144,7 @@ function RootWorkspaceSection() {
                   <span className="inline-block h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-green-500" />
                 )}
                 <Link
-                  href={`/root/chat/${session.id}`}
+                  href={`/chat/${session.id}`}
                   className="min-w-0 flex-1 truncate text-xs hover:underline"
                 >
                   {session.firstPrompt}

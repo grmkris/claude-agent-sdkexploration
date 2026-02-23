@@ -21,7 +21,7 @@ import { orpc } from "@/lib/orpc";
 export function ProjectSidebar() {
   const pathname = usePathname();
 
-  if (pathname.startsWith("/root")) {
+  if (pathname.startsWith("/chat")) {
     return <RootSessionSidebar pathname={pathname} />;
   }
 
@@ -151,7 +151,7 @@ function RootSessionSidebar({ pathname }: { pathname: string }) {
           </div>
         </Link>
         <div className="px-2 py-1 text-sm font-semibold">Root</div>
-        <Link href="/root/chat">
+        <Link href="/chat">
           <Button size="sm" className="w-full">
             New Chat
           </Button>
@@ -168,11 +168,11 @@ function RootSessionSidebar({ pathname }: { pathname: string }) {
                   </SidebarMenuItem>
                 ))}
               {sessions?.map((session) => {
-                const isSelected = pathname === `/root/chat/${session.id}`;
+                const isSelected = pathname === `/chat/${session.id}`;
                 const isPrimary = primary?.sessionId === session.id;
                 return (
                   <SidebarMenuItem key={session.id}>
-                    <Link href={`/root/chat/${session.id}`}>
+                    <Link href={`/chat/${session.id}`}>
                       <SidebarMenuButton
                         isActive={isSelected}
                         tooltip={session.firstPrompt}

@@ -29,6 +29,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gh \
     && rm -rf /var/lib/apt/lists/*
 
+# Set bash as login shell (Tailscale SSH uses login shell; default /bin/sh won't source .bashrc)
+RUN usermod -s /bin/bash bun
+
 # Tailscale (needs root to install)
 RUN curl -fsSL https://tailscale.com/install.sh | sh
 
@@ -42,13 +45,23 @@ RUN curl -fsSL https://claude.ai/install.sh | bash
 ENV PATH="/home/bun/.local/bin:$PATH"
 
 # Persist PATH + locale + shell UX for SSH sessions (Tailscale SSH doesn't inherit Docker ENV)
-RUN echo 'export PATH="/home/bun/.local/bin:$PATH"' >> /home/bun/.bashrc \
-    && echo 'export LANG=en_GB.UTF-8' >> /home/bun/.bashrc \
-    && echo 'export LC_ALL=en_GB.UTF-8' >> /home/bun/.bashrc \
-    && echo 'alias ll="ls -la"' >> /home/bun/.bashrc \
-    && echo 'alias la="ls -A"' >> /home/bun/.bashrc \
-    && echo 'alias l="ls -CF"' >> /home/bun/.bashrc \
-    && echo 'export CLAUDE_CONFIG_DIR=/home/bun/.claude' >> /home/bun/.bashrc
+# Uses printf %s to avoid dash echo interpreting \033 as ESC bytes
+RUN printf '%s\n' \
+    'export PATH="/home/bun/.local/bin:$PATH"' \
+    'export LANG=en_GB.UTF-8' \
+    'export LC_ALL=en_GB.UTF-8' \
+    'export CLAUDE_CONFIG_DIR=/home/bun/.claude' \
+    'export PS1='"'"'\[\033[1;32m\]\u\[\033[0m\]@\[\033[1;34m\]claude-explorer\[\033[0m\]:\[\033[1;33m\]\w\[\033[0m\]\$ '"'"'' \
+    'export LS_COLORS='"'"'di=1;34:ln=1;36:so=1;35:pi=33:ex=1;32:bd=1;33:cd=1;33'"'"'' \
+    'alias ls="ls --color=auto"' \
+    'alias ll="ls -la --color=auto"' \
+    'alias la="ls -A --color=auto"' \
+    'alias l="ls -CF --color=auto"' \
+    'alias grep="grep --color=auto"' \
+    > /home/bun/.bashrc
+
+# Safety net: .profile sources .bashrc (for shells that source .profile instead)
+RUN printf '%s\n' '[ -f ~/.bashrc ] && . ~/.bashrc' > /home/bun/.profile
 
 # Entrypoint (changes rarely — cache before source copy)
 USER root

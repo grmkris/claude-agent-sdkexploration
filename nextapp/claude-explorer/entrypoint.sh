@@ -36,12 +36,26 @@ if [ ! -f /home/bun/.bashrc ]; then
 export PATH="/home/bun/.local/bin:$PATH"
 export LANG=en_GB.UTF-8
 export LC_ALL=en_GB.UTF-8
-alias ll="ls -la"
-alias la="ls -A"
-alias l="ls -CF"
 export CLAUDE_CONFIG_DIR=/home/bun/.claude
+
+# Colors + prompt
+export PS1='\[\033[1;32m\]\u\[\033[0m\]@\[\033[1;34m\]claude-explorer\[\033[0m\]:\[\033[1;33m\]\w\[\033[0m\]\$ '
+export LS_COLORS='di=1;34:ln=1;36:so=1;35:pi=33:ex=1;32:bd=1;33:cd=1;33'
+alias ls="ls --color=auto"
+alias ll="ls -la --color=auto"
+alias la="ls -A --color=auto"
+alias l="ls -CF --color=auto"
+alias grep="grep --color=auto"
 BASHRC
     chown bun:bun /home/bun/.bashrc
+fi
+
+# Provision .profile if missing (safety net: sources .bashrc for login shells)
+if [ ! -f /home/bun/.profile ]; then
+    cat > /home/bun/.profile <<'PROFILE'
+[ -f ~/.bashrc ] && . ~/.bashrc
+PROFILE
+    chown bun:bun /home/bun/.profile
 fi
 
 # Install Claude CLI if missing (volume replaces .local/bin from image)
