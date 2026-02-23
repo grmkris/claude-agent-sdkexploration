@@ -255,21 +255,26 @@ const chatProc = os
   )
   .output(eventIterator(z.custom<SDKMessage>()))
   .handler(async function* ({ input }) {
-    const conversation = query({
-      prompt: input.prompt,
-      options: {
-        model: "claude-sonnet-4-6",
-        executable: "bun",
-        permissionMode: "bypassPermissions",
-        allowDangerouslySkipPermissions: true,
+    try {
+      const conversation = query({
+        prompt: input.prompt,
+        options: {
+          model: "claude-sonnet-4-6",
+          executable: "bun",
+          permissionMode: "bypassPermissions",
+          allowDangerouslySkipPermissions: true,
 
-        ...(input.resume ? { resume: input.resume } : {}),
-        ...(input.cwd ? { cwd: input.cwd } : {}),
-      },
-    });
+          ...(input.resume ? { resume: input.resume } : {}),
+          ...(input.cwd ? { cwd: input.cwd } : {}),
+        },
+      });
 
-    for await (const msg of conversation) {
-      yield msg;
+      for await (const msg of conversation) {
+        yield msg;
+      }
+    } catch (err) {
+      console.error("[chat] error:", err);
+      throw err;
     }
   });
 
@@ -750,35 +755,40 @@ const rootChatProc = os
       process.env.EXPLORER_BASE_URL ??
       `http://localhost:${process.env.PORT ?? 3000}`;
 
-    const conversation = query({
-      prompt: input.prompt,
-      options: {
-        model: "claude-sonnet-4-6",
-        permissionMode: "bypassPermissions",
-        allowDangerouslySkipPermissions: true,
-        cwd: homedir(),
-        systemPrompt: {
-          type: "preset",
-          preset: "claude_code",
-          append:
-            "You are the root workspace assistant for Claude Explorer. You have cross-project access via MCP tools (project_list, project_sessions, cron_create, webhook_create, etc). Use them to help manage all projects.",
-        },
-        mcpServers: {
-          "claude-explorer": {
-            command: "bun",
-            args: [explorerServerPath],
-            env: {
-              EXPLORER_BASE_URL: baseUrl,
-              EXPLORER_RPC_URL: `${baseUrl}/rpc`,
+    try {
+      const conversation = query({
+        prompt: input.prompt,
+        options: {
+          model: "claude-sonnet-4-6",
+          permissionMode: "bypassPermissions",
+          allowDangerouslySkipPermissions: true,
+          cwd: homedir(),
+          systemPrompt: {
+            type: "preset",
+            preset: "claude_code",
+            append:
+              "You are the root workspace assistant for Claude Explorer. You have cross-project access via MCP tools (project_list, project_sessions, cron_create, webhook_create, etc). Use them to help manage all projects.",
+          },
+          mcpServers: {
+            "claude-explorer": {
+              command: "bun",
+              args: [explorerServerPath],
+              env: {
+                EXPLORER_BASE_URL: baseUrl,
+                EXPLORER_RPC_URL: `${baseUrl}/rpc`,
+              },
             },
           },
+          ...(input.resume ? { resume: input.resume } : {}),
         },
-        ...(input.resume ? { resume: input.resume } : {}),
-      },
-    });
+      });
 
-    for await (const msg of conversation) {
-      yield msg;
+      for await (const msg of conversation) {
+        yield msg;
+      }
+    } catch (err) {
+      console.error("[rootChat] error:", err);
+      throw err;
     }
   });
 
