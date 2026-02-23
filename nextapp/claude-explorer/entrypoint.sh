@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-# Start Tailscale if auth key present
+# Start Tailscale if auth key present (needs root)
 if [ -n "$TS_AUTHKEY" ]; then
     mkdir -p "${TS_STATE_DIR:-/home/bun/.claude/tailscale}"
     mkdir -p /var/run/tailscale
@@ -26,12 +26,14 @@ if [ -n "$TS_AUTHKEY" ]; then
     echo "[tailscale] up: $(tailscale ip -4)"
 fi
 
-# Start cron-worker in background
-bun cron-worker.ts &
+# Ensure volume dir ownership (Railway volume mounts as root)
+chown -R bun:bun /home/bun/.claude 2>/dev/null || true
+
+# App processes run as bun user
+su -s /bin/bash bun -c "cd /app && bun cron-worker.ts" &
 CRON_PID=$!
 
-# Start Next.js
-bun --bun next start -p ${PORT:-3000} &
+su -s /bin/bash bun -c "cd /app && bun --bun next start -p ${PORT:-3000}" &
 NEXT_PID=$!
 
 # Trap signals to shut down all

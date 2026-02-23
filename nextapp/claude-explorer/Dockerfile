@@ -1,6 +1,6 @@
 FROM oven/bun:1 AS base
 
-# System packages + locale
+# System packages + locale (as root)
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates dumb-init curl locales \
     && sed -i '/en_GB.UTF-8/s/^# //g' /etc/locale.gen && locale-gen \
     && rm -rf /var/lib/apt/lists/*
@@ -29,30 +29,37 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gh \
     && rm -rf /var/lib/apt/lists/*
 
-# Tailscale
+# Tailscale (needs root to install)
 RUN curl -fsSL https://tailscale.com/install.sh | sh
 
-# Claude CLI (installs to ~/.local/bin/claude -> ~/.local/share/claude/versions/*)
+# Allow bun user to run tailscaled via sudo without password
+RUN echo "bun ALL=(root) NOPASSWD: /usr/sbin/tailscaled" >> /etc/sudoers.d/bun-tailscale \
+    && chmod 0440 /etc/sudoers.d/bun-tailscale
+
+# Claude CLI — install as bun user so it goes to /home/bun/.local/bin/
+USER bun
 RUN curl -fsSL https://claude.ai/install.sh | bash
-ENV PATH="/root/.local/bin:$PATH"
+ENV PATH="/home/bun/.local/bin:$PATH"
 
 # Persist PATH + locale for SSH sessions (Tailscale SSH doesn't inherit Docker ENV)
-RUN echo 'export PATH="/root/.local/bin:$PATH"' >> /root/.bashrc \
-    && echo 'export LANG=en_GB.UTF-8' >> /root/.bashrc \
-    && echo 'export LC_ALL=en_GB.UTF-8' >> /root/.bashrc
+RUN echo 'export PATH="/home/bun/.local/bin:$PATH"' >> /home/bun/.bashrc \
+    && echo 'export LANG=en_GB.UTF-8' >> /home/bun/.bashrc \
+    && echo 'export LC_ALL=en_GB.UTF-8' >> /home/bun/.bashrc
 
 # Entrypoint (changes rarely — cache before source copy)
-COPY entrypoint.sh /entrypoint.sh
+USER root
+COPY --chown=bun:bun entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
 WORKDIR /app
 
-# Install deps
-COPY package.json bun.lock ./
+# Install deps as bun user
+COPY --chown=bun:bun package.json bun.lock ./
+USER bun
 RUN bun install --frozen-lockfile
 
 # Copy source + build
-COPY . .
+COPY --chown=bun:bun . .
 RUN bun --bun next build
 
 ENV NODE_ENV=production
@@ -64,5 +71,6 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
     CMD curl -f http://localhost:3000/ || exit 1
 
+USER root
 ENTRYPOINT ["dumb-init", "--"]
 CMD ["/entrypoint.sh"]

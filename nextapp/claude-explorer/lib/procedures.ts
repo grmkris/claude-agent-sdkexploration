@@ -747,13 +747,12 @@ const rootChatProc = os
       "tools",
       "explorer-server.ts"
     );
-    const baseUrl = process.env.EXPLORER_BASE_URL ?? "http://localhost:3000";
+    const baseUrl = process.env.EXPLORER_BASE_URL ?? `http://localhost:${process.env.PORT ?? 3000}`;
 
     const conversation = query({
       prompt: input.prompt,
       options: {
         model: "claude-sonnet-4-6",
-        executable: "bun",
         permissionMode: "bypassPermissions",
         allowDangerouslySkipPermissions: true,
         cwd: homedir(),
@@ -831,7 +830,7 @@ const webhookSetupInstructionsProc = os
         webhookUrl: "",
       };
 
-    const baseUrl = process.env.EXPLORER_BASE_URL ?? "http://localhost:3000";
+    const baseUrl = process.env.EXPLORER_BASE_URL ?? `http://localhost:${process.env.PORT ?? 3000}`;
     const webhookUrl = `${baseUrl}/api/webhooks/${webhook.id}`;
 
     const catalog = getCatalog(webhook.provider);
@@ -933,7 +932,7 @@ const createWebhookForIntegrationProc = os
       subscribedEvents: input.subscribedEvents,
     });
 
-    const baseUrl = process.env.EXPLORER_BASE_URL ?? "http://localhost:3000";
+    const baseUrl = process.env.EXPLORER_BASE_URL ?? `http://localhost:${process.env.PORT ?? 3000}`;
     const webhookUrl = `${baseUrl}/api/webhooks/${webhook.id}`;
 
     // Attempt auto-creation
