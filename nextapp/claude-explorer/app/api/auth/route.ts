@@ -1,9 +1,18 @@
 import { NextRequest, NextResponse } from "next/server"
 
-function hmacSign(message: string, key: string): string {
-  const hasher = new Bun.CryptoHasher("sha256", key)
-  hasher.update(message)
-  return hasher.digest("hex")
+async function hmacSign(message: string, key: string): Promise<string> {
+  const enc = new TextEncoder()
+  const cryptoKey = await crypto.subtle.importKey(
+    "raw",
+    enc.encode(key),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  )
+  const sig = await crypto.subtle.sign("HMAC", cryptoKey, enc.encode(message))
+  return Array.from(new Uint8Array(sig))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("")
 }
 
 const COOKIE_NAME = "auth_session"
@@ -20,7 +29,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Wrong password" }, { status: 401 })
   }
 
-  const token = hmacSign("authenticated", password)
+  const token = await hmacSign("authenticated", password)
   const res = NextResponse.json({ ok: true })
   res.cookies.set(COOKIE_NAME, token, {
     httpOnly: true,
