@@ -9,8 +9,13 @@ if [ -n "$TS_AUTHKEY" ]; then
         --tun=userspace-networking \
         --statedir="${TS_STATE_DIR:-/home/bun/.claude/tailscale}" \
         --socket=/var/run/tailscale/tailscaled.sock &
+    TS_PID=$!
 
-    sleep 2
+    # Wait for tailscaled ready (up to 15s)
+    for i in $(seq 1 30); do
+        tailscale status --socket=/var/run/tailscale/tailscaled.sock >/dev/null 2>&1 && break
+        sleep 0.5
+    done
 
     tailscale up \
         --authkey="$TS_AUTHKEY" \
@@ -30,12 +35,12 @@ bun --bun next start -p ${PORT:-3000} &
 NEXT_PID=$!
 
 # Trap signals to shut down all
-trap "kill $CRON_PID $NEXT_PID 2>/dev/null; exit 0" SIGTERM SIGINT
+trap "kill $TS_PID $CRON_PID $NEXT_PID 2>/dev/null; exit 0" SIGTERM SIGINT
 
 # Wait for either to exit
 wait -n $CRON_PID $NEXT_PID
 EXIT_CODE=$?
 
 # If one dies, kill the other
-kill $CRON_PID $NEXT_PID 2>/dev/null
+kill $TS_PID $CRON_PID $NEXT_PID 2>/dev/null
 exit $EXIT_CODE
