@@ -32,12 +32,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Tailscale
 RUN curl -fsSL https://tailscale.com/install.sh | sh
 
-# Claude CLI
+# Claude CLI (installs to ~/.local/bin/claude -> ~/.local/share/claude/versions/*)
 RUN curl -fsSL https://claude.ai/install.sh | bash
-ENV PATH="/root/.claude/bin:$PATH"
+ENV PATH="/root/.local/bin:$PATH"
 
 # Persist PATH + locale for SSH sessions (Tailscale SSH doesn't inherit Docker ENV)
-RUN echo 'export PATH="/root/.claude/bin:$PATH"' >> /root/.bashrc \
+RUN echo 'export PATH="/root/.local/bin:$PATH"' >> /root/.bashrc \
     && echo 'export LANG=en_GB.UTF-8' >> /root/.bashrc \
     && echo 'export LC_ALL=en_GB.UTF-8' >> /root/.bashrc
 
