@@ -26,20 +26,40 @@ if [ -n "$TS_AUTHKEY" ]; then
     echo "[tailscale] up: $(tailscale ip -4)"
 fi
 
-# Ensure volume dir ownership (Railway volume mounts as root)
-chown -R bun:bun /home/bun/.claude 2>/dev/null || true
+# Ensure skeleton dirs exist (volume starts empty on first mount)
+mkdir -p /home/bun/.claude /home/bun/projects /home/bun/.local/bin
+chown -R bun:bun /home/bun/.claude /home/bun/projects /home/bun/.local
 
-# Provision Claude config from baked-in defaults
+# Provision .bashrc if missing (volume replaces build-time home)
+if [ ! -f /home/bun/.bashrc ]; then
+    cat > /home/bun/.bashrc <<'BASHRC'
+export PATH="/home/bun/.local/bin:$PATH"
+export LANG=en_GB.UTF-8
+export LC_ALL=en_GB.UTF-8
+alias ll="ls -la"
+alias la="ls -A"
+alias l="ls -CF"
+export CLAUDE_CONFIG_DIR=/home/bun/.claude
+BASHRC
+    chown bun:bun /home/bun/.bashrc
+fi
+
+# Install Claude CLI if missing (volume replaces .local/bin from image)
+if [ ! -f /home/bun/.local/bin/claude ]; then
+    su bun -c 'curl -fsSL https://claude.ai/install.sh | bash' || true
+fi
+
+# Provision Claude config — only on first boot
 CONFIG_SRC=/opt/claude-config
 CONFIG_DST=/home/bun/.claude
 
 if [ -d "$CONFIG_SRC" ]; then
-    cp -f "$CONFIG_SRC/settings.json" "$CONFIG_DST/settings.json"
-    cp -f "$CONFIG_SRC/statusline-wrapper.sh" "$CONFIG_DST/statusline-wrapper.sh"
-    cp -f "$CONFIG_SRC/statusline-command.sh" "$CONFIG_DST/statusline-command.sh"
-    chmod +x "$CONFIG_DST/statusline-wrapper.sh" "$CONFIG_DST/statusline-command.sh"
-    chown bun:bun "$CONFIG_DST/settings.json" "$CONFIG_DST/statusline-wrapper.sh" "$CONFIG_DST/statusline-command.sh"
-    echo "[claude-config] status line provisioned"
+    [ -f "$CONFIG_DST/settings.json" ] || cp "$CONFIG_SRC/settings.json" "$CONFIG_DST/settings.json"
+    [ -f "$CONFIG_DST/statusline-wrapper.sh" ] || cp "$CONFIG_SRC/statusline-wrapper.sh" "$CONFIG_DST/statusline-wrapper.sh"
+    [ -f "$CONFIG_DST/statusline-command.sh" ] || cp "$CONFIG_SRC/statusline-command.sh" "$CONFIG_DST/statusline-command.sh"
+    chmod +x "$CONFIG_DST/statusline-wrapper.sh" "$CONFIG_DST/statusline-command.sh" 2>/dev/null
+    chown bun:bun "$CONFIG_DST/settings.json" "$CONFIG_DST/statusline-wrapper.sh" "$CONFIG_DST/statusline-command.sh" 2>/dev/null
+    echo "[claude-config] provisioned"
 fi
 
 # App processes run as root from /app (bun user has no access to /app)
