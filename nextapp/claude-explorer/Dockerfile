@@ -5,6 +5,9 @@ RUN apt-get update && apt-get install -y dumb-init curl \
     && curl -fsSL https://tailscale.com/install.sh | sh \
     && rm -rf /var/lib/apt/lists/*
 
+# Install Claude CLI
+RUN curl -fsSL https://claude.ai/install.sh | bash
+
 WORKDIR /app
 
 # Install deps
@@ -23,6 +26,7 @@ RUN chmod +x /entrypoint.sh
 
 ENV NODE_ENV=production
 ENV HOSTNAME=0.0.0.0
+ENV CLAUDE_CONFIG_DIR=/home/bun/.claude
 
 EXPOSE 3000
 
