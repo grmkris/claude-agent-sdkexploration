@@ -2,7 +2,7 @@
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useRef } from "react";
+import { Suspense, useEffect, useRef } from "react";
 
 import { ChatInput } from "@/components/chat-input";
 import { ChatView } from "@/components/chat-view";
@@ -13,7 +13,7 @@ import { client } from "@/lib/orpc-client";
 const ONBOARD_PROMPT =
   "Introduce yourself briefly. What can you help me with in this workspace? List a few practical things I can ask you to do.";
 
-export default function RootNewChatPage() {
+function RootNewChatContent() {
   const queryClient = useQueryClient();
   const searchParams = useSearchParams();
   const { messages, send, isStreaming, sessionId, error, toolProgress } =
@@ -69,5 +69,13 @@ export default function RootNewChatPage() {
       )}
       <ChatInput onSend={send} disabled={isStreaming} />
     </div>
+  );
+}
+
+export default function RootNewChatPage() {
+  return (
+    <Suspense>
+      <RootNewChatContent />
+    </Suspense>
   );
 }
