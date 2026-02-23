@@ -9,6 +9,9 @@
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import type { SDKMessage } from "./examples/types";
 
+// Strip CLAUDECODE to allow the Agent SDK to spawn inside a Claude Code container
+const { CLAUDECODE: _, ...cleanEnv } = process.env;
+
 const MCP_SERVERS = {
   weather: {
     type: "stdio" as const,
@@ -47,6 +50,7 @@ Bun.serve({
             permissionMode: "bypassPermissions",
             allowDangerouslySkipPermissions: true,
             mcpServers: MCP_SERVERS,
+            env: cleanEnv,
           },
         });
 
