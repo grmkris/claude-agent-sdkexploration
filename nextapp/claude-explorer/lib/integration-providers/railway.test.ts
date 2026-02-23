@@ -6,7 +6,10 @@ async function query(label: string, q: string, vars?: Record<string, unknown>) {
   console.log(`\n--- ${label} ---`);
   const res = await fetch(API, {
     method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${TOKEN}` },
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${TOKEN}`,
+    },
     body: JSON.stringify({ query: q, variables: vars }),
   });
   const json = await res.json();
@@ -15,7 +18,9 @@ async function query(label: string, q: string, vars?: Record<string, unknown>) {
 
 async function test() {
   // Deployments with meta as scalar + staticUrl
-  await query("deployments with meta+url", `
+  await query(
+    "deployments with meta+url",
+    `
     query($projectId: String!) {
       project(id: $projectId) {
         deployments(first: 3) {
@@ -29,7 +34,9 @@ async function test() {
         }
       }
     }
-  `, { projectId: PROJECT_ID });
+  `,
+    { projectId: PROJECT_ID }
+  );
 }
 
 void test();

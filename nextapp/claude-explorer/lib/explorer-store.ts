@@ -33,6 +33,7 @@ const EMPTY_STORE: ExplorerStore = {
   webhookEvents: [],
   cronEvents: [],
   integrations: [],
+  rootWorkspace: { primarySessionId: null },
 };
 
 // mtime-based cache to avoid redundant readFile + JSON.parse
@@ -368,5 +369,24 @@ export async function updateIntegrationError(
   if (!integration) return;
   integration.lastError = error ?? undefined;
   integration.lastFetched = new Date().toISOString();
+  await writeStore(store);
+}
+
+// --- Root Workspace ---
+
+export async function getRootPrimarySessionId(): Promise<string | null> {
+  const store = await readStore();
+  return store.rootWorkspace?.primarySessionId ?? null;
+}
+
+export async function setRootPrimarySessionId(
+  sessionId: string | null
+): Promise<void> {
+  const store = await readStore();
+  if (!store.rootWorkspace) {
+    store.rootWorkspace = { primarySessionId: sessionId };
+  } else {
+    store.rootWorkspace.primarySessionId = sessionId;
+  }
   await writeStore(store);
 }

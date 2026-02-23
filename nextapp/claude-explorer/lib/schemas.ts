@@ -95,7 +95,7 @@ export const TmuxPaneSchema = z.object({
 export const WebhookConfigSchema = z.object({
   id: z.string(),
   name: z.string(),
-  provider: z.enum(["linear", "github", "generic"]),
+  provider: z.enum(["linear", "github", "generic", "railway"]),
   projectSlug: z.string().optional(),
   sessionId: z.string().optional(),
   prompt: z.string(),
@@ -105,6 +105,8 @@ export const WebhookConfigSchema = z.object({
   lastTriggered: z.string().optional(),
   lastStatus: z.enum(["success", "error", "running"]).optional(),
   triggerCount: z.number(),
+  integrationId: z.string().optional(),
+  subscribedEvents: z.array(z.string()).optional(),
 });
 
 export const WebhookEventSchema = z.object({
@@ -150,6 +152,8 @@ export const WidgetItemSchema = z.object({
   status: z.string().optional(),
   statusColor: z.string().optional(),
   url: z.string().optional(),
+  secondaryUrl: z.string().optional(),
+  secondaryLabel: z.string().optional(),
   timestamp: z.string().optional(),
   copyValue: z.string().optional(),
 });
@@ -161,6 +165,10 @@ export const IntegrationWidgetSchema = z.object({
   items: z.array(WidgetItemSchema),
 });
 
+export const RootWorkspaceSchema = z.object({
+  primarySessionId: z.string().nullable(),
+});
+
 export const ExplorerStoreSchema = z.object({
   favorites: FavoritesSchema,
   crons: z.array(CronJobSchema),
@@ -169,6 +177,7 @@ export const ExplorerStoreSchema = z.object({
   webhookEvents: z.array(WebhookEventSchema),
   cronEvents: z.array(CronEventSchema),
   integrations: z.array(IntegrationConfigSchema),
+  rootWorkspace: RootWorkspaceSchema.optional(),
 });
 
 export type Project = z.infer<typeof ProjectSchema>;
@@ -186,6 +195,7 @@ export type ExplorerStore = z.infer<typeof ExplorerStoreSchema>;
 export type IntegrationConfig = z.infer<typeof IntegrationConfigSchema>;
 export type IntegrationWidget = z.infer<typeof IntegrationWidgetSchema>;
 export type WidgetItem = z.infer<typeof WidgetItemSchema>;
+export type RootWorkspace = z.infer<typeof RootWorkspaceSchema>;
 
 // --- Analytics schemas ---
 

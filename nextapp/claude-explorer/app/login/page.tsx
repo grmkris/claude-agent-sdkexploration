@@ -1,34 +1,34 @@
-"use client"
+"use client";
 
-import { useState } from "react"
+import { useState } from "react";
 
 export default function LoginPage() {
-  const [password, setPassword] = useState("")
-  const [error, setError] = useState("")
-  const [loading, setLoading] = useState(false)
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    setError("")
-    setLoading(true)
+    e.preventDefault();
+    setError("");
+    setLoading(true);
 
     try {
       const res = await fetch("/api/auth", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ password }),
-      })
+      });
 
       if (res.ok) {
-        window.location.href = "/"
+        window.location.href = "/";
       } else {
-        setError("Wrong password")
-        setPassword("")
+        setError("Wrong password");
+        setPassword("");
       }
     } catch {
-      setError("Something went wrong")
+      setError("Something went wrong");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
   }
 
@@ -46,9 +46,7 @@ export default function LoginPage() {
           autoFocus
           className="w-full rounded-md border border-border bg-card px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
         />
-        {error && (
-          <p className="text-center text-sm text-red-500">{error}</p>
-        )}
+        {error && <p className="text-center text-sm text-red-500">{error}</p>}
         <button
           type="submit"
           disabled={loading || !password}
@@ -58,5 +56,5 @@ export default function LoginPage() {
         </button>
       </form>
     </div>
-  )
+  );
 }

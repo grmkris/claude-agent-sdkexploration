@@ -441,6 +441,14 @@ export async function listSessions(
   return results.filter((s) => s !== null);
 }
 
+// --- Root workspace sessions (slug: __root__) ---
+
+const ROOT_SLUG = "__root__";
+
+export async function listRootSessions(limit?: number): Promise<SessionMeta[]> {
+  return listSessions(ROOT_SLUG, limit);
+}
+
 // --- Project config reading ---
 
 export async function readProjectMcpConfig(

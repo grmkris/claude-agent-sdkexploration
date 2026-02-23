@@ -68,7 +68,7 @@ interface DeploymentsResponse {
           createdAt: string;
           staticUrl: string | null;
           meta: DeploymentMeta | null;
-          service: { name: string } | null;
+          service: { id: string; name: string } | null;
         };
       }[];
     };
@@ -79,15 +79,32 @@ interface DeploymentsResponse {
 
 const ME_QUERY = gql`
   {
-    me { id name }
-    projects(first: 50) { edges { node { id name } } }
+    me {
+      id
+      name
+    }
+    projects(first: 50) {
+      edges {
+        node {
+          id
+          name
+        }
+      }
+    }
   }
 `;
 
 // Workspace tokens can't query `me`, so fall back to projects-only
 const PROJECTS_QUERY = gql`
   {
-    projects(first: 50) { edges { node { id name } } }
+    projects(first: 50) {
+      edges {
+        node {
+          id
+          name
+        }
+      }
+    }
   }
 `;
 
@@ -100,14 +117,24 @@ const SERVICES_QUERY = gql`
             id
             name
             deployments(first: 1) {
-              edges { node { id status createdAt } }
+              edges {
+                node {
+                  id
+                  status
+                  createdAt
+                }
+              }
             }
             serviceInstances {
               edges {
                 node {
                   domains {
-                    serviceDomains { domain }
-                    customDomains { domain }
+                    serviceDomains {
+                      domain
+                    }
+                    customDomains {
+                      domain
+                    }
                   }
                 }
               }
@@ -125,8 +152,15 @@ const DEPLOYS_QUERY = gql`
       deployments(first: 5) {
         edges {
           node {
-            id status createdAt staticUrl meta
-            service { name }
+            id
+            status
+            createdAt
+            staticUrl
+            meta
+            service {
+              id
+              name
+            }
           }
         }
       }
@@ -168,8 +202,7 @@ export class RailwayProvider implements IntegrationProvider {
 
     // Fall back to workspace token (projects only, no me)
     try {
-      const data =
-        await client.request<ProjectsOnlyResponse>(PROJECTS_QUERY);
+      const data = await client.request<ProjectsOnlyResponse>(PROJECTS_QUERY);
       return {
         ok: true,
         meta: {
@@ -192,7 +225,7 @@ export class RailwayProvider implements IntegrationProvider {
   }
 
   async fetchWidgets(
-    integration: IntegrationConfig,
+    integration: IntegrationConfig
   ): Promise<IntegrationWidget[]> {
     const client = createClient(integration.auth.token);
     const projectId = integration.config?.railwayProjectId as
@@ -225,7 +258,9 @@ export class RailwayProvider implements IntegrationProvider {
           subtitle: domain,
           status,
           statusColor: DEPLOY_COLOR[status] ?? "#6b7280",
-          url: serviceUrl,
+          url: `https://railway.com/project/${projectId}/service/${svc.id}`,
+          secondaryUrl: serviceUrl,
+          secondaryLabel: domain,
           copyValue: serviceUrl,
           timestamp: deploy?.createdAt,
         };
@@ -251,26 +286,29 @@ export class RailwayProvider implements IntegrationProvider {
         const shortHash = meta?.commitHash?.slice(0, 7);
         const commitMsg = meta?.commitMessage?.split("\n")[0];
 
-        // Build subtitle: "abc1234 · author" or just author
-        const subtitleParts = [shortHash, meta?.commitAuthor].filter(Boolean);
-        const subtitle =
-          subtitleParts.length > 0 ? subtitleParts.join(" · ") : undefined;
+        // Primary URL → Railway dashboard service page
+        const serviceId = d.service?.id;
+        const dashboardUrl = serviceId
+          ? `https://railway.com/project/${projectId}/service/${serviceId}`
+          : undefined;
 
-        // Build URL: GitHub commit link if repo+hash, else staticUrl
-        let url: string | undefined;
+        // Secondary URL → GitHub commit link when available
+        let secondaryUrl: string | undefined;
+        let secondaryLabel: string | undefined;
         if (meta?.repo && meta?.commitHash) {
-          url = `https://github.com/${meta.repo}/commit/${meta.commitHash}`;
-        } else if (d.staticUrl) {
-          url = `https://${d.staticUrl}`;
+          secondaryUrl = `https://github.com/${meta.repo}/commit/${meta.commitHash}`;
+          secondaryLabel = shortHash;
         }
 
         return {
           id: d.id,
-          title: commitMsg ?? d.service?.name ?? "Deploy",
-          subtitle,
+          title: d.service?.name ?? "Deploy",
+          subtitle: commitMsg,
           status: d.status,
           statusColor: DEPLOY_COLOR[d.status] ?? "#6b7280",
-          url,
+          url: dashboardUrl,
+          secondaryUrl,
+          secondaryLabel,
           timestamp: d.createdAt,
         };
       });

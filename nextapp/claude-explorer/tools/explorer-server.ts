@@ -232,6 +232,44 @@ server.tool(
   }
 );
 
+// --- Project tools ---
+
+server.tool(
+  "project_list",
+  "List all Claude Code projects with metadata (slug, path, last active, git remote, costs)",
+  {},
+  async () => {
+    const projects = await client.projects.list();
+    return {
+      content: [
+        { type: "text" as const, text: JSON.stringify(projects, null, 2) },
+      ],
+    };
+  }
+);
+
+server.tool(
+  "project_sessions",
+  "List sessions for a specific project",
+  {
+    projectSlug: z
+      .string()
+      .describe("Project slug (path with / replaced by -)"),
+    limit: z
+      .number()
+      .optional()
+      .describe("Max sessions to return (default 30)"),
+  },
+  async ({ projectSlug, limit }) => {
+    const sessions = await client.sessions.list({ slug: projectSlug, limit });
+    return {
+      content: [
+        { type: "text" as const, text: JSON.stringify(sessions, null, 2) },
+      ],
+    };
+  }
+);
+
 // --- Start ---
 
 const transport = new StdioServerTransport();

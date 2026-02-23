@@ -139,10 +139,45 @@ const genericProvider: WebhookProvider = {
   },
 };
 
+const railwayProvider: WebhookProvider = {
+  getSignatureHeader() {
+    return "";
+  },
+
+  verifySignature() {
+    return true; // Railway uses URL-based auth (random UUID in path)
+  },
+
+  extractEventInfo(body) {
+    const eventType = (body.type as string) ?? "unknown";
+    const resource = body.resource as Record<string, unknown> | undefined;
+    const service = resource?.service as Record<string, unknown> | undefined;
+    const serviceName = (service?.name as string) ?? "";
+    const summary = `${eventType}: ${serviceName}`.slice(0, 200);
+    return { eventType, action: eventType, summary };
+  },
+
+  formatPrompt(body, _headers, userPrompt) {
+    const eventType = (body.type as string) ?? "unknown";
+    return [
+      `[Railway Webhook] Event: ${eventType}`,
+      "",
+      "Payload:",
+      "```json",
+      JSON.stringify(body, null, 2),
+      "```",
+      "",
+      "Instructions:",
+      userPrompt,
+    ].join("\n");
+  },
+};
+
 const providers: Record<string, WebhookProvider> = {
   linear: linearProvider,
   github: githubProvider,
   generic: genericProvider,
+  railway: railwayProvider,
 };
 
 export function getProvider(name: string): WebhookProvider {

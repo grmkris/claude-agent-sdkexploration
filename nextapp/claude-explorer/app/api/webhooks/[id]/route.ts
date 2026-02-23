@@ -1,4 +1,5 @@
 import { getWebhook } from "@/lib/explorer-store";
+import { extractEventKey } from "@/lib/webhook-event-catalog";
 import { executeWebhook } from "@/lib/webhook-executor";
 import { getProvider } from "@/lib/webhook-providers";
 
@@ -24,6 +25,14 @@ export async function POST(
     return new Response("Invalid JSON", { status: 400 });
   }
 
+  // Handle GitHub ping event
+  if (
+    webhook.provider === "github" &&
+    request.headers.get("x-github-event") === "ping"
+  ) {
+    return new Response("pong", { status: 200 });
+  }
+
   // Verify signature if secret is configured
   if (webhook.signingSecret) {
     const provider = getProvider(webhook.provider);
@@ -31,6 +40,17 @@ export async function POST(
     const signature = sigHeader ? request.headers.get(sigHeader) : null;
     if (!provider.verifySignature(rawBody, signature, webhook.signingSecret)) {
       return new Response("Invalid signature", { status: 401 });
+    }
+  }
+
+  // Event filtering — only execute if event matches subscribed list
+  if (webhook.subscribedEvents && webhook.subscribedEvents.length > 0) {
+    const eventKey = extractEventKey(webhook.provider, body, request.headers);
+    const matches = webhook.subscribedEvents.some(
+      (e) => e === "*" || e === eventKey
+    );
+    if (!matches) {
+      return new Response("Event filtered", { status: 200 });
     }
   }
 

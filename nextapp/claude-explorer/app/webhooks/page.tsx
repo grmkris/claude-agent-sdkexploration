@@ -14,6 +14,7 @@ import { getTimeAgo } from "@/lib/utils";
 const PROVIDERS = [
   { label: "Linear", value: "linear" },
   { label: "GitHub", value: "github" },
+  { label: "Railway", value: "railway" },
   { label: "Generic", value: "generic" },
 ] as const;
 
@@ -30,9 +31,9 @@ export default function WebhooksPage() {
   });
 
   const [name, setName] = useState("");
-  const [provider, setProvider] = useState<"linear" | "github" | "generic">(
-    "generic"
-  );
+  const [provider, setProvider] = useState<
+    "linear" | "github" | "generic" | "railway"
+  >("generic");
   const [projectSlug, setProjectSlug] = useState("");
   const [sessionId, setSessionId] = useState("");
   const [signingSecret, setSigningSecret] = useState("");
@@ -193,6 +194,16 @@ export default function WebhooksPage() {
                 <Badge variant="outline" className="shrink-0 text-[10px]">
                   {wh.provider}
                 </Badge>
+                {wh.integrationId && (
+                  <Badge variant="secondary" className="shrink-0 text-[10px]">
+                    linked
+                  </Badge>
+                )}
+                {wh.subscribedEvents && wh.subscribedEvents.length > 0 && (
+                  <Badge variant="outline" className="shrink-0 text-[10px]">
+                    {wh.subscribedEvents.length} events
+                  </Badge>
+                )}
                 <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
                   {wh.prompt}
                 </span>

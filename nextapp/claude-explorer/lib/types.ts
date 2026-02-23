@@ -102,6 +102,7 @@ export type {
   IntegrationConfig,
   IntegrationWidget,
   WidgetItem,
+  RootWorkspace,
 } from "./schemas";
 
 export type RawUserMessage = {

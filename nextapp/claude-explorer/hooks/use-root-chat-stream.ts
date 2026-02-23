@@ -12,7 +12,7 @@ import { handleSDKMessage } from "./sdk-message-handler";
 
 export type { ToolProgressEntry };
 
-type UseChatStreamReturn = {
+type UseRootChatStreamReturn = {
   messages: ParsedMessage[];
   send: (prompt: string) => void;
   isStreaming: boolean;
@@ -21,10 +21,9 @@ type UseChatStreamReturn = {
   toolProgress: Map<string, ToolProgressEntry>;
 };
 
-export function useChatStream(opts?: {
+export function useRootChatStream(opts?: {
   resume?: string;
-  cwd?: string;
-}): UseChatStreamReturn {
+}): UseRootChatStreamReturn {
   const [messages, setMessages] = useState<ParsedMessage[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -61,10 +60,9 @@ export function useChatStream(opts?: {
 
       void (async () => {
         try {
-          const iterator = await client.chat({
+          const iterator = await client.rootChat({
             prompt,
             resume: opts?.resume ?? sessionId ?? undefined,
-            cwd: opts?.cwd,
           });
 
           for await (const msg of iterator) {
@@ -91,7 +89,7 @@ export function useChatStream(opts?: {
         }
       })();
     },
-    [sessionId, opts?.resume, opts?.cwd]
+    [sessionId, opts?.resume]
   );
 
   return {

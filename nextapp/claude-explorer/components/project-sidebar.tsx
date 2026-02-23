@@ -21,6 +21,10 @@ import { orpc } from "@/lib/orpc";
 export function ProjectSidebar() {
   const pathname = usePathname();
 
+  if (pathname.startsWith("/root")) {
+    return <RootSessionSidebar pathname={pathname} />;
+  }
+
   const projectMatch = pathname.match(/^\/project\/([^/]+)/);
   const activeSlug = projectMatch?.[1] ?? null;
 
@@ -66,6 +70,16 @@ function ProjectListSidebar({ pathname }: { pathname: string }) {
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>
+              <SidebarMenuItem>
+                <Link href="/root">
+                  <SidebarMenuButton
+                    isActive={pathname.startsWith("/root")}
+                    tooltip="Root workspace"
+                  >
+                    <span>Root</span>
+                  </SidebarMenuButton>
+                </Link>
+              </SidebarMenuItem>
               <SidebarMenuItem>
                 <Link href="/analytics">
                   <SidebarMenuButton
@@ -113,6 +127,79 @@ function ProjectListSidebar({ pathname }: { pathname: string }) {
                   </SidebarMenuItem>
                 );
               })}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+      </SidebarContent>
+    </Sidebar>
+  );
+}
+
+function RootSessionSidebar({ pathname }: { pathname: string }) {
+  const { data: sessions, isLoading } = useQuery({
+    ...orpc.root.sessions.queryOptions({ input: {} }),
+    refetchInterval: 15000,
+  });
+  const { data: primary } = useQuery(orpc.root.primarySession.queryOptions());
+
+  return (
+    <Sidebar>
+      <SidebarHeader>
+        <Link href="/">
+          <div className="px-2 py-1 text-xs text-muted-foreground hover:text-foreground">
+            &larr; All Projects
+          </div>
+        </Link>
+        <div className="px-2 py-1 text-sm font-semibold">Root</div>
+        <Link href="/root/chat">
+          <Button size="sm" className="w-full">
+            New Chat
+          </Button>
+        </Link>
+      </SidebarHeader>
+      <SidebarContent>
+        <SidebarGroup>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {isLoading &&
+                Array.from({ length: 4 }).map((_, i) => (
+                  <SidebarMenuItem key={i}>
+                    <SidebarMenuSkeleton />
+                  </SidebarMenuItem>
+                ))}
+              {sessions?.map((session) => {
+                const isSelected = pathname === `/root/chat/${session.id}`;
+                const isPrimary = primary?.sessionId === session.id;
+                return (
+                  <SidebarMenuItem key={session.id}>
+                    <Link href={`/root/chat/${session.id}`}>
+                      <SidebarMenuButton
+                        isActive={isSelected}
+                        tooltip={session.firstPrompt}
+                      >
+                        {isPrimary && (
+                          <span
+                            className="mr-1 inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-blue-500"
+                            title="Primary"
+                          />
+                        )}
+                        <span className="truncate">{session.firstPrompt}</span>
+                        {session.sessionState === "active" && (
+                          <span
+                            className="ml-auto inline-block h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-green-500"
+                            title="Active"
+                          />
+                        )}
+                      </SidebarMenuButton>
+                    </Link>
+                  </SidebarMenuItem>
+                );
+              })}
+              {!isLoading && (!sessions || sessions.length === 0) && (
+                <div className="px-2 py-4 text-center text-xs text-muted-foreground">
+                  No sessions yet
+                </div>
+              )}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

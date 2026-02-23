@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { CopyButton } from "@/components/copy-button";
+import { IntegrationWebhooks } from "@/components/integration-webhooks";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -77,7 +78,16 @@ function IntegrationWidgets({ integrationId }: { integrationId: string }) {
           )}
           <div className="mt-0.5 flex flex-col gap-0.5">
             {widget.items.map((item) => (
-              <div key={item.id} className="flex items-start gap-1.5 py-0.5 sm:items-center">
+              <div
+                key={item.id}
+                className={`flex items-start gap-1.5 py-0.5 sm:items-center rounded -mx-1 px-1 ${item.url ? "hover:bg-muted/50 cursor-pointer" : ""}`}
+                onClick={
+                  item.url
+                    ? () =>
+                        window.open(item.url, "_blank", "noopener,noreferrer")
+                    : undefined
+                }
+              >
                 {item.statusColor && (
                   <span
                     className="mt-1 h-2 w-2 shrink-0 rounded-full sm:mt-0"
@@ -86,6 +96,17 @@ function IntegrationWidgets({ integrationId }: { integrationId: string }) {
                 )}
                 <div className="min-w-0 flex-1 flex flex-col sm:flex-row sm:items-center sm:gap-1.5">
                   <span className="truncate text-xs">{item.title}</span>
+                  {item.secondaryUrl && item.secondaryLabel && (
+                    <a
+                      href={item.secondaryUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="shrink-0 text-[10px] text-blue-400 hover:underline"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {item.secondaryLabel}
+                    </a>
+                  )}
                   {item.subtitle && (
                     <span className="truncate text-[10px] text-muted-foreground sm:shrink-0">
                       {item.subtitle}
@@ -103,31 +124,12 @@ function IntegrationWidgets({ integrationId }: { integrationId: string }) {
                   </span>
                 )}
                 {item.copyValue && (
-                  <CopyButton text={item.copyValue} className="hidden sm:block" />
-                )}
-                {item.url && (
-                  <a
-                    href={item.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="shrink-0 text-muted-foreground hover:text-foreground"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth={2}
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      className="h-3 w-3"
-                    >
-                      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-                      <polyline points="15 3 21 3 21 9" />
-                      <line x1="10" x2="21" y1="14" y2="3" />
-                    </svg>
-                  </a>
+                  <span onClick={(e) => e.stopPropagation()}>
+                    <CopyButton
+                      text={item.copyValue}
+                      className="hidden sm:block"
+                    />
+                  </span>
                 )}
               </div>
             ))}
@@ -495,6 +497,24 @@ export function ProjectIntegrations({ slug }: { slug: string }) {
                     <Badge variant="outline" className="shrink-0 text-[10px]">
                       {integration.type}
                     </Badge>
+                    {(() => {
+                      const gitUrl = integration.config?.gitRemoteUrl as
+                        | string
+                        | undefined;
+                      return integration.type === "github" && gitUrl ? (
+                        <a
+                          href={gitUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="truncate text-[10px] text-blue-400 hover:underline"
+                        >
+                          {gitUrl.replace(
+                            /^https?:\/\/(www\.)?github\.com\//,
+                            ""
+                          )}
+                        </a>
+                      ) : null;
+                    })()}
                     {integration.lastError && (
                       <span
                         className="text-[10px] text-red-400"
@@ -531,6 +551,11 @@ export function ProjectIntegrations({ slug }: { slug: string }) {
                   {integration.enabled && (
                     <div className="mt-1.5">
                       <IntegrationWidgets integrationId={integration.id} />
+                      <IntegrationWebhooks
+                        integrationId={integration.id}
+                        provider={integration.type}
+                        projectSlug={slug}
+                      />
                     </div>
                   )}
                 </div>

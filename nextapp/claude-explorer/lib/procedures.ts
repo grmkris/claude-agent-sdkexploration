@@ -1,5 +1,7 @@
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import { os, eventIterator } from "@orpc/server";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import { z } from "zod";
 
 import type { SDKMessage } from "./types";
@@ -23,6 +25,7 @@ import {
   readGlobalStats,
   readStatsCache,
   readSessionFacets,
+  listRootSessions,
 } from "./claude-fs";
 import {
   getFavorites,
@@ -47,6 +50,8 @@ import {
   removeIntegration,
   toggleIntegration,
   updateIntegrationError,
+  getRootPrimarySessionId,
+  setRootPrimarySessionId,
 } from "./explorer-store";
 import {
   getProvider,
@@ -73,6 +78,11 @@ import {
   IntegrationWidgetSchema,
 } from "./schemas";
 import { getTmuxPanes } from "./tmux";
+import {
+  getCatalog,
+  autoCreateLinearWebhook,
+  autoCreateGithubWebhook,
+} from "./webhook-event-catalog";
 
 // --- Projects & Sessions ---
 
@@ -252,11 +262,13 @@ const createWebhookProc = os
   .input(
     z.object({
       name: z.string(),
-      provider: z.enum(["linear", "github", "generic"]),
+      provider: z.enum(["linear", "github", "generic", "railway"]),
       projectSlug: z.string().optional(),
       sessionId: z.string().optional(),
       prompt: z.string(),
       signingSecret: z.string().optional(),
+      integrationId: z.string().optional(),
+      subscribedEvents: z.array(z.string()).optional(),
     })
   )
   .output(WebhookConfigSchema)
@@ -272,6 +284,8 @@ const createWebhookProc = os
       enabled: true,
       createdAt: new Date().toISOString(),
       triggerCount: 0,
+      integrationId: input.integrationId,
+      subscribedEvents: input.subscribedEvents,
     };
     return addWebhook(webhook);
   });
@@ -601,6 +615,273 @@ const suggestIntegrationsProc = os
     return suggestions;
   });
 
+// --- Root Workspace ---
+
+const ROOT_SLUG = "__root__";
+
+const rootPrimarySessionProc = os
+  .output(z.object({ sessionId: z.string().nullable() }))
+  .handler(async () => ({
+    sessionId: await getRootPrimarySessionId(),
+  }));
+
+const rootSetPrimaryProc = os
+  .input(z.object({ sessionId: z.string().nullable() }))
+  .handler(async ({ input }) => {
+    await setRootPrimarySessionId(input.sessionId);
+  });
+
+const rootSessionsProc = os
+  .input(z.object({ limit: z.number().optional() }))
+  .output(z.array(SessionMetaSchema))
+  .handler(async ({ input }) => listRootSessions(input.limit));
+
+const rootSessionMessagesProc = os
+  .input(z.object({ sessionId: z.string() }))
+  .output(z.array(ParsedMessageSchema))
+  .handler(async ({ input }) => getSessionMessages(ROOT_SLUG, input.sessionId));
+
+const rootChatProc = os
+  .input(
+    z.object({
+      prompt: z.string(),
+      resume: z.string().optional(),
+    })
+  )
+  .output(eventIterator(z.custom<SDKMessage>()))
+  .handler(async function* ({ input }) {
+    const explorerServerPath = join(
+      process.cwd(),
+      "tools",
+      "explorer-server.ts"
+    );
+    const baseUrl = process.env.EXPLORER_BASE_URL ?? "http://localhost:3000";
+
+    const conversation = query({
+      prompt: input.prompt,
+      options: {
+        model: "claude-sonnet-4-6",
+        executable: "bun",
+        permissionMode: "bypassPermissions",
+        allowDangerouslySkipPermissions: true,
+        cwd: homedir(),
+        systemPrompt: {
+          type: "preset",
+          preset: "claude_code",
+          append:
+            "You are the root workspace assistant for Claude Explorer. You have cross-project access via MCP tools (project_list, project_sessions, cron_create, webhook_create, etc). Use them to help manage all projects.",
+        },
+        mcpServers: {
+          "claude-explorer": {
+            command: "bun",
+            args: [explorerServerPath],
+            env: {
+              EXPLORER_BASE_URL: baseUrl,
+              EXPLORER_RPC_URL: `${baseUrl}/rpc`,
+            },
+          },
+        },
+        ...(input.resume ? { resume: input.resume } : {}),
+      },
+    });
+
+    for await (const msg of conversation) {
+      yield msg;
+    }
+  });
+
+// --- Integration-aware webhooks ---
+
+const WebhookEventDefSchema = z.object({
+  key: z.string(),
+  label: z.string(),
+  description: z.string().optional(),
+  category: z.string(),
+});
+
+const webhookEventCatalogProc = os
+  .input(z.object({ provider: z.string() }))
+  .output(
+    z.object({
+      events: z.array(WebhookEventDefSchema),
+      promptTemplates: z.array(
+        z.object({ label: z.string(), prompt: z.string() })
+      ),
+      verification: z.enum(["hmac-sha256", "none"]),
+    })
+  )
+  .handler(async ({ input }) => {
+    const catalog = getCatalog(input.provider);
+    if (!catalog)
+      return { events: [], promptTemplates: [], verification: "none" as const };
+    return {
+      events: catalog.events,
+      promptTemplates: catalog.promptTemplates,
+      verification: catalog.verification,
+    };
+  });
+
+const webhookSetupInstructionsProc = os
+  .input(z.object({ webhookId: z.string() }))
+  .output(
+    z.object({
+      instructions: z.string(),
+      dashboardUrl: z.string(),
+      webhookUrl: z.string(),
+    })
+  )
+  .handler(async ({ input }) => {
+    const webhook = (await getWebhooks()).find((w) => w.id === input.webhookId);
+    if (!webhook)
+      return {
+        instructions: "Webhook not found",
+        dashboardUrl: "",
+        webhookUrl: "",
+      };
+
+    const baseUrl = process.env.EXPLORER_BASE_URL ?? "http://localhost:3000";
+    const webhookUrl = `${baseUrl}/api/webhooks/${webhook.id}`;
+
+    const catalog = getCatalog(webhook.provider);
+    if (!catalog)
+      return {
+        instructions: `Webhook URL: ${webhookUrl}`,
+        dashboardUrl: "",
+        webhookUrl,
+      };
+
+    // Build setup config from integration if linked
+    let owner: string | undefined;
+    let repo: string | undefined;
+    let railwayProjectId: string | undefined;
+    let teamId: string | undefined;
+
+    if (webhook.integrationId) {
+      const integration = (await getIntegrations()).find(
+        (i) => i.id === webhook.integrationId
+      );
+      if (integration?.config) {
+        const gitUrl = integration.config.gitRemoteUrl as string | undefined;
+        if (gitUrl) {
+          const match = gitUrl.match(/github\.com[:/]([^/]+)\/([^/.]+)/);
+          if (match) {
+            owner = match[1];
+            repo = match[2];
+          }
+        }
+        railwayProjectId = integration.config.railwayProjectId as
+          | string
+          | undefined;
+        teamId = integration.config.teamId as string | undefined;
+      }
+    }
+
+    const setupConfig = {
+      webhookUrl,
+      signingSecret: webhook.signingSecret,
+      owner,
+      repo,
+      railwayProjectId,
+      teamId,
+    };
+
+    return {
+      instructions: catalog.setupInstructions(setupConfig),
+      dashboardUrl: catalog.dashboardUrl(setupConfig),
+      webhookUrl,
+    };
+  });
+
+const createWebhookForIntegrationProc = os
+  .input(
+    z.object({
+      name: z.string(),
+      integrationId: z.string(),
+      subscribedEvents: z.array(z.string()),
+      prompt: z.string(),
+      signingSecret: z.string().optional(),
+      projectSlug: z.string().optional(),
+      sessionId: z.string().optional(),
+    })
+  )
+  .output(
+    z.object({
+      webhook: WebhookConfigSchema,
+      autoCreated: z.boolean(),
+      autoCreateError: z.string().optional(),
+    })
+  )
+  .handler(async ({ input }) => {
+    // Look up integration to get provider + auth
+    const integrations = await getIntegrations();
+    const integration = integrations.find((i) => i.id === input.integrationId);
+    if (!integration) throw new Error("Integration not found");
+
+    const provider = integration.type;
+
+    // Generate signing secret for providers that need it
+    let signingSecret = input.signingSecret;
+    if (!signingSecret && provider !== "railway") {
+      signingSecret = crypto.randomUUID();
+    }
+
+    // Create webhook in store first
+    const webhook = await addWebhook({
+      id: crypto.randomUUID(),
+      name: input.name,
+      provider,
+      projectSlug: input.projectSlug ?? integration.projectSlug,
+      sessionId: input.sessionId,
+      prompt: input.prompt,
+      signingSecret,
+      enabled: true,
+      createdAt: new Date().toISOString(),
+      triggerCount: 0,
+      integrationId: input.integrationId,
+      subscribedEvents: input.subscribedEvents,
+    });
+
+    const baseUrl = process.env.EXPLORER_BASE_URL ?? "http://localhost:3000";
+    const webhookUrl = `${baseUrl}/api/webhooks/${webhook.id}`;
+
+    // Attempt auto-creation
+    let autoCreated = false;
+    let autoCreateError: string | undefined;
+
+    if (provider === "linear") {
+      const result = await autoCreateLinearWebhook({
+        apiKey: integration.auth.token,
+        webhookUrl,
+        subscribedEvents: input.subscribedEvents,
+        teamId: integration.config?.teamId as string | undefined,
+        label: input.name,
+      });
+      autoCreated = result.success;
+      autoCreateError = result.error;
+    } else if (provider === "github") {
+      // Parse owner/repo from integration config
+      const gitUrl = integration.config?.gitRemoteUrl as string | undefined;
+      const match = gitUrl?.match(/github\.com[:/]([^/]+)\/([^/.]+)/);
+      if (match) {
+        const result = await autoCreateGithubWebhook({
+          token: integration.auth.token,
+          owner: match[1],
+          repo: match[2],
+          webhookUrl,
+          subscribedEvents: input.subscribedEvents,
+          secret: signingSecret,
+        });
+        autoCreated = result.success;
+        autoCreateError = result.error;
+      } else {
+        autoCreateError = "Could not parse owner/repo from integration config";
+      }
+    }
+    // Railway: skip auto-creation (no API)
+
+    return { webhook, autoCreated, autoCreateError };
+  });
+
 export const router = {
   projects: {
     list: listProjectsProc,
@@ -633,6 +914,9 @@ export const router = {
     delete: deleteWebhookProc,
     toggle: toggleWebhookProc,
     events: listWebhookEventsProc,
+    createForIntegration: createWebhookForIntegrationProc,
+    eventCatalog: webhookEventCatalogProc,
+    setupInstructions: webhookSetupInstructionsProc,
   },
   integrations: {
     list: listIntegrationsProc,
@@ -656,4 +940,11 @@ export const router = {
     facets: facetsProc,
   },
   chat: chatProc,
+  root: {
+    primarySession: rootPrimarySessionProc,
+    setPrimary: rootSetPrimaryProc,
+    sessions: rootSessionsProc,
+    messages: rootSessionMessagesProc,
+  },
+  rootChat: rootChatProc,
 };
