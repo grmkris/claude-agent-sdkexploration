@@ -11,7 +11,6 @@ import { CopyButton } from "@/components/copy-button";
 import { StarIcon, StarFilledIcon } from "@/components/icons";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
   Card,
   CardHeader,
@@ -19,6 +18,7 @@ import {
   CardDescription,
   CardContent,
 } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Tooltip,
@@ -251,9 +251,11 @@ function TmuxInCard({ panes }: { panes: TmuxPane[] }) {
 }
 
 function NewProjectForm({ onCreated }: { onCreated: (slug: string) => void }) {
-  const [parentDir, setParentDir] = useState("");
+  const [parentDir, setParentDir] = useState("/root/projects");
   const [name, setName] = useState("");
   const [initialPrompt, setInitialPrompt] = useState("");
+
+  const isValidParent = parentDir.startsWith("/");
 
   const createProject = useMutation({
     mutationFn: () =>
@@ -267,12 +269,19 @@ function NewProjectForm({ onCreated }: { onCreated: (slug: string) => void }) {
 
   return (
     <div className="flex flex-col gap-2 rounded border p-3">
-      <Input
-        placeholder="Parent directory (e.g. /Users/me/Code)"
-        value={parentDir}
-        onChange={(e) => setParentDir(e.target.value)}
-        className="text-xs"
-      />
+      <div>
+        <Input
+          placeholder="Parent directory (e.g. /root/projects)"
+          value={parentDir}
+          onChange={(e) => setParentDir(e.target.value)}
+          className="text-xs"
+        />
+        {parentDir && !isValidParent && (
+          <span className="text-[10px] text-destructive">
+            Must be an absolute path (starts with /)
+          </span>
+        )}
+      </div>
       <Input
         placeholder="Project name"
         value={name}
@@ -288,7 +297,9 @@ function NewProjectForm({ onCreated }: { onCreated: (slug: string) => void }) {
       />
       <Button
         size="sm"
-        disabled={!parentDir || !name || createProject.isPending}
+        disabled={
+          !parentDir || !name || !isValidParent || createProject.isPending
+        }
         onClick={() => createProject.mutate()}
       >
         {createProject.isPending ? "Creating..." : "Create"}
@@ -351,7 +362,9 @@ function UnifiedProjectGrid() {
     return (
       <section className="p-4">
         <div className="mb-3 flex items-center gap-2">
-          <h2 className="text-sm font-medium text-muted-foreground">Projects</h2>
+          <h2 className="text-sm font-medium text-muted-foreground">
+            Projects
+          </h2>
           <button
             onClick={() => setShowNewProject(!showNewProject)}
             className="text-[10px] text-muted-foreground hover:text-foreground"

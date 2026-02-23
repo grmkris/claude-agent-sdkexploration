@@ -1,5 +1,6 @@
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import { os, eventIterator } from "@orpc/server";
+import { stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { z } from "zod";
@@ -349,23 +350,34 @@ const createProjectProc = os
   )
   .output(z.object({ slug: z.string(), path: z.string() }))
   .handler(async ({ input }) => {
-    const projectPath = await createProjectDirectory(input.parentDir, input.name);
+    const parentStat = await stat(input.parentDir).catch(() => null);
+    if (!parentStat?.isDirectory()) {
+      throw new Error(`Parent directory does not exist: ${input.parentDir}`);
+    }
+
+    const projectPath = await createProjectDirectory(
+      input.parentDir,
+      input.name
+    );
     invalidateSlugCache();
 
     if (input.initialPrompt) {
-      const conversation = query({
-        prompt: input.initialPrompt,
-        options: {
-          model: "claude-sonnet-4-6",
-          executable: "bun",
-          permissionMode: "bypassPermissions",
-          allowDangerouslySkipPermissions: true,
-          cwd: projectPath,
-        },
-      });
-      // Consume until first assistant message to register project
-      for await (const msg of conversation) {
-        if ("type" in msg && msg.type === "assistant") break;
+      try {
+        const conversation = query({
+          prompt: input.initialPrompt,
+          options: {
+            model: "claude-sonnet-4-6",
+            executable: "bun",
+            permissionMode: "bypassPermissions",
+            allowDangerouslySkipPermissions: true,
+            cwd: projectPath,
+          },
+        });
+        for await (const msg of conversation) {
+          if ("type" in msg && msg.type === "assistant") break;
+        }
+      } catch {
+        // Claude session failed — project dir still created, return slug anyway
       }
     }
 
