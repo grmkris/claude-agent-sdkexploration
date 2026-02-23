@@ -2,7 +2,7 @@ import { query } from "@anthropic-ai/claude-agent-sdk";
 import { os, eventIterator } from "@orpc/server";
 import { stat } from "node:fs/promises";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { join, dirname } from "node:path";
 import { z } from "zod";
 
 import type { SDKMessage } from "./types";
@@ -97,6 +97,10 @@ import {
   autoCreateLinearWebhook,
   autoCreateGithubWebhook,
 } from "./webhook-event-catalog";
+
+const USER_HOME = process.env.CLAUDE_CONFIG_DIR
+  ? dirname(process.env.CLAUDE_CONFIG_DIR)
+  : homedir();
 
 // --- Projects & Sessions ---
 
@@ -240,7 +244,7 @@ const tmuxPanesProc = os
 
 const serverConfigProc = os.output(ServerConfigSchema).handler(async () => ({
   sshHost: process.env.SSH_HOST ?? null,
-  homeDir: homedir(),
+  homeDir: USER_HOME,
 }));
 
 // --- Chat ---
@@ -762,7 +766,7 @@ const rootChatProc = os
           model: "claude-sonnet-4-6",
           permissionMode: "bypassPermissions",
           allowDangerouslySkipPermissions: true,
-          cwd: homedir(),
+          cwd: USER_HOME,
           systemPrompt: {
             type: "preset",
             preset: "claude_code",

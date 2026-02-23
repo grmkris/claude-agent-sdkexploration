@@ -27,12 +27,26 @@ if [ -n "$TS_AUTHKEY" ]; then
 fi
 
 # Ensure skeleton dirs exist (volume starts empty on first mount)
-mkdir -p /home/bun/.claude /home/bun/projects /home/bun/.local/bin
-chown -R bun:bun /home/bun/.claude /home/bun/projects /home/bun/.local
+mkdir -p /home/bun/.claude /home/bun/.local/bin
+chown -R bun:bun /home/bun/.claude /home/bun/.local
 
-# Provision .bashrc if missing (volume replaces build-time home)
-if [ ! -f /home/bun/.bashrc ]; then
-    cat > /home/bun/.bashrc <<'BASHRC'
+# Clean up stale files from earlier deploys (before CLAUDE_CONFIG_DIR was set in shell)
+# These are Claude CLI artifacts that got written to ~ instead of ~/.claude
+for stale in .claude.json .credentials.json history.jsonl explorer.json \
+             settings.json statusline-command.sh statusline-wrapper.sh; do
+    [ -f "/home/bun/$stale" ] && rm -f "/home/bun/$stale"
+done
+for stale_dir in backups cache debug plans plugins session-env shell-snapshots todos; do
+    [ -d "/home/bun/$stale_dir" ] && rm -rf "/home/bun/$stale_dir"
+done
+
+# Clean up Claude CLI session dirs that landed in ~/projects instead of ~/.claude/projects
+for d in /home/bun/projects/-home-bun*; do
+    [ -d "$d" ] && rm -rf "$d"
+done
+
+# Always write .bashrc (we own this file; ensures updates reach existing volumes)
+cat > /home/bun/.bashrc <<'BASHRC'
 export PATH="/home/bun/.local/bin:$PATH"
 export LANG=en_GB.UTF-8
 export LC_ALL=en_GB.UTF-8
@@ -47,16 +61,13 @@ alias la="ls -A --color=auto"
 alias l="ls -CF --color=auto"
 alias grep="grep --color=auto"
 BASHRC
-    chown bun:bun /home/bun/.bashrc
-fi
+chown bun:bun /home/bun/.bashrc
 
-# Provision .profile if missing (safety net: sources .bashrc for login shells)
-if [ ! -f /home/bun/.profile ]; then
-    cat > /home/bun/.profile <<'PROFILE'
+# Always write .profile (sources .bashrc for login shells)
+cat > /home/bun/.profile <<'PROFILE'
 [ -f ~/.bashrc ] && . ~/.bashrc
 PROFILE
-    chown bun:bun /home/bun/.profile
-fi
+chown bun:bun /home/bun/.profile
 
 # Install Claude CLI if missing (volume replaces .local/bin from image)
 if [ ! -f /home/bun/.local/bin/claude ]; then

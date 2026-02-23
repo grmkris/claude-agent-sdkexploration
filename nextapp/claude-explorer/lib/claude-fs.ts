@@ -1,6 +1,6 @@
 import { readdir, stat, readFile, mkdir } from "node:fs/promises";
 import { homedir } from "node:os";
-import { join, isAbsolute } from "node:path";
+import { join, dirname, isAbsolute } from "node:path";
 
 import type {
   Project,
@@ -14,9 +14,12 @@ import type {
   SessionState,
 } from "./types";
 
-const CLAUDE_DIR = join(homedir(), ".claude");
+const CLAUDE_DIR = process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), ".claude");
 const CLAUDE_PROJECTS_DIR = join(CLAUDE_DIR, "projects");
-const CLAUDE_CONFIG_PATH = join(homedir(), ".claude.json");
+const USER_HOME = process.env.CLAUDE_CONFIG_DIR
+  ? dirname(process.env.CLAUDE_CONFIG_DIR)
+  : homedir();
+const CLAUDE_CONFIG_PATH = join(USER_HOME, ".claude.json");
 const STATS_CACHE_PATH = join(CLAUDE_DIR, "stats-cache.json");
 const FACETS_DIR = join(CLAUDE_DIR, "usage-data", "facets");
 

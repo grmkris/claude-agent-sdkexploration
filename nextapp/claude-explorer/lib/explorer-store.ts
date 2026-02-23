@@ -14,17 +14,15 @@ import type {
   ApiKey,
 } from "./types";
 
+const CLAUDE_DIR = process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), ".claude");
+
 function getStorePath() {
   return (
     process.env.EXPLORER_STORE_PATH ??
-    join(homedir(), ".claude", "explorer.json")
+    join(CLAUDE_DIR, "explorer.json")
   );
 }
-const OLD_FAVORITES_PATH = join(
-  homedir(),
-  ".claude",
-  "explorer-favorites.json"
-);
+const OLD_FAVORITES_PATH = join(CLAUDE_DIR, "explorer-favorites.json");
 
 const EMPTY_STORE: ExplorerStore = {
   favorites: { projects: [], sessions: [] },
