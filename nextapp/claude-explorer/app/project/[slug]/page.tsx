@@ -290,6 +290,77 @@ function ProjectSkills({ slug }: { slug: string }) {
   );
 }
 
+// --- Artifact preview overlay ---
+
+const VIEWABLE_EXTENSIONS = new Set([
+  ".html",
+  ".htm",
+  ".svg",
+  ".png",
+  ".jpg",
+  ".jpeg",
+  ".gif",
+  ".webp",
+  ".pdf",
+]);
+
+function isViewable(name: string): boolean {
+  const dot = name.lastIndexOf(".");
+  if (dot === -1) return false;
+  return VIEWABLE_EXTENSIONS.has(name.slice(dot).toLowerCase());
+}
+
+function ArtifactPreview({
+  slug,
+  path,
+  onClose,
+}: {
+  slug: string;
+  path: string;
+  onClose: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col bg-background/95">
+      <div className="flex items-center gap-2 border-b px-4 py-2">
+        <span className="flex-1 truncate text-xs text-muted-foreground font-mono">
+          {path}
+        </span>
+        <a
+          href={`/api/artifacts/${slug}/${encodeURI(path)}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-xs text-muted-foreground hover:text-foreground"
+        >
+          Open in tab
+        </a>
+        <button
+          onClick={onClose}
+          className="text-muted-foreground hover:text-foreground"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={2}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="h-4 w-4"
+          >
+            <path d="M18 6 6 18M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+      <iframe
+        src={`/api/artifacts/${slug}/${encodeURI(path)}`}
+        sandbox="allow-scripts"
+        className="flex-1 w-full border-0"
+        title={path}
+      />
+    </div>
+  );
+}
+
 // --- Recursive file tree ---
 
 type DirEntry = { name: string; isDirectory: boolean; size: number };
@@ -305,6 +376,7 @@ function FileTreeEntries({
   previewPath,
   previewContent,
   onPreview,
+  onOpenArtifact,
 }: {
   entries: DirEntry[];
   slug: string;
@@ -316,6 +388,7 @@ function FileTreeEntries({
   previewPath: string | null;
   previewContent: string | null;
   onPreview: (fullPath: string) => void;
+  onOpenArtifact: (fullPath: string) => void;
 }) {
   return (
     <>
@@ -352,6 +425,31 @@ function FileTreeEntries({
                     <span className="ml-auto text-[10px] text-muted-foreground">
                       {formatSize(entry.size)}
                     </span>
+                  )}
+                  {isViewable(entry.name) && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onOpenArtifact(fullPath);
+                      }}
+                      className="shrink-0 text-muted-foreground opacity-0 hover:text-foreground group-hover:opacity-100"
+                      title="Open in preview"
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth={2}
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className="h-3 w-3"
+                      >
+                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                        <polyline points="15 3 21 3 21 9" />
+                        <line x1="10" x2="21" y1="14" y2="3" />
+                      </svg>
+                    </button>
                   )}
                   <a
                     href={`/api/files?slug=${slug}&path=${encodeURIComponent(fullPath)}`}
@@ -405,6 +503,7 @@ function FileTreeEntries({
                 previewPath={previewPath}
                 previewContent={previewContent}
                 onPreview={onPreview}
+                onOpenArtifact={onOpenArtifact}
               />
             )}
             {entry.isDirectory && isOpen && !children && (
@@ -432,6 +531,7 @@ function ProjectFiles({ slug }: { slug: string }) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [previewPath, setPreviewPath] = useState<string | null>(null);
   const [previewContent, setPreviewContent] = useState<string | null>(null);
+  const [artifactPath, setArtifactPath] = useState<string | null>(null);
 
   const toggleDir = useCallback(
     async (fullPath: string) => {
@@ -504,6 +604,7 @@ function ProjectFiles({ slug }: { slug: string }) {
             previewPath={previewPath}
             previewContent={previewContent}
             onPreview={previewFile}
+            onOpenArtifact={setArtifactPath}
           />
           {entries.length === 0 && (
             <div className="px-2 py-1 text-[10px] text-muted-foreground italic">
@@ -511,6 +612,13 @@ function ProjectFiles({ slug }: { slug: string }) {
             </div>
           )}
         </div>
+      )}
+      {artifactPath && (
+        <ArtifactPreview
+          slug={slug}
+          path={artifactPath}
+          onClose={() => setArtifactPath(null)}
+        />
       )}
     </div>
   );
