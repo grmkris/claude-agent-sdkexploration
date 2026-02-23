@@ -686,12 +686,18 @@ export async function createDirectory(
   subpath: string | undefined,
   name: string
 ): Promise<void> {
-  if (name.includes("..") || name.includes("/") || name.includes("\\") || name.includes("\0"))
+  if (
+    name.includes("..") ||
+    name.includes("/") ||
+    name.includes("\\") ||
+    name.includes("\0")
+  )
     throw new Error("Invalid directory name");
   if (subpath?.includes("..")) throw new Error("Invalid subpath");
 
   const fullPath = join(projectPath, subpath ?? "", name);
-  if (!fullPath.startsWith(projectPath)) throw new Error("Path traversal rejected");
+  if (!fullPath.startsWith(projectPath))
+    throw new Error("Path traversal rejected");
 
   await mkdir(fullPath);
 }
@@ -700,8 +706,14 @@ export async function createProjectDirectory(
   parentDir: string,
   projectName: string
 ): Promise<string> {
-  if (!isAbsolute(parentDir)) throw new Error("Parent directory must be absolute");
-  if (projectName.includes("/") || projectName.includes("\\") || projectName.includes("\0") || projectName.includes(".."))
+  if (!isAbsolute(parentDir))
+    throw new Error("Parent directory must be absolute");
+  if (
+    projectName.includes("/") ||
+    projectName.includes("\\") ||
+    projectName.includes("\0") ||
+    projectName.includes("..")
+  )
     throw new Error("Invalid project name");
 
   const fullPath = join(parentDir, projectName);

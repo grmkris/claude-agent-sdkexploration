@@ -8,6 +8,27 @@ RUN apt-get update && apt-get install -y --no-install-recommends dumb-init curl 
 ENV LANG=en_GB.UTF-8
 ENV LC_ALL=en_GB.UTF-8
 
+# Dev tools for SSH sessions
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git \
+    vim \
+    nano \
+    tmux \
+    htop \
+    less \
+    jq \
+    fzf \
+    procps \
+    man-db \
+    unzip \
+    sudo \
+    iproute2 \
+    dnsutils \
+    lsof \
+    net-tools \
+    gh \
+    && rm -rf /var/lib/apt/lists/*
+
 # Tailscale
 RUN curl -fsSL https://tailscale.com/install.sh | sh
 

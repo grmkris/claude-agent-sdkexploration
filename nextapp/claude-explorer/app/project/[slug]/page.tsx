@@ -503,30 +503,39 @@ function FileTreeEntries({
             )}
             {entry.isDirectory && isOpen && children && (
               <>
-                {newFolderParent === fullPath && onNewFolderNameChange && onNewFolderSubmit && onNewFolderCancel && (
-                  <div
-                    className="flex items-center gap-1 py-0.5"
-                    style={{ paddingLeft: `${(depth + 1) * 16 + 8}px` }}
-                  >
-                    <span className="w-3 shrink-0 text-muted-foreground text-[10px]">+</span>
-                    <input
-                      autoFocus
-                      value={newFolderName ?? ""}
-                      onChange={(e) => onNewFolderNameChange(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" && (newFolderName ?? "").trim()) {
-                          onNewFolderSubmit((newFolderName ?? "").trim());
-                        }
-                        if (e.key === "Escape") onNewFolderCancel();
-                      }}
-                      onBlur={() => {
-                        if (!(newFolderName ?? "").trim()) onNewFolderCancel();
-                      }}
-                      placeholder="folder name..."
-                      className="flex-1 bg-transparent text-xs outline-none"
-                    />
-                  </div>
-                )}
+                {newFolderParent === fullPath &&
+                  onNewFolderNameChange &&
+                  onNewFolderSubmit &&
+                  onNewFolderCancel && (
+                    <div
+                      className="flex items-center gap-1 py-0.5"
+                      style={{ paddingLeft: `${(depth + 1) * 16 + 8}px` }}
+                    >
+                      <span className="w-3 shrink-0 text-muted-foreground text-[10px]">
+                        +
+                      </span>
+                      <input
+                        autoFocus
+                        value={newFolderName ?? ""}
+                        onChange={(e) => onNewFolderNameChange(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (
+                            e.key === "Enter" &&
+                            (newFolderName ?? "").trim()
+                          ) {
+                            onNewFolderSubmit((newFolderName ?? "").trim());
+                          }
+                          if (e.key === "Escape") onNewFolderCancel();
+                        }}
+                        onBlur={() => {
+                          if (!(newFolderName ?? "").trim())
+                            onNewFolderCancel();
+                        }}
+                        placeholder="folder name..."
+                        className="flex-1 bg-transparent text-xs outline-none"
+                      />
+                    </div>
+                  )}
                 <FileTreeEntries
                   entries={children}
                   slug={slug}
@@ -584,7 +593,8 @@ function ProjectFiles({ slug }: { slug: string }) {
     async (dir: string) => {
       if (dir === "") {
         queryClient.invalidateQueries({
-          queryKey: orpc.projects.files.queryOptions({ input: { slug } }).queryKey,
+          queryKey: orpc.projects.files.queryOptions({ input: { slug } })
+            .queryKey,
         });
       } else {
         const fresh = await client.projects.files({ slug, subpath: dir });
@@ -663,7 +673,11 @@ function ProjectFiles({ slug }: { slug: string }) {
 
   const createFolder = useMutation({
     mutationFn: (name: string) =>
-      client.projects.createDir({ slug, subpath: newFolderParent ?? undefined, name }),
+      client.projects.createDir({
+        slug,
+        subpath: newFolderParent ?? undefined,
+        name,
+      }),
     onSuccess: async () => {
       const parent = newFolderParent ?? "";
       await refreshDir(parent);
@@ -727,7 +741,9 @@ function ProjectFiles({ slug }: { slug: string }) {
           <div className="rounded border text-xs">
             {newFolderParent === "" && (
               <div className="flex items-center gap-1 px-2 py-0.5">
-                <span className="w-3 shrink-0 text-muted-foreground text-[10px]">+</span>
+                <span className="w-3 shrink-0 text-muted-foreground text-[10px]">
+                  +
+                </span>
                 <input
                   autoFocus
                   value={newFolderName}

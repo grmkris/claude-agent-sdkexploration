@@ -227,7 +227,9 @@ function AddIntegrationForm({
     // Save to vault if requested
     if (!useVaultKey && saveToVault && token) {
       const newKey = await client.apiKeys.create({
-        label: vaultLabel || `${type.charAt(0).toUpperCase() + type.slice(1)} - ${name || slug}`,
+        label:
+          vaultLabel ||
+          `${type.charAt(0).toUpperCase() + type.slice(1)} - ${name || slug}`,
         provider: type,
         token,
       });
@@ -325,9 +327,7 @@ function AddIntegrationForm({
         <Button
           size="sm"
           onClick={handleTest}
-          disabled={
-            testing || (!useVaultKey && !token && type !== "github")
-          }
+          disabled={testing || (!useVaultKey && !token && type !== "github")}
         >
           {testing ? "..." : "Test"}
         </Button>

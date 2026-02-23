@@ -59,7 +59,12 @@ export async function POST(request: Request) {
     const filename = file.name;
 
     // Security: reject path traversal
-    if (dir.includes("..") || filename.includes("..") || filename.includes("/") || filename.includes("\\")) {
+    if (
+      dir.includes("..") ||
+      filename.includes("..") ||
+      filename.includes("/") ||
+      filename.includes("\\")
+    ) {
       return Response.json({ error: "Invalid path" }, { status: 400 });
     }
 
@@ -74,7 +79,10 @@ export async function POST(request: Request) {
     // Ensure target directory exists
     const dirStat = await stat(targetDir).catch(() => null);
     if (!dirStat?.isDirectory()) {
-      return Response.json({ error: "Target directory not found" }, { status: 404 });
+      return Response.json(
+        { error: "Target directory not found" },
+        { status: 404 }
+      );
     }
 
     await Bun.write(fullPath, await file.arrayBuffer());
