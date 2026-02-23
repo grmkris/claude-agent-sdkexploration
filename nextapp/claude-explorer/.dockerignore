@@ -2,6 +2,7 @@ node_modules
 .next
 .git
 *.md
+!claude-remote-config/**
 .env*
 .turbo
 .cache

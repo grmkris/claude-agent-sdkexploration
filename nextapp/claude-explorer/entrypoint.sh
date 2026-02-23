@@ -29,6 +29,19 @@ fi
 # Ensure volume dir ownership (Railway volume mounts as root)
 chown -R bun:bun /home/bun/.claude 2>/dev/null || true
 
+# Provision Claude config from baked-in defaults
+CONFIG_SRC=/opt/claude-config
+CONFIG_DST=/home/bun/.claude
+
+if [ -d "$CONFIG_SRC" ]; then
+    cp -f "$CONFIG_SRC/settings.json" "$CONFIG_DST/settings.json"
+    cp -f "$CONFIG_SRC/statusline-wrapper.sh" "$CONFIG_DST/statusline-wrapper.sh"
+    cp -f "$CONFIG_SRC/statusline-command.sh" "$CONFIG_DST/statusline-command.sh"
+    chmod +x "$CONFIG_DST/statusline-wrapper.sh" "$CONFIG_DST/statusline-command.sh"
+    chown bun:bun "$CONFIG_DST/settings.json" "$CONFIG_DST/statusline-wrapper.sh" "$CONFIG_DST/statusline-command.sh"
+    echo "[claude-config] status line provisioned"
+fi
+
 # App processes run as bun user
 su -s /bin/bash bun -c "cd /app && bun cron-worker.ts" &
 CRON_PID=$!

@@ -51,6 +51,12 @@ USER root
 COPY --chown=bun:bun entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
+# Claude remote config (provisioned to volume at boot by entrypoint)
+COPY --chown=bun:bun claude-remote-config/ /opt/claude-config/
+
+# Create app dir owned by bun before switching user
+RUN mkdir -p /app && chown bun:bun /app
+
 WORKDIR /app
 
 # Install deps as bun user
