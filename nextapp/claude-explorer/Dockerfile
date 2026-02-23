@@ -1,7 +1,8 @@
 FROM oven/bun:1 AS base
 
-# Install runtime deps for health check + signal handling
+# Install runtime deps + Tailscale
 RUN apt-get update && apt-get install -y dumb-init curl \
+    && curl -fsSL https://tailscale.com/install.sh | sh \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
