@@ -821,9 +821,7 @@ function ProjectTmux({ slug }: { slug: string }) {
     refetchInterval: 30000,
     enabled: showTmux,
   });
-  const { data: serverConfig } = useQuery(
-    orpc.server.config.queryOptions()
-  );
+  const { data: serverConfig } = useQuery(orpc.server.config.queryOptions());
 
   const sshTarget = serverConfig?.sshHost ?? undefined;
   const panes = allPanes?.filter((p) => p.projectSlug === slug) ?? [];
@@ -910,9 +908,7 @@ function TmuxLauncher({ slug }: { slug: string }) {
     ...orpc.projects.list.queryOptions(),
     enabled: showForm,
   });
-  const { data: serverConfig } = useQuery(
-    orpc.server.config.queryOptions()
-  );
+  const { data: serverConfig } = useQuery(orpc.server.config.queryOptions());
   const project = projects?.find((p) => p.slug === slug);
   const [panelCount, setPanelCount] = useState(2);
   const [layout, setLayout] = useState<TmuxLayout>("even-horizontal");

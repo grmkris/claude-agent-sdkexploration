@@ -238,11 +238,9 @@ const tmuxPanesProc = os
 
 // --- Server Config ---
 
-const serverConfigProc = os
-  .output(ServerConfigSchema)
-  .handler(async () => ({
-    sshHost: process.env.SSH_HOST ?? null,
-  }));
+const serverConfigProc = os.output(ServerConfigSchema).handler(async () => ({
+  sshHost: process.env.SSH_HOST ?? null,
+}));
 
 // --- Chat ---
 
@@ -747,7 +745,9 @@ const rootChatProc = os
       "tools",
       "explorer-server.ts"
     );
-    const baseUrl = process.env.EXPLORER_BASE_URL ?? `http://localhost:${process.env.PORT ?? 3000}`;
+    const baseUrl =
+      process.env.EXPLORER_BASE_URL ??
+      `http://localhost:${process.env.PORT ?? 3000}`;
 
     const conversation = query({
       prompt: input.prompt,
@@ -830,7 +830,9 @@ const webhookSetupInstructionsProc = os
         webhookUrl: "",
       };
 
-    const baseUrl = process.env.EXPLORER_BASE_URL ?? `http://localhost:${process.env.PORT ?? 3000}`;
+    const baseUrl =
+      process.env.EXPLORER_BASE_URL ??
+      `http://localhost:${process.env.PORT ?? 3000}`;
     const webhookUrl = `${baseUrl}/api/webhooks/${webhook.id}`;
 
     const catalog = getCatalog(webhook.provider);
@@ -932,7 +934,9 @@ const createWebhookForIntegrationProc = os
       subscribedEvents: input.subscribedEvents,
     });
 
-    const baseUrl = process.env.EXPLORER_BASE_URL ?? `http://localhost:${process.env.PORT ?? 3000}`;
+    const baseUrl =
+      process.env.EXPLORER_BASE_URL ??
+      `http://localhost:${process.env.PORT ?? 3000}`;
     const webhookUrl = `${baseUrl}/api/webhooks/${webhook.id}`;
 
     // Attempt auto-creation
