@@ -41,10 +41,14 @@ USER bun
 RUN curl -fsSL https://claude.ai/install.sh | bash
 ENV PATH="/home/bun/.local/bin:$PATH"
 
-# Persist PATH + locale for SSH sessions (Tailscale SSH doesn't inherit Docker ENV)
+# Persist PATH + locale + shell UX for SSH sessions (Tailscale SSH doesn't inherit Docker ENV)
 RUN echo 'export PATH="/home/bun/.local/bin:$PATH"' >> /home/bun/.bashrc \
     && echo 'export LANG=en_GB.UTF-8' >> /home/bun/.bashrc \
-    && echo 'export LC_ALL=en_GB.UTF-8' >> /home/bun/.bashrc
+    && echo 'export LC_ALL=en_GB.UTF-8' >> /home/bun/.bashrc \
+    && echo 'alias ll="ls -la"' >> /home/bun/.bashrc \
+    && echo 'alias la="ls -A"' >> /home/bun/.bashrc \
+    && echo 'alias l="ls -CF"' >> /home/bun/.bashrc \
+    && echo 'export CLAUDE_CONFIG_DIR=/home/bun/.claude' >> /home/bun/.bashrc
 
 # Entrypoint (changes rarely — cache before source copy)
 USER root
@@ -67,6 +71,15 @@ RUN bun install --frozen-lockfile
 # Copy source + build
 COPY --chown=bun:bun . .
 RUN bun --bun next build
+
+# Lock /app — root-only, bun user has zero access
+USER root
+RUN chown -R root:root /app && chmod -R 700 /app
+
+# Create user workspace skeleton
+RUN mkdir -p /home/bun/projects && chown bun:bun /home/bun/projects
+
+WORKDIR /home/bun
 
 ENV NODE_ENV=production
 ENV HOSTNAME=0.0.0.0

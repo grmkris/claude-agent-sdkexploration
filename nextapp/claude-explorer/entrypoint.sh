@@ -42,12 +42,12 @@ if [ -d "$CONFIG_SRC" ]; then
     echo "[claude-config] status line provisioned"
 fi
 
-# App processes run as bun user (HOME must be explicit — su without -l may not set it)
-export HOME=/home/bun
-su -s /bin/bash bun -c "cd /app && HOME=/home/bun bun cron-worker.ts" &
+# App processes run as root from /app (bun user has no access to /app)
+cd /app
+bun cron-worker.ts &
 CRON_PID=$!
 
-su -s /bin/bash bun -c "cd /app && HOME=/home/bun bun --bun next start -p ${PORT:-3000}" &
+bun --bun next start -p ${PORT:-3000} &
 NEXT_PID=$!
 
 # Trap signals to shut down all
