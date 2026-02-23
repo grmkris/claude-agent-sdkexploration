@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { use, useState, useCallback } from "react";
+import { use, useState, useCallback, useRef } from "react";
 
 import { CopyButton } from "@/components/copy-button";
 import { ProjectIntegrations } from "@/components/project-integrations";
@@ -377,6 +377,11 @@ function FileTreeEntries({
   previewContent,
   onPreview,
   onOpenArtifact,
+  newFolderParent,
+  newFolderName,
+  onNewFolderNameChange,
+  onNewFolderSubmit,
+  onNewFolderCancel,
 }: {
   entries: DirEntry[];
   slug: string;
@@ -389,6 +394,11 @@ function FileTreeEntries({
   previewContent: string | null;
   onPreview: (fullPath: string) => void;
   onOpenArtifact: (fullPath: string) => void;
+  newFolderParent?: string | null;
+  newFolderName?: string;
+  onNewFolderNameChange?: (name: string) => void;
+  onNewFolderSubmit?: (name: string) => void;
+  onNewFolderCancel?: () => void;
 }) {
   return (
     <>
@@ -492,19 +502,50 @@ function FileTreeEntries({
               </div>
             )}
             {entry.isDirectory && isOpen && children && (
-              <FileTreeEntries
-                entries={children}
-                slug={slug}
-                parentPath={fullPath}
-                depth={depth + 1}
-                dirCache={dirCache}
-                expanded={expanded}
-                onToggle={onToggle}
-                previewPath={previewPath}
-                previewContent={previewContent}
-                onPreview={onPreview}
-                onOpenArtifact={onOpenArtifact}
-              />
+              <>
+                {newFolderParent === fullPath && onNewFolderNameChange && onNewFolderSubmit && onNewFolderCancel && (
+                  <div
+                    className="flex items-center gap-1 py-0.5"
+                    style={{ paddingLeft: `${(depth + 1) * 16 + 8}px` }}
+                  >
+                    <span className="w-3 shrink-0 text-muted-foreground text-[10px]">+</span>
+                    <input
+                      autoFocus
+                      value={newFolderName ?? ""}
+                      onChange={(e) => onNewFolderNameChange(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && (newFolderName ?? "").trim()) {
+                          onNewFolderSubmit((newFolderName ?? "").trim());
+                        }
+                        if (e.key === "Escape") onNewFolderCancel();
+                      }}
+                      onBlur={() => {
+                        if (!(newFolderName ?? "").trim()) onNewFolderCancel();
+                      }}
+                      placeholder="folder name..."
+                      className="flex-1 bg-transparent text-xs outline-none"
+                    />
+                  </div>
+                )}
+                <FileTreeEntries
+                  entries={children}
+                  slug={slug}
+                  parentPath={fullPath}
+                  depth={depth + 1}
+                  dirCache={dirCache}
+                  expanded={expanded}
+                  onToggle={onToggle}
+                  previewPath={previewPath}
+                  previewContent={previewContent}
+                  onPreview={onPreview}
+                  onOpenArtifact={onOpenArtifact}
+                  newFolderParent={newFolderParent}
+                  newFolderName={newFolderName}
+                  onNewFolderNameChange={onNewFolderNameChange}
+                  onNewFolderSubmit={onNewFolderSubmit}
+                  onNewFolderCancel={onNewFolderCancel}
+                />
+              </>
             )}
             {entry.isDirectory && isOpen && !children && (
               <div
@@ -522,6 +563,7 @@ function FileTreeEntries({
 }
 
 function ProjectFiles({ slug }: { slug: string }) {
+  const queryClient = useQueryClient();
   const [showFiles, setShowFiles] = useState(false);
   const { data: entries, isLoading } = useQuery({
     ...orpc.projects.files.queryOptions({ input: { slug } }),
@@ -532,6 +574,25 @@ function ProjectFiles({ slug }: { slug: string }) {
   const [previewPath, setPreviewPath] = useState<string | null>(null);
   const [previewContent, setPreviewContent] = useState<string | null>(null);
   const [artifactPath, setArtifactPath] = useState<string | null>(null);
+  const [selectedDir, setSelectedDir] = useState("");
+  const [newFolderParent, setNewFolderParent] = useState<string | null>(null);
+  const [newFolderName, setNewFolderName] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const refreshDir = useCallback(
+    async (dir: string) => {
+      if (dir === "") {
+        queryClient.invalidateQueries({
+          queryKey: orpc.projects.files.queryOptions({ input: { slug } }).queryKey,
+        });
+      } else {
+        const fresh = await client.projects.files({ slug, subpath: dir });
+        setDirCache((prev) => new Map(prev).set(dir, fresh));
+      }
+    },
+    [slug, queryClient]
+  );
 
   const toggleDir = useCallback(
     async (fullPath: string) => {
@@ -541,6 +602,11 @@ function ProjectFiles({ slug }: { slug: string }) {
           next.delete(fullPath);
           return next;
         });
+        // Revert selectedDir to parent or root
+        const parent = fullPath.includes("/")
+          ? fullPath.slice(0, fullPath.lastIndexOf("/"))
+          : "";
+        setSelectedDir(parent);
         return;
       }
       if (!dirCache.has(fullPath)) {
@@ -551,6 +617,7 @@ function ProjectFiles({ slug }: { slug: string }) {
         setDirCache((prev) => new Map(prev).set(fullPath, entries));
       }
       setExpanded((prev) => new Set(prev).add(fullPath));
+      setSelectedDir(fullPath);
     },
     [expanded, dirCache, slug]
   );
@@ -574,6 +641,40 @@ function ProjectFiles({ slug }: { slug: string }) {
     [previewPath, slug]
   );
 
+  const handleUpload = useCallback(
+    async (files: FileList) => {
+      setUploading(true);
+      try {
+        for (const file of Array.from(files)) {
+          const form = new FormData();
+          form.append("slug", slug);
+          form.append("path", selectedDir);
+          form.append("file", file);
+          await fetch("/api/files", { method: "POST", body: form });
+        }
+        await refreshDir(selectedDir);
+      } finally {
+        setUploading(false);
+        if (fileInputRef.current) fileInputRef.current.value = "";
+      }
+    },
+    [slug, selectedDir, refreshDir]
+  );
+
+  const createFolder = useMutation({
+    mutationFn: (name: string) =>
+      client.projects.createDir({ slug, subpath: newFolderParent ?? undefined, name }),
+    onSuccess: async () => {
+      const parent = newFolderParent ?? "";
+      await refreshDir(parent);
+      if (parent && !expanded.has(parent)) {
+        setExpanded((prev) => new Set(prev).add(parent));
+      }
+      setNewFolderParent(null);
+      setNewFolderName("");
+    },
+  });
+
   return (
     <div className="mb-4">
       <button
@@ -592,26 +693,93 @@ function ProjectFiles({ slug }: { slug: string }) {
         </div>
       )}
       {showFiles && entries && (
-        <div className="rounded border text-xs">
-          <FileTreeEntries
-            entries={entries}
-            slug={slug}
-            parentPath=""
-            depth={0}
-            dirCache={dirCache}
-            expanded={expanded}
-            onToggle={toggleDir}
-            previewPath={previewPath}
-            previewContent={previewContent}
-            onPreview={previewFile}
-            onOpenArtifact={setArtifactPath}
-          />
-          {entries.length === 0 && (
-            <div className="px-2 py-1 text-[10px] text-muted-foreground italic">
-              empty
-            </div>
-          )}
-        </div>
+        <>
+          <div className="mb-1 flex items-center gap-2 text-[10px]">
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              className="rounded border px-2 py-0.5 text-muted-foreground hover:bg-accent/50 hover:text-foreground disabled:opacity-50"
+            >
+              {uploading ? "Uploading..." : "Upload"}
+            </button>
+            <button
+              onClick={() => {
+                setNewFolderParent(selectedDir);
+                setNewFolderName("");
+              }}
+              className="rounded border px-2 py-0.5 text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+            >
+              New Folder
+            </button>
+            <span className="text-muted-foreground">
+              in: {selectedDir || "/"}
+            </span>
+            <input
+              type="file"
+              hidden
+              ref={fileInputRef}
+              multiple
+              onChange={(e) => {
+                if (e.target.files?.length) handleUpload(e.target.files);
+              }}
+            />
+          </div>
+          <div className="rounded border text-xs">
+            {newFolderParent === "" && (
+              <div className="flex items-center gap-1 px-2 py-0.5">
+                <span className="w-3 shrink-0 text-muted-foreground text-[10px]">+</span>
+                <input
+                  autoFocus
+                  value={newFolderName}
+                  onChange={(e) => setNewFolderName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && newFolderName.trim()) {
+                      createFolder.mutate(newFolderName.trim());
+                    }
+                    if (e.key === "Escape") {
+                      setNewFolderParent(null);
+                      setNewFolderName("");
+                    }
+                  }}
+                  onBlur={() => {
+                    if (!newFolderName.trim()) {
+                      setNewFolderParent(null);
+                      setNewFolderName("");
+                    }
+                  }}
+                  placeholder="folder name..."
+                  className="flex-1 bg-transparent text-xs outline-none"
+                />
+              </div>
+            )}
+            <FileTreeEntries
+              entries={entries}
+              slug={slug}
+              parentPath=""
+              depth={0}
+              dirCache={dirCache}
+              expanded={expanded}
+              onToggle={toggleDir}
+              previewPath={previewPath}
+              previewContent={previewContent}
+              onPreview={previewFile}
+              onOpenArtifact={setArtifactPath}
+              newFolderParent={newFolderParent}
+              newFolderName={newFolderName}
+              onNewFolderNameChange={setNewFolderName}
+              onNewFolderSubmit={(name) => createFolder.mutate(name)}
+              onNewFolderCancel={() => {
+                setNewFolderParent(null);
+                setNewFolderName("");
+              }}
+            />
+            {entries.length === 0 && newFolderParent !== "" && (
+              <div className="px-2 py-1 text-[10px] text-muted-foreground italic">
+                empty
+              </div>
+            )}
+          </div>
+        </>
       )}
       {artifactPath && (
         <ArtifactPreview

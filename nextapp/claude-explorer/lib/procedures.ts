@@ -26,6 +26,10 @@ import {
   readStatsCache,
   readSessionFacets,
   listRootSessions,
+  createDirectory,
+  createProjectDirectory,
+  invalidateSlugCache,
+  resolveSlugForCwd,
 } from "./claude-fs";
 import {
   getFavorites,
@@ -319,6 +323,56 @@ const listCronEventsProc = os
   .input(z.object({ cronId: z.string().optional() }))
   .output(z.array(CronEventSchema))
   .handler(async ({ input }) => getCronEvents(input.cronId));
+
+const createDirProc = os
+  .input(
+    z.object({
+      slug: z.string(),
+      subpath: z.string().optional(),
+      name: z.string(),
+    })
+  )
+  .output(z.object({ success: z.boolean() }))
+  .handler(async ({ input }) => {
+    const projectPath = await resolveSlugToPath(input.slug);
+    await createDirectory(projectPath, input.subpath, input.name);
+    return { success: true };
+  });
+
+const createProjectProc = os
+  .input(
+    z.object({
+      parentDir: z.string(),
+      name: z.string(),
+      initialPrompt: z.string().optional(),
+    })
+  )
+  .output(z.object({ slug: z.string(), path: z.string() }))
+  .handler(async ({ input }) => {
+    const projectPath = await createProjectDirectory(input.parentDir, input.name);
+    invalidateSlugCache();
+
+    if (input.initialPrompt) {
+      const conversation = query({
+        prompt: input.initialPrompt,
+        options: {
+          model: "claude-sonnet-4-6",
+          executable: "bun",
+          permissionMode: "bypassPermissions",
+          allowDangerouslySkipPermissions: true,
+          cwd: projectPath,
+        },
+      });
+      // Consume until first assistant message to register project
+      for await (const msg of conversation) {
+        if ("type" in msg && msg.type === "assistant") break;
+      }
+    }
+
+    invalidateSlugCache();
+    const slug = await resolveSlugForCwd(projectPath);
+    return { slug, path: projectPath };
+  });
 
 const listDirProc = os
   .input(z.object({ slug: z.string(), subpath: z.string().optional() }))
@@ -910,9 +964,7 @@ const TestResultSchema = z.object({
   meta: z
     .object({
       userName: z.string().optional(),
-      teams: z
-        .array(z.object({ id: z.string(), name: z.string() }))
-        .optional(),
+      teams: z.array(z.object({ id: z.string(), name: z.string() })).optional(),
       projects: z
         .array(z.object({ id: z.string(), name: z.string() }))
         .optional(),
@@ -1006,6 +1058,8 @@ export const router = {
     config: projectConfigProc,
     files: listDirProc,
     readFile: readFileProc,
+    createDir: createDirProc,
+    create: createProjectProc,
   },
   user: { config: userConfigProc },
   sessions: {

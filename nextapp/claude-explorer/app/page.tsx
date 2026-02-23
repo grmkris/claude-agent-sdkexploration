@@ -2,6 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import type { TmuxPane } from "@/lib/types";
@@ -9,6 +10,8 @@ import type { TmuxPane } from "@/lib/types";
 import { CopyButton } from "@/components/copy-button";
 import { StarIcon, StarFilledIcon } from "@/components/icons";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Card,
   CardHeader,
@@ -247,8 +250,62 @@ function TmuxInCard({ panes }: { panes: TmuxPane[] }) {
   );
 }
 
+function NewProjectForm({ onCreated }: { onCreated: (slug: string) => void }) {
+  const [parentDir, setParentDir] = useState("");
+  const [name, setName] = useState("");
+  const [initialPrompt, setInitialPrompt] = useState("");
+
+  const createProject = useMutation({
+    mutationFn: () =>
+      client.projects.create({
+        parentDir,
+        name,
+        ...(initialPrompt ? { initialPrompt } : {}),
+      }),
+    onSuccess: (result) => onCreated(result.slug),
+  });
+
+  return (
+    <div className="flex flex-col gap-2 rounded border p-3">
+      <Input
+        placeholder="Parent directory (e.g. /Users/me/Code)"
+        value={parentDir}
+        onChange={(e) => setParentDir(e.target.value)}
+        className="text-xs"
+      />
+      <Input
+        placeholder="Project name"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        className="text-xs"
+      />
+      <textarea
+        placeholder="Initial prompt (optional) — starts a Claude session to register the project"
+        value={initialPrompt}
+        onChange={(e) => setInitialPrompt(e.target.value)}
+        rows={2}
+        className="rounded border bg-background px-3 py-2 text-xs placeholder:text-muted-foreground"
+      />
+      <Button
+        size="sm"
+        disabled={!parentDir || !name || createProject.isPending}
+        onClick={() => createProject.mutate()}
+      >
+        {createProject.isPending ? "Creating..." : "Create"}
+      </Button>
+      {createProject.isError && (
+        <span className="text-[10px] text-destructive">
+          {(createProject.error as Error).message}
+        </span>
+      )}
+    </div>
+  );
+}
+
 function UnifiedProjectGrid() {
   const queryClient = useQueryClient();
+  const router = useRouter();
+  const [showNewProject, setShowNewProject] = useState(false);
   const { data: projects, isLoading } = useQuery(
     orpc.projects.list.queryOptions()
   );
@@ -292,9 +349,32 @@ function UnifiedProjectGrid() {
 
   if (!projects || projects.length === 0) {
     return (
-      <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
-        No projects found in ~/.claude/projects/
-      </div>
+      <section className="p-4">
+        <div className="mb-3 flex items-center gap-2">
+          <h2 className="text-sm font-medium text-muted-foreground">Projects</h2>
+          <button
+            onClick={() => setShowNewProject(!showNewProject)}
+            className="text-[10px] text-muted-foreground hover:text-foreground"
+          >
+            {showNewProject ? "cancel" : "+ New Project"}
+          </button>
+        </div>
+        {showNewProject && (
+          <NewProjectForm
+            onCreated={(slug) => {
+              queryClient.invalidateQueries({
+                queryKey: orpc.projects.list.queryOptions().queryKey,
+              });
+              router.push(`/project/${slug}`);
+            }}
+          />
+        )}
+        {!showNewProject && (
+          <div className="text-sm text-muted-foreground">
+            No projects found in ~/.claude/projects/
+          </div>
+        )}
+      </section>
     );
   }
 
@@ -316,9 +396,28 @@ function UnifiedProjectGrid() {
 
   return (
     <section className="p-4">
-      <h2 className="mb-3 text-sm font-medium text-muted-foreground">
-        Projects
-      </h2>
+      <div className="mb-3 flex items-center gap-2">
+        <h2 className="text-sm font-medium text-muted-foreground">Projects</h2>
+        <button
+          onClick={() => setShowNewProject(!showNewProject)}
+          className="text-[10px] text-muted-foreground hover:text-foreground"
+        >
+          {showNewProject ? "cancel" : "+ New Project"}
+        </button>
+      </div>
+      {showNewProject && (
+        <div className="mb-3">
+          <NewProjectForm
+            onCreated={(slug) => {
+              setShowNewProject(false);
+              queryClient.invalidateQueries({
+                queryKey: orpc.projects.list.queryOptions().queryKey,
+              });
+              router.push(`/project/${slug}`);
+            }}
+          />
+        </div>
+      )}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {sorted.map((project) => {
           const shortPath = project.path.split("/").slice(-2).join("/");
