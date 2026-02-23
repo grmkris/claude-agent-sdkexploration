@@ -375,7 +375,7 @@ function UnifiedProjectGrid() {
         {showNewProject && (
           <NewProjectForm
             onCreated={(slug) => {
-              queryClient.invalidateQueries({
+              void queryClient.invalidateQueries({
                 queryKey: orpc.projects.list.queryOptions().queryKey,
               });
               router.push(`/project/${slug}`);
@@ -423,7 +423,7 @@ function UnifiedProjectGrid() {
           <NewProjectForm
             onCreated={(slug) => {
               setShowNewProject(false);
-              queryClient.invalidateQueries({
+              void queryClient.invalidateQueries({
                 queryKey: orpc.projects.list.queryOptions().queryKey,
               });
               router.push(`/project/${slug}`);

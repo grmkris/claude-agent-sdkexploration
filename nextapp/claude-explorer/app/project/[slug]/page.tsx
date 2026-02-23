@@ -592,7 +592,7 @@ function ProjectFiles({ slug }: { slug: string }) {
   const refreshDir = useCallback(
     async (dir: string) => {
       if (dir === "") {
-        queryClient.invalidateQueries({
+        void queryClient.invalidateQueries({
           queryKey: orpc.projects.files.queryOptions({ input: { slug } })
             .queryKey,
         });
@@ -734,7 +734,7 @@ function ProjectFiles({ slug }: { slug: string }) {
               ref={fileInputRef}
               multiple
               onChange={(e) => {
-                if (e.target.files?.length) handleUpload(e.target.files);
+                if (e.target.files?.length) void handleUpload(e.target.files);
               }}
             />
           </div>
