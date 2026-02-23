@@ -1,0 +1,10 @@
+node_modules
+.next
+.git
+*.md
+.env*
+.turbo
+.cache
+coverage
+*.log
+tsconfig.tsbuildinfo

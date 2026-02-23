@@ -1,38 +1,59 @@
-"use client"
+"use client";
 
-import Link from "next/link"
-import { usePathname } from "next/navigation"
-import { useQuery } from "@tanstack/react-query"
+import { useQuery } from "@tanstack/react-query";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+
+import { Button } from "@/components/ui/button";
 import {
   Sidebar,
   SidebarContent,
   SidebarGroup,
   SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarMenuSkeleton,
-} from "@/components/ui/sidebar"
-import { Button } from "@/components/ui/button"
-import { orpc } from "@/lib/orpc"
+} from "@/components/ui/sidebar";
+import { orpc } from "@/lib/orpc";
 
 export function ProjectSidebar() {
-  const pathname = usePathname()
+  const pathname = usePathname();
 
-  const projectMatch = pathname.match(/^\/project\/([^/]+)/)
-  const activeSlug = projectMatch?.[1] ?? null
+  const projectMatch = pathname.match(/^\/project\/([^/]+)/);
+  const activeSlug = projectMatch?.[1] ?? null;
 
   if (activeSlug) {
-    return <SessionSidebar slug={activeSlug} pathname={pathname} />
+    return <SessionSidebar slug={activeSlug} pathname={pathname} />;
   }
 
-  return <ProjectListSidebar pathname={pathname} />
+  return <ProjectListSidebar pathname={pathname} />;
 }
 
 function ProjectListSidebar({ pathname }: { pathname: string }) {
-  const { data: projects, isLoading } = useQuery(orpc.projects.list.queryOptions())
+  const { data: projects, isLoading } = useQuery({
+    ...orpc.projects.list.queryOptions(),
+    refetchInterval: 15000,
+  });
+  const { data: tmuxPanes } = useQuery({
+    ...orpc.tmux.panes.queryOptions(),
+    refetchInterval: 30000,
+  });
+
+  // Build tmux lookup
+  const tmuxBySlug = new Set<string>();
+  if (tmuxPanes) {
+    for (const p of tmuxPanes) tmuxBySlug.add(p.projectSlug);
+  }
+
+  // Sort: tmux-active first, then by lastActive
+  const sorted = [...(projects ?? [])].sort((a, b) => {
+    const aTmux = tmuxBySlug.has(a.slug) ? 1 : 0;
+    const bTmux = tmuxBySlug.has(b.slug) ? 1 : 0;
+    if (aTmux !== bTmux) return bTmux - aTmux;
+    return 0; // already sorted by recency from the API
+  });
 
   return (
     <Sidebar>
@@ -43,45 +64,78 @@ function ProjectListSidebar({ pathname }: { pathname: string }) {
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Projects</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <Link href="/analytics">
+                  <SidebarMenuButton
+                    isActive={pathname === "/analytics"}
+                    tooltip="Usage analytics"
+                  >
+                    <span>Analytics</span>
+                  </SidebarMenuButton>
+                </Link>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+        <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>
               {isLoading &&
-                Array.from({ length: 6 }).map((_, i) => (
+                Array.from({ length: 4 }).map((_, i) => (
                   <SidebarMenuItem key={i}>
                     <SidebarMenuSkeleton showIcon />
                   </SidebarMenuItem>
                 ))}
-              {projects?.map((project) => {
-                const shortPath = project.path.split("/").slice(-2).join("/")
-                const isActive = pathname === `/project/${project.slug}`
+              {sorted.map((project) => {
+                const label = project.path.split("/").slice(-2).join("/");
+                const hasTmux = tmuxBySlug.has(project.slug);
                 return (
                   <SidebarMenuItem key={project.slug}>
-                    <Link href={`/project/${project.slug}`}>
-                      <SidebarMenuButton isActive={isActive} tooltip={project.path}>
-                        <span className="truncate">{shortPath}</span>
-                        <span className="ml-auto text-[10px] tabular-nums text-muted-foreground">
-                          {project.sessionCount}
-                        </span>
+                    <Link
+                      href={`/project/${project.slug}`}
+                      className="flex w-full items-center"
+                    >
+                      <SidebarMenuButton
+                        isActive={pathname === `/project/${project.slug}`}
+                        tooltip={label}
+                      >
+                        <span className="truncate">{label}</span>
                       </SidebarMenuButton>
+                      {hasTmux && (
+                        <span
+                          className="mr-2 inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-green-500"
+                          title="tmux active"
+                        />
+                      )}
                     </Link>
                   </SidebarMenuItem>
-                )
+                );
               })}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
     </Sidebar>
-  )
+  );
 }
 
-function SessionSidebar({ slug, pathname }: { slug: string; pathname: string }) {
+function SessionSidebar({
+  slug,
+  pathname,
+}: {
+  slug: string;
+  pathname: string;
+}) {
   const { data: sessions, isLoading } = useQuery({
     ...orpc.sessions.list.queryOptions({ input: { slug } }),
-    refetchInterval: 5000,
-  })
-  const shortPath = slug.replace(/-/g, "/").split("/").slice(-2).join("/")
+    refetchInterval: 15000,
+  });
+  // Derive short path from slug (e.g. "-Users-foo-Code-myproject" -> "Code/myproject")
+  const slugParts = slug.replace(/^-/, "").split("-");
+  const shortPath =
+    slugParts.length >= 2 ? slugParts.slice(-2).join("/") : slug;
 
   return (
     <Sidebar>
@@ -91,7 +145,9 @@ function SessionSidebar({ slug, pathname }: { slug: string; pathname: string }) 
             &larr; All Projects
           </div>
         </Link>
-        <div className="px-2 py-1 text-sm font-semibold truncate">{shortPath}</div>
+        <div className="px-2 py-1 text-sm font-semibold truncate">
+          {shortPath}
+        </div>
         <Link href={`/project/${slug}/chat`}>
           <Button size="sm" className="w-full">
             New Chat
@@ -100,7 +156,6 @@ function SessionSidebar({ slug, pathname }: { slug: string; pathname: string }) 
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Sessions</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {isLoading &&
@@ -110,19 +165,26 @@ function SessionSidebar({ slug, pathname }: { slug: string; pathname: string }) 
                   </SidebarMenuItem>
                 ))}
               {sessions?.map((session) => {
-                const isSelected = pathname === `/project/${slug}/chat/${session.id}`
+                const isSelected =
+                  pathname === `/project/${slug}/chat/${session.id}`;
                 return (
                   <SidebarMenuItem key={session.id}>
                     <Link href={`/project/${slug}/chat/${session.id}`}>
-                      <SidebarMenuButton isActive={isSelected} tooltip={session.firstPrompt}>
-                        {session.isActive && (
-                          <span className="h-2 w-2 shrink-0 rounded-full bg-green-500" />
-                        )}
+                      <SidebarMenuButton
+                        isActive={isSelected}
+                        tooltip={session.firstPrompt}
+                      >
                         <span className="truncate">{session.firstPrompt}</span>
+                        {session.sessionState === "active" && (
+                          <span
+                            className="ml-auto inline-block h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-green-500"
+                            title="Active"
+                          />
+                        )}
                       </SidebarMenuButton>
                     </Link>
                   </SidebarMenuItem>
-                )
+                );
               })}
               {!isLoading && (!sessions || sessions.length === 0) && (
                 <div className="px-2 py-4 text-center text-xs text-muted-foreground">
@@ -134,5 +196,5 @@ function SessionSidebar({ slug, pathname }: { slug: string; pathname: string }) 
         </SidebarGroup>
       </SidebarContent>
     </Sidebar>
-  )
+  );
 }

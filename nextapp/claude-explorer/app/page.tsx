@@ -1,215 +1,293 @@
-"use client"
+"use client";
 
-import Link from "next/link"
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Skeleton } from "@/components/ui/skeleton"
-import { SessionCard } from "@/components/session-card"
-import { orpc } from "@/lib/orpc"
-import { client } from "@/lib/orpc-client"
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import Link from "next/link";
+import { useState } from "react";
 
-function getTimeAgo(timestamp: string): string {
-  const diff = Date.now() - new Date(timestamp).getTime()
-  const minutes = Math.floor(diff / 60000)
-  if (minutes < 1) return "just now"
-  if (minutes < 60) return `${minutes}m ago`
-  const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `${hours}h ago`
-  const days = Math.floor(hours / 24)
-  if (days < 7) return `${days}d ago`
-  return new Date(timestamp).toLocaleDateString()
-}
+import type { TmuxPane } from "@/lib/types";
 
-function ActiveNow() {
-  const queryClient = useQueryClient()
-  const { data: sessions } = useQuery({
-    ...orpc.sessions.recent.queryOptions({ input: { limit: 50 } }),
-    refetchInterval: 5000,
-  })
-  const { data: favorites } = useQuery(orpc.favorites.get.queryOptions())
+import { CopyButton } from "@/components/copy-button";
+import { StarIcon, StarFilledIcon } from "@/components/icons";
+import { Badge } from "@/components/ui/badge";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+} from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+  TooltipProvider,
+} from "@/components/ui/tooltip";
+import { orpc } from "@/lib/orpc";
+import { client } from "@/lib/orpc-client";
+import { getTimeAgo } from "@/lib/utils";
 
-  const toggleSession = useMutation({
-    mutationFn: (id: string) => client.favorites.toggleSession({ id }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: orpc.favorites.get.queryOptions().queryKey }),
-  })
+function UserConfigBar() {
+  const [open, setOpen] = useState(false);
+  const { data } = useQuery(orpc.user.config.queryOptions());
 
-  const activeSessions = sessions?.filter((s) => s.isActive) ?? []
-  if (activeSessions.length === 0) return null
+  if (!data) return <div className="h-8" />;
+
+  const serverNames = Object.keys(data.mcpServers);
+  const skills = data.skills.filter((s) => s.type === "skill");
+  const commands = data.skills.filter((s) => s.type === "command");
+
+  if (serverNames.length === 0 && data.skills.length === 0) return null;
+
+  const parts: string[] = [];
+  if (serverNames.length > 0) parts.push(`${serverNames.length} MCP`);
+  if (skills.length > 0) parts.push(`${skills.length} skills`);
+  if (commands.length > 0) parts.push(`${commands.length} commands`);
 
   return (
     <section className="p-4">
-      <h2 className="mb-3 flex items-center gap-2 text-sm font-medium text-muted-foreground">
-        <span className="h-2 w-2 animate-pulse rounded-full bg-green-500" />
-        Active Now
-      </h2>
-      <div className="flex flex-col gap-2">
-        {activeSessions.map((session) => (
-          <SessionCard
-            key={session.id}
-            session={session}
-            projectSlug={session.projectSlug}
-            projectLabel={session.projectPath.split("/").slice(-2).join("/")}
-            isFavorite={favorites?.sessions.includes(session.id)}
-            onToggleFavorite={() => toggleSession.mutate(session.id)}
-            compact
-          />
+      <button
+        onClick={() => setOpen(!open)}
+        className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={2}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className={`h-3 w-3 transition-transform ${open ? "rotate-90" : ""}`}
+        >
+          <polyline points="9 18 15 12 9 6" />
+        </svg>
+        {parts.join(" · ")}
+      </button>
+      {open && (
+        <TooltipProvider>
+          <div className="mt-2 flex flex-col gap-2 pl-5 text-xs">
+            {serverNames.length > 0 && (
+              <div>
+                <span className="text-[10px] text-muted-foreground">
+                  MCP Servers
+                </span>
+                <div className="mt-0.5 flex flex-wrap gap-1">
+                  {serverNames.map((name) => {
+                    const cfg = data.mcpServers[name] as
+                      | Record<string, unknown>
+                      | undefined;
+                    const serverType = (cfg?.type as string) ?? "stdio";
+                    const command = cfg?.command as string | undefined;
+                    const args = cfg?.args as string[] | undefined;
+                    return (
+                      <Tooltip key={name}>
+                        <TooltipTrigger>
+                          <Badge variant="outline" className="text-[10px]">
+                            {name}
+                          </Badge>
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom" className="max-w-xs">
+                          <div className="flex flex-col gap-0.5">
+                            <span className="font-medium">{name}</span>
+                            <span className="text-[10px] opacity-70">
+                              {serverType}
+                            </span>
+                            {command && (
+                              <span className="font-mono text-[10px] opacity-70">
+                                {command}
+                                {args?.length ? ` ${args[0]}` : ""}
+                              </span>
+                            )}
+                          </div>
+                        </TooltipContent>
+                      </Tooltip>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+            {skills.length > 0 && (
+              <div>
+                <span className="text-[10px] text-muted-foreground">
+                  Skills
+                </span>
+                <div className="mt-0.5 flex flex-wrap gap-1">
+                  {skills.map((s) => (
+                    <Tooltip key={s.name}>
+                      <TooltipTrigger>
+                        <Badge variant="secondary" className="text-[10px]">
+                          /{s.name}
+                        </Badge>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom" className="max-w-xs">
+                        <div className="flex flex-col gap-0.5">
+                          <span className="font-medium">/{s.name}</span>
+                          {s.description && (
+                            <span className="text-[10px] opacity-70">
+                              {s.description}
+                            </span>
+                          )}
+                          <span className="text-[10px] opacity-50">
+                            {s.scope}
+                          </span>
+                        </div>
+                      </TooltipContent>
+                    </Tooltip>
+                  ))}
+                </div>
+              </div>
+            )}
+            {commands.length > 0 && (
+              <div>
+                <span className="text-[10px] text-muted-foreground">
+                  Commands
+                </span>
+                <div className="mt-0.5 flex flex-wrap gap-1">
+                  {commands.map((s) => (
+                    <Tooltip key={s.name}>
+                      <TooltipTrigger>
+                        <Badge variant="secondary" className="text-[10px]">
+                          /{s.name}
+                        </Badge>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom" className="max-w-xs">
+                        <div className="flex flex-col gap-0.5">
+                          <span className="font-medium">/{s.name}</span>
+                          {s.description && (
+                            <span className="text-[10px] opacity-70">
+                              {s.description}
+                            </span>
+                          )}
+                          <span className="text-[10px] opacity-50">
+                            {s.scope}
+                          </span>
+                        </div>
+                      </TooltipContent>
+                    </Tooltip>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </TooltipProvider>
+      )}
+    </section>
+  );
+}
+
+function AutomationsSummary() {
+  const { data: crons } = useQuery({
+    ...orpc.crons.list.queryOptions(),
+    refetchInterval: 30000,
+  });
+  const { data: webhooks } = useQuery({
+    ...orpc.webhooks.list.queryOptions(),
+    refetchInterval: 30000,
+  });
+
+  const activeCrons = crons?.filter((c) => c.enabled).length ?? 0;
+  const activeWebhooks = webhooks?.filter((w) => w.enabled).length ?? 0;
+
+  if (!crons && !webhooks) return <div className="h-6" />;
+  if (activeCrons === 0 && activeWebhooks === 0) return null;
+
+  const parts: string[] = [];
+  if (activeCrons > 0)
+    parts.push(`${activeCrons} cron${activeCrons > 1 ? "s" : ""} active`);
+  if (activeWebhooks > 0)
+    parts.push(
+      `${activeWebhooks} webhook${activeWebhooks > 1 ? "s" : ""} active`
+    );
+
+  return (
+    <section className="px-4 pb-2">
+      <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
+        {parts.map((p, i) => (
+          <span key={i}>{p}</span>
         ))}
+        <Link href="/crons" className="hover:text-foreground">
+          crons
+        </Link>
+        <Link href="/webhooks" className="hover:text-foreground">
+          webhooks
+        </Link>
       </div>
     </section>
-  )
+  );
 }
 
-function FavoritesSection() {
-  const queryClient = useQueryClient()
-  const { data: favorites } = useQuery(orpc.favorites.get.queryOptions())
-  const { data: projects } = useQuery(orpc.projects.list.queryOptions())
-  const { data: recentSessions } = useQuery({
-    ...orpc.sessions.recent.queryOptions({ input: { limit: 50 } }),
-    refetchInterval: 5000,
-  })
-
-  const toggleProject = useMutation({
-    mutationFn: (slug: string) => client.favorites.toggleProject({ slug }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: orpc.favorites.get.queryOptions().queryKey }),
-  })
-
-  const toggleSession = useMutation({
-    mutationFn: (id: string) => client.favorites.toggleSession({ id }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: orpc.favorites.get.queryOptions().queryKey }),
-  })
-
-  if (!favorites) return null
-
-  const favProjects = projects?.filter((p) => favorites.projects.includes(p.slug)) ?? []
-  const favSessions = recentSessions?.filter((s) => favorites.sessions.includes(s.id)) ?? []
-
-  if (favProjects.length === 0 && favSessions.length === 0) return null
-
-  return (
-    <section className="p-4">
-      <h2 className="mb-3 text-sm font-medium text-muted-foreground">Favorites</h2>
-      {favProjects.length > 0 && (
-        <div className="mb-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          {favProjects.map((project) => {
-            const shortPath = project.path.split("/").slice(-2).join("/")
-            return (
-              <div key={project.slug} className="relative">
-                <Link href={`/project/${project.slug}`}>
-                  <Card size="sm" className="cursor-pointer transition-colors hover:bg-accent/50">
-                    <CardHeader>
-                      <CardTitle>{shortPath}</CardTitle>
-                      <CardDescription className="truncate text-[11px]">
-                        {project.path}
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <Badge variant="secondary" className="text-[10px]">
-                        {project.sessionCount} sessions
-                      </Badge>
-                    </CardContent>
-                  </Card>
-                </Link>
-                <button
-                  onClick={() => toggleProject.mutate(project.slug)}
-                  className="absolute right-2 top-2 rounded p-1 text-yellow-500 hover:bg-accent"
-                  title="Remove from favorites"
-                >
-                  <StarFilledIcon className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            )
-          })}
-        </div>
-      )}
-      {favSessions.length > 0 && (
-        <div className="flex flex-col gap-2">
-          {favSessions.map((session) => (
-            <SessionCard
-              key={session.id}
-              session={session}
-              projectSlug={session.projectSlug}
-              projectLabel={session.projectPath.split("/").slice(-2).join("/")}
-              isFavorite
-              onToggleFavorite={() => toggleSession.mutate(session.id)}
-              compact
-            />
-          ))}
-        </div>
-      )}
-    </section>
-  )
-}
-
-function RecentChats() {
-  const queryClient = useQueryClient()
-  const { data: sessions, isLoading } = useQuery({
-    ...orpc.sessions.recent.queryOptions({ input: { limit: 15 } }),
-    refetchInterval: 5000,
-  })
-  const { data: favorites } = useQuery(orpc.favorites.get.queryOptions())
-
-  const toggleSession = useMutation({
-    mutationFn: (id: string) => client.favorites.toggleSession({ id }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: orpc.favorites.get.queryOptions().queryKey }),
-  })
-
-  if (isLoading) {
-    return (
-      <section className="p-4">
-        <h2 className="mb-3 text-sm font-medium text-muted-foreground">Recent Chats</h2>
-        <div className="flex flex-col gap-2">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <Skeleton key={i} className="h-20 w-full" />
-          ))}
-        </div>
-      </section>
-    )
+function TmuxInCard({ panes }: { panes: TmuxPane[] }) {
+  // Group by session:window
+  const byWindow = new Map<string, TmuxPane[]>();
+  for (const p of panes) {
+    const key = `${p.session}:${p.window}`;
+    const list = byWindow.get(key) ?? [];
+    list.push(p);
+    byWindow.set(key, list);
   }
 
-  if (!sessions || sessions.length === 0) return null
-
   return (
-    <section className="p-4">
-      <h2 className="mb-3 text-sm font-medium text-muted-foreground">Recent Chats</h2>
-      <div className="flex flex-col gap-2">
-        {sessions.map((session) => (
-          <SessionCard
-            key={session.id}
-            session={session}
-            projectSlug={session.projectSlug}
-            projectLabel={session.projectPath.split("/").slice(-2).join("/")}
-            isFavorite={favorites?.sessions.includes(session.id)}
-            onToggleFavorite={() => toggleSession.mutate(session.id)}
-            compact
-          />
-        ))}
-      </div>
-    </section>
-  )
+    <div className="mt-1.5 flex flex-col gap-0.5">
+      {Array.from(byWindow.entries()).map(([windowKey, windowPanes]) => (
+        <div key={windowKey} className="flex items-center gap-1.5">
+          <span className="inline-block h-1.5 w-1.5 rounded-full bg-green-500" />
+          <span className="font-mono text-[10px] text-green-400">
+            {windowKey}
+          </span>
+          {windowPanes.length > 1 && (
+            <span className="text-[9px] text-muted-foreground">
+              {windowPanes.length}p
+            </span>
+          )}
+          <CopyButton text={`tmux attach -t ${windowKey}`} />
+        </div>
+      ))}
+    </div>
+  );
 }
 
-function ProjectGrid() {
-  const queryClient = useQueryClient()
-  const { data: projects, isLoading } = useQuery(orpc.projects.list.queryOptions())
-  const { data: favorites } = useQuery(orpc.favorites.get.queryOptions())
+function UnifiedProjectGrid() {
+  const queryClient = useQueryClient();
+  const { data: projects, isLoading } = useQuery(
+    orpc.projects.list.queryOptions()
+  );
+  const { data: favorites } = useQuery(orpc.favorites.get.queryOptions());
+  const { data: tmuxPanes } = useQuery({
+    ...orpc.tmux.panes.queryOptions(),
+    refetchInterval: 30000,
+  });
 
   const toggleProject = useMutation({
     mutationFn: (slug: string) => client.favorites.toggleProject({ slug }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: orpc.favorites.get.queryOptions().queryKey }),
-  })
+    onSuccess: () =>
+      queryClient.invalidateQueries({
+        queryKey: orpc.favorites.get.queryOptions().queryKey,
+      }),
+  });
+
+  const tmuxBySlug = new Map<string, TmuxPane[]>();
+  if (tmuxPanes) {
+    for (const p of tmuxPanes) {
+      const list = tmuxBySlug.get(p.projectSlug) ?? [];
+      list.push(p);
+      tmuxBySlug.set(p.projectSlug, list);
+    }
+  }
 
   if (isLoading) {
     return (
       <section className="p-4">
-        <h2 className="mb-3 text-sm font-medium text-muted-foreground">All Projects</h2>
+        <h2 className="mb-3 text-sm font-medium text-muted-foreground">
+          Projects
+        </h2>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {Array.from({ length: 9 }).map((_, i) => (
             <Skeleton key={i} className="h-28" />
           ))}
         </div>
       </section>
-    )
+    );
   }
 
   if (!projects || projects.length === 0) {
@@ -217,20 +295,42 @@ function ProjectGrid() {
       <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
         No projects found in ~/.claude/projects/
       </div>
-    )
+    );
   }
+
+  const favSlugs = new Set(favorites?.projects ?? []);
+
+  const sorted = [...projects].sort((a, b) => {
+    const aFav = favSlugs.has(a.slug) ? 1 : 0;
+    const bFav = favSlugs.has(b.slug) ? 1 : 0;
+    if (aFav !== bFav) return bFav - aFav;
+
+    const aTmux = tmuxBySlug.has(a.slug) ? 1 : 0;
+    const bTmux = tmuxBySlug.has(b.slug) ? 1 : 0;
+    if (aTmux !== bTmux) return bTmux - aTmux;
+
+    const aTime = a.lastActive ? new Date(a.lastActive).getTime() : 0;
+    const bTime = b.lastActive ? new Date(b.lastActive).getTime() : 0;
+    return bTime - aTime;
+  });
 
   return (
     <section className="p-4">
-      <h2 className="mb-3 text-sm font-medium text-muted-foreground">All Projects</h2>
+      <h2 className="mb-3 text-sm font-medium text-muted-foreground">
+        Projects
+      </h2>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {projects.map((project) => {
-          const shortPath = project.path.split("/").slice(-2).join("/")
-          const isFav = favorites?.projects.includes(project.slug)
+        {sorted.map((project) => {
+          const shortPath = project.path.split("/").slice(-2).join("/");
+          const isFav = favSlugs.has(project.slug);
+          const panes = tmuxBySlug.get(project.slug);
           return (
             <div key={project.slug} className="relative">
               <Link href={`/project/${project.slug}`}>
-                <Card size="sm" className="cursor-pointer transition-colors hover:bg-accent/50">
+                <Card
+                  size="sm"
+                  className="cursor-pointer transition-colors hover:bg-accent/50"
+                >
                   <CardHeader>
                     <CardTitle>{shortPath}</CardTitle>
                     <CardDescription className="truncate text-[11px]">
@@ -238,16 +338,43 @@ function ProjectGrid() {
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <div className="flex items-center gap-2">
-                      <Badge variant="secondary" className="text-[10px]">
-                        {project.sessionCount} sessions
-                      </Badge>
+                    <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-muted-foreground">
                       {project.lastActive && (
-                        <span className="text-[10px] text-muted-foreground">
-                          {getTimeAgo(project.lastActive)}
+                        <span>{getTimeAgo(project.lastActive)}</span>
+                      )}
+                      {project.lastCost != null && project.lastCost > 0 && (
+                        <span className="tabular-nums">
+                          ${project.lastCost.toFixed(2)}
                         </span>
                       )}
+                      {(project.lastLinesAdded != null ||
+                        project.lastLinesRemoved != null) && (
+                        <span className="tabular-nums">
+                          {project.lastLinesAdded
+                            ? `+${project.lastLinesAdded}`
+                            : ""}
+                          {project.lastLinesRemoved
+                            ? ` -${project.lastLinesRemoved}`
+                            : ""}
+                        </span>
+                      )}
+                      {project.lastModelUsage &&
+                        (() => {
+                          const primary = Object.entries(
+                            project.lastModelUsage
+                          ).sort((a, b) => b[1].costUSD - a[1].costUSD)[0];
+                          return primary ? (
+                            <span>
+                              {primary[0]
+                                .replace("claude-", "")
+                                .split("-")
+                                .slice(0, 2)
+                                .join("-")}
+                            </span>
+                          ) : null;
+                        })()}
                     </div>
+                    {panes && panes.length > 0 && <TmuxInCard panes={panes} />}
                   </CardContent>
                 </Card>
               </Link>
@@ -263,38 +390,19 @@ function ProjectGrid() {
                 )}
               </button>
             </div>
-          )
+          );
         })}
       </div>
     </section>
-  )
+  );
 }
 
 export default function DashboardPage() {
   return (
     <div>
-      <ActiveNow />
-      <FavoritesSection />
-      <RecentChats />
-      <ProjectGrid />
+      <UserConfigBar />
+      <AutomationsSummary />
+      <UnifiedProjectGrid />
     </div>
-  )
-}
-
-// Inline SVG icons
-
-function StarIcon({ className }: { className?: string }) {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className={className}>
-      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-    </svg>
-  )
-}
-
-function StarFilledIcon({ className }: { className?: string }) {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className={className}>
-      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-    </svg>
-  )
+  );
 }

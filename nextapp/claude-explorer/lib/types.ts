@@ -3,8 +3,6 @@ import type {
   SDKUserMessage,
   SDKUserMessageReplay,
   SDKResultMessage,
-  SDKResultSuccess,
-  SDKResultError,
   SDKSystemMessage,
   SDKPartialAssistantMessage,
   SDKCompactBoundaryMessage,
@@ -18,9 +16,9 @@ import type {
   SDKTaskStartedMessage,
   SDKFilesPersistedEvent,
   SDKToolUseSummaryMessage,
-} from "@anthropic-ai/claude-agent-sdk/sdk"
-import type { BetaMessage } from "@anthropic-ai/sdk/resources/beta/messages/messages"
-import type { MessageParam } from "@anthropic-ai/sdk/resources/messages/messages"
+} from "@anthropic-ai/claude-agent-sdk/sdk";
+import type { BetaMessage } from "@anthropic-ai/sdk/resources/beta/messages/messages";
+import type { MessageParam } from "@anthropic-ai/sdk/resources/messages/messages";
 
 export type SDKMessage =
   | SDKAssistantMessage
@@ -39,62 +37,97 @@ export type SDKMessage =
   | SDKTaskNotificationMessage
   | SDKTaskStartedMessage
   | SDKFilesPersistedEvent
-  | SDKToolUseSummaryMessage
+  | SDKToolUseSummaryMessage;
 
-export type {
-  SDKAssistantMessage,
-  SDKUserMessage,
-  SDKResultMessage,
-  SDKResultSuccess,
-  SDKResultError,
-  SDKSystemMessage,
-  SDKToolProgressMessage,
-}
-
-export type SDKContentBlock = SDKAssistantMessage["message"]["content"][number]
+export type SDKContentBlock = SDKAssistantMessage["message"]["content"][number];
 
 type EnrichedToolUse = Extract<SDKContentBlock, { type: "tool_use" }> & {
-  input: Record<string, unknown>
-  output?: string
-  is_error?: boolean
-}
+  input: Record<string, unknown>;
+  output?: string;
+  is_error?: boolean;
+  elapsed?: number;
+};
+
+export type ResultBlock = {
+  type: "result";
+  costUSD?: number;
+  durationMs?: number;
+  durationApiMs?: number;
+  numTurns?: number;
+  inputTokens?: number;
+  outputTokens?: number;
+  isError?: boolean;
+  subtype?: string;
+};
+
+export type SystemEventBlock = {
+  type: "system_event";
+  subtype: string;
+  message: string;
+  detail?: string;
+};
+
+export type ToolUseSummaryBlock = {
+  type: "tool_use_summary";
+  toolName: string;
+  filepath?: string;
+  summary?: string;
+};
 
 export type ContentBlock =
   | Exclude<SDKContentBlock, { type: "tool_use" }>
   | EnrichedToolUse
+  | ResultBlock
+  | SystemEventBlock
+  | ToolUseSummaryBlock;
 
 export type {
   Project,
   SessionMeta,
+  SessionState,
   RecentSession,
   Favorites,
   ParsedMessage,
-} from "./schemas"
+  CronJob,
+  AgentMessage,
+  TmuxPane,
+  WebhookConfig,
+  WebhookEvent,
+  CronEvent,
+  ExplorerStore,
+  DailyActivity,
+  GlobalStats,
+  SessionFacet,
+  SkillUsageEntry,
+  IntegrationConfig,
+  IntegrationWidget,
+  WidgetItem,
+} from "./schemas";
 
 export type RawUserMessage = {
-  type: "user"
-  uuid: string
-  parentUuid: string | null
-  timestamp: string
-  cwd: string
-  gitBranch: string
-  version: string
-  sessionId: string
-  message: MessageParam
-}
+  type: "user";
+  uuid: string;
+  parentUuid: string | null;
+  timestamp: string;
+  cwd: string;
+  gitBranch: string;
+  version: string;
+  sessionId: string;
+  message: MessageParam;
+};
 
 export type RawAssistantMessage = {
-  type: "assistant"
-  uuid: string
-  parentUuid: string
-  timestamp: string
-  cwd: string
-  gitBranch: string
-  version: string
-  sessionId: string
-  requestId: string
-  message: BetaMessage
-}
+  type: "assistant";
+  uuid: string;
+  parentUuid: string;
+  timestamp: string;
+  cwd: string;
+  gitBranch: string;
+  version: string;
+  sessionId: string;
+  requestId: string;
+  message: BetaMessage;
+};
 
 export type RawJSONLLine =
   | RawUserMessage
@@ -102,4 +135,4 @@ export type RawJSONLLine =
   | { type: "queue-operation"; [key: string]: unknown }
   | { type: "file-history-snapshot"; [key: string]: unknown }
   | { type: "progress"; [key: string]: unknown }
-  | { type: string; [key: string]: unknown }
+  | { type: string; [key: string]: unknown };
