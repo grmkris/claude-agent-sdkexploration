@@ -1,7 +1,7 @@
 FROM oven/bun:1 AS base
 
 # System packages + locale
-RUN apt-get update && apt-get install -y --no-install-recommends dumb-init curl locales \
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates dumb-init curl locales \
     && sed -i '/en_GB.UTF-8/s/^# //g' /etc/locale.gen && locale-gen \
     && rm -rf /var/lib/apt/lists/*
 
