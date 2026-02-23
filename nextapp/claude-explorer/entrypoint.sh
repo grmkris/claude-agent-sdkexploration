@@ -47,7 +47,7 @@ done
 
 # Always write .bashrc (we own this file; ensures updates reach existing volumes)
 cat > /home/bun/.bashrc <<'BASHRC'
-export PATH="/home/bun/.local/bin:$PATH"
+export PATH="/home/bun/.bun/bin:/home/bun/.local/bin:$PATH"
 export LANG=en_GB.UTF-8
 export LC_ALL=en_GB.UTF-8
 export CLAUDE_CONFIG_DIR=/home/bun/.claude
@@ -86,6 +86,9 @@ if [ -d "$CONFIG_SRC" ]; then
     chown bun:bun "$CONFIG_DST/settings.json" "$CONFIG_DST/statusline-wrapper.sh" "$CONFIG_DST/statusline-command.sh" 2>/dev/null
     echo "[claude-config] provisioned"
 fi
+
+# Strip CLAUDECODE so Agent SDK and Railway CLI work inside this container
+unset CLAUDECODE
 
 # App processes run as root from /app (bun user has no access to /app)
 cd /app
