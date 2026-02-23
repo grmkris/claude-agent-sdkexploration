@@ -18,7 +18,11 @@ import {
 import { cronToHuman, CRON_PRESETS } from "@/lib/cron-human";
 import { orpc } from "@/lib/orpc";
 import { client } from "@/lib/orpc-client";
-import { generateTmuxCommand, type TmuxLayout } from "@/lib/tmux-command";
+import {
+  generateTmuxCommand,
+  generateAttachCommand,
+  type TmuxLayout,
+} from "@/lib/tmux-command";
 
 // --- Helpers ---
 
@@ -817,16 +821,22 @@ function ProjectTmux({ slug }: { slug: string }) {
     refetchInterval: 30000,
     enabled: showTmux,
   });
+  const { data: serverConfig } = useQuery(
+    orpc.server.config.queryOptions()
+  );
 
+  const sshTarget = serverConfig?.sshHost ?? undefined;
   const panes = allPanes?.filter((p) => p.projectSlug === slug) ?? [];
 
   // group by session:window
   const byWindow = new Map<string, typeof panes>();
+  const sessionNames = new Set<string>();
   for (const p of panes) {
     const key = `${p.session}:${p.window}`;
     const list = byWindow.get(key) ?? [];
     list.push(p);
     byWindow.set(key, list);
+    sessionNames.add(p.session);
   }
 
   return (
@@ -843,6 +853,23 @@ function ProjectTmux({ slug }: { slug: string }) {
       </button>
       {showTmux && panes.length > 0 && (
         <div className="flex flex-col gap-1.5">
+          {Array.from(sessionNames).map((session) => (
+            <div
+              key={`session-${session}`}
+              className="flex items-center gap-2 rounded border bg-muted/20 px-2 py-1"
+            >
+              <span className="font-mono text-[10px] text-muted-foreground">
+                session: {session}
+              </span>
+              <span className="flex-1" />
+              <CopyButton
+                text={generateAttachCommand({
+                  sessionName: session,
+                  sshTarget,
+                })}
+              />
+            </div>
+          ))}
           {Array.from(byWindow.entries()).map(([windowKey, windowPanes]) => {
             const first = windowPanes[0];
             return (
@@ -859,7 +886,13 @@ function ProjectTmux({ slug }: { slug: string }) {
                 <span className="min-w-0 flex-1 truncate text-[10px] text-muted-foreground">
                   {first.cwd}
                 </span>
-                <CopyButton text={`tmux attach -t ${windowKey}`} />
+                <CopyButton
+                  text={generateAttachCommand({
+                    sessionName: first.session,
+                    windowKey,
+                    sshTarget,
+                  })}
+                />
               </div>
             );
           })}
@@ -877,6 +910,9 @@ function TmuxLauncher({ slug }: { slug: string }) {
     ...orpc.projects.list.queryOptions(),
     enabled: showForm,
   });
+  const { data: serverConfig } = useQuery(
+    orpc.server.config.queryOptions()
+  );
   const project = projects?.find((p) => p.slug === slug);
   const [panelCount, setPanelCount] = useState(2);
   const [layout, setLayout] = useState<TmuxLayout>("even-horizontal");
@@ -891,6 +927,7 @@ function TmuxLauncher({ slug }: { slug: string }) {
   const [model, setModel] = useState("");
   const [maxBudget, setMaxBudget] = useState("");
   const [sshTarget, setSshTarget] = useState("");
+  const [sshPrefilled, setSshPrefilled] = useState(false);
   const [prompts, setPrompts] = useState<(string | null)[]>([
     null,
     null,
@@ -900,6 +937,18 @@ function TmuxLauncher({ slug }: { slug: string }) {
   const [showTips, setShowTips] = useState(false);
   const [noTmux, setNoTmux] = useState(false);
   const [ccMode, setCcMode] = useState(false);
+  const [customCommands, setCustomCommands] = useState<(string | null)[]>([
+    null,
+    null,
+    null,
+    null,
+  ]);
+
+  // Pre-fill SSH target from server config (once)
+  if (serverConfig?.sshHost && !sshPrefilled && !sshTarget) {
+    setSshTarget(serverConfig.sshHost);
+    setSshPrefilled(true);
+  }
 
   const { data: sessions } = useQuery({
     ...orpc.sessions.list.queryOptions({ input: { slug } }),
@@ -908,6 +957,8 @@ function TmuxLauncher({ slug }: { slug: string }) {
 
   const projectName = project?.path.split("/").pop() ?? slug;
   const budgetNum = maxBudget ? Number(maxBudget) : undefined;
+  const activeCustomCmds = customCommands.slice(0, panelCount);
+  const hasCustomCmds = activeCustomCmds.some((c) => c);
   const command = generateTmuxCommand({
     sessionName: `claude-${projectName}`,
     projectPath: project?.path ?? "",
@@ -922,6 +973,7 @@ function TmuxLauncher({ slug }: { slug: string }) {
     prompts: printMode ? prompts.slice(0, panelCount) : undefined,
     noTmux,
     ccMode: !noTmux && ccMode,
+    customCommands: hasCustomCmds ? activeCustomCmds : undefined,
   });
 
   const handlePanelCountChange = (count: number) => {
@@ -1070,7 +1122,17 @@ function TmuxLauncher({ slug }: { slug: string }) {
                     ))}
                   </select>
                 )}
-                {printMode && (
+                <Input
+                  placeholder="Custom cmd (overrides claude)"
+                  value={customCommands[i] ?? ""}
+                  onChange={(e) => {
+                    const next = [...customCommands];
+                    next[i] = e.target.value || null;
+                    setCustomCommands(next);
+                  }}
+                  className="flex-1 text-xs"
+                />
+                {printMode && !customCommands[i] && (
                   <Input
                     placeholder="Prompt for this panel..."
                     value={prompts[i] ?? ""}

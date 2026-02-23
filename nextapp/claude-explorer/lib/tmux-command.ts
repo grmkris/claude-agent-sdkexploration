@@ -18,6 +18,7 @@ export interface TmuxLaunchConfig {
   prompts?: (string | null)[];
   noTmux?: boolean;
   ccMode?: boolean;
+  customCommands?: (string | null)[];
 }
 
 export function generateTmuxCommand(config: TmuxLaunchConfig): string {
@@ -34,6 +35,7 @@ export function generateTmuxCommand(config: TmuxLaunchConfig): string {
     prompts,
     noTmux,
     ccMode,
+    customCommands,
   } = config;
   const safeName = config.sessionName.replace(/[.:]/g, "-");
   const safePath = projectPath.includes(" ") ? `"${projectPath}"` : projectPath;
@@ -54,11 +56,14 @@ export function generateTmuxCommand(config: TmuxLaunchConfig): string {
     return parts.join(" ");
   };
 
+  const panelCmd = (index: number): string =>
+    customCommands?.[index] || claudeCmd(index);
+
   // No-tmux mode: bare commands
   if (noTmux) {
     const lines: string[] = [];
     for (let i = 0; i < panelCount; i++) {
-      const cmd = `cd ${safePath} && ${claudeCmd(i)}`;
+      const cmd = `cd ${safePath} && ${panelCmd(i)}`;
       lines.push(panelCount > 1 && i < panelCount - 1 ? `${cmd} &` : cmd);
     }
     const bare = lines.join("\n");
@@ -72,16 +77,16 @@ export function generateTmuxCommand(config: TmuxLaunchConfig): string {
   let tmuxCmd: string;
 
   if (panelCount === 1) {
-    tmuxCmd = `${tmuxBin} new-session -s ${safeName} -c ${safePath} '${claudeCmd(0)}'`;
+    tmuxCmd = `${tmuxBin} new-session -s ${safeName} -c ${safePath} '${panelCmd(0)}'`;
   } else {
     const tmuxParts: string[] = [
-      `${tmuxBin} new-session -d -s ${safeName} -c ${safePath} '${claudeCmd(0)}'`,
+      `${tmuxBin} new-session -d -s ${safeName} -c ${safePath} '${panelCmd(0)}'`,
     ];
 
     for (let i = 1; i < panelCount; i++) {
       const dir =
         layout === "even-vertical" || layout === "main-vertical" ? "-v" : "-h";
-      tmuxParts.push(`split-window ${dir} -c ${safePath} '${claudeCmd(i)}'`);
+      tmuxParts.push(`split-window ${dir} -c ${safePath} '${panelCmd(i)}'`);
     }
 
     tmuxParts.push(`select-layout ${layout}`);
@@ -95,4 +100,19 @@ export function generateTmuxCommand(config: TmuxLaunchConfig): string {
   }
 
   return tmuxCmd;
+}
+
+export function generateAttachCommand(opts: {
+  sessionName: string;
+  windowKey?: string;
+  sshTarget?: string;
+  ccMode?: boolean;
+}): string {
+  const tmuxBin = opts.ccMode ? "tmux -CC" : "tmux";
+  const target = opts.windowKey ?? opts.sessionName;
+  const attach = `${tmuxBin} attach -t ${target}`;
+  if (opts.sshTarget) {
+    return `ssh -t ${opts.sshTarget} '${attach}'`;
+  }
+  return attach;
 }

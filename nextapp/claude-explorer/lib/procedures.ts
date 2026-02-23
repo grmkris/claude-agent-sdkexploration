@@ -89,6 +89,7 @@ import {
   IntegrationWidgetSchema,
   ApiKeySchema,
   ApiKeyProviderSchema,
+  ServerConfigSchema,
 } from "./schemas";
 import { getTmuxPanes } from "./tmux";
 import {
@@ -234,6 +235,14 @@ const unreadBySessionProc = os
 const tmuxPanesProc = os
   .output(z.array(TmuxPaneSchema))
   .handler(async () => getTmuxPanes());
+
+// --- Server Config ---
+
+const serverConfigProc = os
+  .output(ServerConfigSchema)
+  .handler(async () => ({
+    sshHost: process.env.SSH_HOST ?? null,
+  }));
 
 // --- Chat ---
 
@@ -1125,6 +1134,7 @@ export const router = {
     unreadBySession: unreadBySessionProc,
   },
   tmux: { panes: tmuxPanesProc },
+  server: { config: serverConfigProc },
   analytics: {
     globalStats: globalStatsProc,
     activity: activityProc,

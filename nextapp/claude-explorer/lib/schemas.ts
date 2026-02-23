@@ -83,6 +83,10 @@ export const AgentMessageSchema = z.object({
   read: z.boolean(),
 });
 
+export const ServerConfigSchema = z.object({
+  sshHost: z.string().nullable(),
+});
+
 export const TmuxPaneSchema = z.object({
   session: z.string(),
   window: z.number(),
@@ -205,6 +209,7 @@ export type Favorites = z.infer<typeof FavoritesSchema>;
 export type ParsedMessage = z.infer<typeof ParsedMessageSchema>;
 export type CronJob = z.infer<typeof CronJobSchema>;
 export type AgentMessage = z.infer<typeof AgentMessageSchema>;
+export type ServerConfig = z.infer<typeof ServerConfigSchema>;
 export type TmuxPane = z.infer<typeof TmuxPaneSchema>;
 export type WebhookConfig = z.infer<typeof WebhookConfigSchema>;
 export type WebhookEvent = z.infer<typeof WebhookEventSchema>;
