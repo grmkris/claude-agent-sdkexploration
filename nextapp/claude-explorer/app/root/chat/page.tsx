@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useRef } from "react";
 
 import { ChatInput } from "@/components/chat-input";
@@ -9,8 +10,12 @@ import { useRootChatStream } from "@/hooks/use-root-chat-stream";
 import { orpc } from "@/lib/orpc";
 import { client } from "@/lib/orpc-client";
 
+const ONBOARD_PROMPT =
+  "Introduce yourself briefly. What can you help me with in this workspace? List a few practical things I can ask you to do.";
+
 export default function RootNewChatPage() {
   const queryClient = useQueryClient();
+  const searchParams = useSearchParams();
   const { messages, send, isStreaming, sessionId, error, toolProgress } =
     useRootChatStream();
 
@@ -21,6 +26,15 @@ export default function RootNewChatPage() {
         queryKey: orpc.root.primarySession.queryOptions().queryKey,
       }),
   });
+
+  // Auto-send onboard prompt
+  const didAutoSend = useRef(false);
+  useEffect(() => {
+    if (searchParams.get("onboard") && !didAutoSend.current && !isStreaming) {
+      didAutoSend.current = true;
+      send(ONBOARD_PROMPT);
+    }
+  }, [searchParams, isStreaming]);
 
   // Auto-set as primary if no primary exists
   const didSetPrimary = useRef(false);

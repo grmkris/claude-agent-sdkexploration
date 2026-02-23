@@ -54,7 +54,24 @@ function RootWorkspaceSection() {
     sessions?.filter((s) => s.id !== primarySessionId) ?? [];
 
   if (!isLoading && (!sessions || sessions.length === 0) && !primarySession) {
-    return null;
+    return (
+      <section className="px-4 pb-2">
+        <h2 className="mb-2 text-sm font-medium text-muted-foreground">
+          Root Workspace
+        </h2>
+        <div className="rounded border border-dashed p-4">
+          <p className="mb-1 text-sm font-medium">Welcome to Claude Explorer</p>
+          <p className="mb-3 text-xs text-muted-foreground">
+            Start your first conversation to set up your workspace. Claude runs
+            from ~/home and can create projects, manage files, and help you
+            build.
+          </p>
+          <Link href="/root/chat?onboard=1">
+            <Button size="sm">Start Conversation</Button>
+          </Link>
+        </div>
+      </section>
+    );
   }
 
   return (
