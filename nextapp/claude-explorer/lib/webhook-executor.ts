@@ -2,6 +2,9 @@ import { query } from "@anthropic-ai/claude-agent-sdk";
 
 import type { WebhookConfig } from "./types";
 
+// Strip CLAUDECODE to allow the Agent SDK to spawn inside a Claude Code container
+const { CLAUDECODE: _CC, ...cleanEnv } = process.env;
+
 import { resolveSlugToPath } from "./claude-fs";
 import {
   updateWebhookStatus,
@@ -53,6 +56,7 @@ export function executeWebhook(
           executable: "bun",
           permissionMode: "bypassPermissions",
           allowDangerouslySkipPermissions: true,
+          env: cleanEnv,
 
           ...(cwd ? { cwd } : {}),
           ...(webhook.sessionId ? { resume: webhook.sessionId } : {}),

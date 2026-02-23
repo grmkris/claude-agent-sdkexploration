@@ -102,6 +102,9 @@ const USER_HOME = process.env.CLAUDE_CONFIG_DIR
   ? dirname(process.env.CLAUDE_CONFIG_DIR)
   : homedir();
 
+// Strip CLAUDECODE to allow the Agent SDK to spawn inside a Claude Code container
+const { CLAUDECODE: _CC, ...cleanEnv } = process.env;
+
 // --- Projects & Sessions ---
 
 const resolveSlugProc = os
@@ -267,6 +270,7 @@ const chatProc = os
           executable: "bun",
           permissionMode: "bypassPermissions",
           allowDangerouslySkipPermissions: true,
+          env: cleanEnv,
 
           ...(input.resume ? { resume: input.resume } : {}),
           ...(input.cwd ? { cwd: input.cwd } : {}),
@@ -387,6 +391,7 @@ const createProjectProc = os
             executable: "bun",
             permissionMode: "bypassPermissions",
             allowDangerouslySkipPermissions: true,
+            env: cleanEnv,
             cwd: projectPath,
           },
         });
@@ -766,6 +771,7 @@ const rootChatProc = os
           model: "claude-sonnet-4-6",
           permissionMode: "bypassPermissions",
           allowDangerouslySkipPermissions: true,
+          env: cleanEnv,
           cwd: USER_HOME,
           systemPrompt: {
             type: "preset",

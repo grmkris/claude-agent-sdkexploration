@@ -3,6 +3,9 @@ import { CronExpressionParser } from "cron-parser";
 
 import type { CronJob } from "./types";
 
+// Strip CLAUDECODE to allow the Agent SDK to spawn inside a Claude Code container
+const { CLAUDECODE: _CC, ...cleanEnv } = process.env;
+
 import { resolveSlugToPath } from "./claude-fs";
 import {
   getCrons,
@@ -54,6 +57,7 @@ export async function executeCron(cron: CronJob): Promise<void> {
         executable: "bun",
         permissionMode: "bypassPermissions",
         allowDangerouslySkipPermissions: true,
+        env: cleanEnv,
 
         cwd,
         ...(cron.sessionId ? { resume: cron.sessionId } : {}),
