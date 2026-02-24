@@ -26,7 +26,7 @@ const CLAUDE_PROJECTS_DIR = join(CLAUDE_DIR, "projects");
 const USER_HOME = process.env.CLAUDE_CONFIG_DIR
   ? dirname(process.env.CLAUDE_CONFIG_DIR)
   : homedir();
-const CLAUDE_CONFIG_PATH = join(USER_HOME, ".claude.json");
+const CLAUDE_CONFIG_PATH = join(CLAUDE_DIR, ".claude.json");
 const STATS_CACHE_PATH = join(CLAUDE_DIR, "stats-cache.json");
 const FACETS_DIR = join(CLAUDE_DIR, "usage-data", "facets");
 
