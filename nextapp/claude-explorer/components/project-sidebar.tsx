@@ -90,6 +90,16 @@ function ProjectListSidebar({ pathname }: { pathname: string }) {
                   </SidebarMenuButton>
                 </Link>
               </SidebarMenuItem>
+              <SidebarMenuItem>
+                <Link href="/email">
+                  <SidebarMenuButton
+                    isActive={pathname === "/email"}
+                    tooltip="Email Config"
+                  >
+                    <span>Email</span>
+                  </SidebarMenuButton>
+                </Link>
+              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
