@@ -291,9 +291,11 @@ function SessionSidebar({
             &larr; All Projects
           </div>
         </Link>
-        <div className="px-2 py-1 text-sm font-semibold truncate">
-          {shortPath}
-        </div>
+        <Link href={`/project/${slug}`}>
+          <div className="px-2 py-1 text-sm font-semibold truncate hover:text-foreground/70 cursor-pointer">
+            {shortPath}
+          </div>
+        </Link>
         <Link href={`/project/${slug}/chat`}>
           <Button size="sm" className="w-full">
             New Chat
