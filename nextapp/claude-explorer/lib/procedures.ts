@@ -815,8 +815,6 @@ const suggestIntegrationsProc = os
 
 // --- Root Workspace ---
 
-const ROOT_SLUG = "__root__";
-
 const rootPrimarySessionProc = os
   .output(z.object({ sessionId: z.string().nullable() }))
   .handler(async () => ({
@@ -837,7 +835,10 @@ const rootSessionsProc = os
 const rootSessionMessagesProc = os
   .input(z.object({ sessionId: z.string() }))
   .output(z.array(ParsedMessageSchema))
-  .handler(async ({ input }) => getSessionMessages(ROOT_SLUG, input.sessionId));
+  .handler(async ({ input }) => {
+    const slug = await resolveSlugForCwd(USER_HOME);
+    return getSessionMessages(slug, input.sessionId);
+  });
 
 const rootChatProc = os
   .input(

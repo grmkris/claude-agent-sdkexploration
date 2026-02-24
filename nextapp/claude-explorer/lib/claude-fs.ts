@@ -451,12 +451,11 @@ export async function listSessions(
   return results.filter((s) => s !== null);
 }
 
-// --- Root workspace sessions (slug: __root__) ---
-
-const ROOT_SLUG = "__root__";
+// --- Root workspace sessions (resolved from USER_HOME slug) ---
 
 export async function listRootSessions(limit?: number): Promise<SessionMeta[]> {
-  return listSessions(ROOT_SLUG, limit);
+  const slug = await getSlugForPath(USER_HOME);
+  return listSessions(slug, limit);
 }
 
 // --- Project config reading ---
