@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useMemo } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -171,6 +172,18 @@ function RootSessionSidebar({ pathname }: { pathname: string }) {
     refetchInterval: 15000,
   });
   const { data: primary } = useQuery(orpc.root.primarySession.queryOptions());
+  const sessionIds = useMemo(() => sessions?.map((s) => s.id) ?? [], [sessions]);
+  const { data: facets } = useQuery({
+    ...orpc.analytics.facets.queryOptions({ input: { sessionIds } }),
+    enabled: sessionIds.length > 0,
+  });
+  const facetMap = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const f of facets ?? []) {
+      if (f.briefSummary) m.set(f.sessionId, f.briefSummary);
+    }
+    return m;
+  }, [facets]);
 
   return (
     <Sidebar>
@@ -200,12 +213,13 @@ function RootSessionSidebar({ pathname }: { pathname: string }) {
               {sessions?.map((session) => {
                 const isSelected = pathname === `/chat/${session.id}`;
                 const isPrimary = primary?.sessionId === session.id;
+                const label = facetMap.get(session.id) ?? session.firstPrompt;
                 return (
                   <SidebarMenuItem key={session.id}>
                     <Link href={`/chat/${session.id}`}>
                       <SidebarMenuButton
                         isActive={isSelected}
-                        tooltip={session.firstPrompt}
+                        tooltip={label}
                       >
                         {isPrimary && (
                           <span
@@ -213,7 +227,7 @@ function RootSessionSidebar({ pathname }: { pathname: string }) {
                             title="Primary"
                           />
                         )}
-                        <span className="truncate">{session.firstPrompt}</span>
+                        <span className="truncate">{label}</span>
                         {session.sessionState === "active" && (
                           <span
                             className="ml-auto inline-block h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-green-500"
@@ -249,6 +263,18 @@ function SessionSidebar({
     ...orpc.sessions.list.queryOptions({ input: { slug } }),
     refetchInterval: 15000,
   });
+  const sessionIds = useMemo(() => sessions?.map((s) => s.id) ?? [], [sessions]);
+  const { data: facets } = useQuery({
+    ...orpc.analytics.facets.queryOptions({ input: { sessionIds } }),
+    enabled: sessionIds.length > 0,
+  });
+  const facetMap = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const f of facets ?? []) {
+      if (f.briefSummary) m.set(f.sessionId, f.briefSummary);
+    }
+    return m;
+  }, [facets]);
   // Derive short path from slug (e.g. "-Users-foo-Code-myproject" -> "Code/myproject")
   const slugParts = slug.replace(/^-/, "").split("-");
   const shortPath =
@@ -284,14 +310,15 @@ function SessionSidebar({
               {sessions?.map((session) => {
                 const isSelected =
                   pathname === `/project/${slug}/chat/${session.id}`;
+                const label = facetMap.get(session.id) ?? session.firstPrompt;
                 return (
                   <SidebarMenuItem key={session.id}>
                     <Link href={`/project/${slug}/chat/${session.id}`}>
                       <SidebarMenuButton
                         isActive={isSelected}
-                        tooltip={session.firstPrompt}
+                        tooltip={label}
                       >
-                        <span className="truncate">{session.firstPrompt}</span>
+                        <span className="truncate">{label}</span>
                         {session.sessionState === "active" && (
                           <span
                             className="ml-auto inline-block h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-green-500"
