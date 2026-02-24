@@ -19,7 +19,7 @@ export default function SessionChatPage({
     orpc.projects.resolveSlug.queryOptions({ input: { slug } })
   );
 
-  const { data: history, isLoading } = useQuery({
+  const { data: history, isLoading, refetch } = useQuery({
     ...orpc.sessions.messages.queryOptions({ input: { slug, sessionId } }),
     refetchInterval: false,
   });
@@ -62,6 +62,7 @@ export default function SessionChatPage({
         }
         toolProgress={toolProgress}
         projectSlug={slug}
+        onRefresh={() => refetch()}
       />
       {error && (
         <div className="mx-4 mb-2 rounded border border-destructive/50 bg-destructive/10 px-3 py-2 text-xs text-destructive">
