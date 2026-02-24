@@ -127,7 +127,6 @@ import {
   SavedTmuxSessionSchema,
   WorkspaceEmailConfigSchema,
   EmailEventSchema,
-  OAuthAppSchema,
 } from "./schemas";
 import { getTmuxPanes } from "./tmux";
 import { generateTmuxCommand } from "./tmux-command";

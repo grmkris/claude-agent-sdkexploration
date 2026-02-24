@@ -46,7 +46,7 @@ export function BotIdentitySetup() {
         setClientId("");
         setClientSecret("");
         setShowSetup(false);
-        invalidate();
+        void invalidate();
       }
     } catch (e) {
       setResult({
@@ -60,7 +60,7 @@ export function BotIdentitySetup() {
 
   const handleDisconnect = async () => {
     await client.oauth.removeCredentials({ provider: "linear" });
-    invalidate();
+    void invalidate();
   };
 
   if (isLoading) return null;

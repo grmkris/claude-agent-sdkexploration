@@ -42,7 +42,7 @@ const linearProvider: WebhookProvider = {
     if (body.type === "agentSession") {
       const action = (body.action as string) ?? "unknown";
       const session = body.agentSession as Record<string, unknown> | undefined;
-      const issueId = session?.issueId ?? "";
+      const issueId = (session?.issueId as string) ?? "";
       const summary = `agentSession ${action}: issue ${issueId}`;
       return { eventType: "agentSession", action, summary };
     }
