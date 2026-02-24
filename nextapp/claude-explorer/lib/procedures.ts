@@ -78,9 +78,6 @@ import {
   resolveIntegrationToken,
   getRootPrimarySessionId,
   setRootPrimarySessionId,
-  getTmuxSessions,
-  saveTmuxSession,
-  removeTmuxSession,
   getEmailConfigs,
   getEmailConfigBySlug,
   setEmailConfig,
@@ -128,12 +125,10 @@ import {
   ApiKeySchema,
   ApiKeyProviderSchema,
   ServerConfigSchema,
-  SavedTmuxSessionSchema,
   WorkspaceEmailConfigSchema,
   EmailEventSchema,
 } from "./schemas";
 import { getTmuxPanes } from "./tmux";
-import { generateTmuxCommand } from "./tmux-command";
 import {
   getCatalog,
   autoCreateLinearWebhook,
@@ -284,58 +279,6 @@ const unreadBySessionProc = os
 const tmuxPanesProc = os
   .output(z.array(TmuxPaneSchema))
   .handler(async () => getTmuxPanes());
-
-const tmuxLaunchProc = os
-  .input(
-    z.object({
-      sessionName: z.string(),
-      projectPath: z.string(),
-      panelCount: z.number(),
-      layout: z.enum([
-        "even-horizontal",
-        "even-vertical",
-        "tiled",
-        "main-vertical",
-      ]),
-      resumeSessionIds: z.array(z.string().nullable()).optional(),
-      skipPermissions: z.boolean().optional(),
-      model: z.string().optional(),
-      maxBudgetUsd: z.number().optional(),
-      customCommands: z.array(z.string().nullable()).optional(),
-    })
-  )
-  .output(
-    z.object({
-      success: z.boolean(),
-      command: z.string(),
-      error: z.string().optional(),
-    })
-  )
-  .handler(async ({ input }) => {
-    const command = generateTmuxCommand({ ...input, detached: true });
-    try {
-      await Bun.$`su bun -c ${command}`.quiet();
-      await saveTmuxSession({
-        ...input,
-        savedAt: new Date().toISOString(),
-      });
-      return { success: true, command };
-    } catch (e) {
-      const error = e instanceof Error ? e.message : "Launch failed";
-      return { success: false, command, error };
-    }
-  });
-
-const tmuxSavedSessionsProc = os
-  .output(z.array(SavedTmuxSessionSchema))
-  .handler(async () => getTmuxSessions());
-
-const tmuxRemoveSavedProc = os
-  .input(z.object({ sessionName: z.string() }))
-  .output(z.object({ success: z.boolean() }))
-  .handler(async ({ input }) => ({
-    success: await removeTmuxSession(input.sessionName),
-  }));
 
 // --- Server Config ---
 
@@ -2008,9 +1951,6 @@ export const router = {
   },
   tmux: {
     panes: tmuxPanesProc,
-    launch: tmuxLaunchProc,
-    savedSessions: tmuxSavedSessionsProc,
-    removeSaved: tmuxRemoveSavedProc,
   },
   server: { config: serverConfigProc },
   analytics: {

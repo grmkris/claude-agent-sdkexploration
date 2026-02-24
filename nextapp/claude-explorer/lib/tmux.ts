@@ -5,8 +5,6 @@ import type { TmuxPane } from "./types";
 // Match the same encoding Claude CLI uses for project directories
 // by reading actual dir names from ~/.claude/projects/
 import { resolveSlugForCwd } from "./claude-fs";
-import { getTmuxSessions, removeTmuxSession } from "./explorer-store";
-
 export async function getTmuxPanes(): Promise<TmuxPane[]> {
   try {
     const output =
@@ -49,28 +47,5 @@ export async function getTmuxPanes(): Promise<TmuxPane[]> {
     }));
   } catch {
     return [];
-  }
-}
-
-export async function cleanupStaleTmuxSessions(): Promise<void> {
-  const saved = await getTmuxSessions();
-  if (saved.length === 0) return;
-
-  // Get live tmux session names
-  let liveSessions: Set<string>;
-  try {
-    const output = await $`tmux list-sessions -F "#{session_name}"`
-      .quiet()
-      .text();
-    liveSessions = new Set(output.trim().split("\n").filter(Boolean));
-  } catch {
-    // tmux server not running — all saved sessions are stale
-    liveSessions = new Set();
-  }
-
-  for (const s of saved) {
-    if (!liveSessions.has(s.sessionName)) {
-      await removeTmuxSession(s.sessionName);
-    }
   }
 }

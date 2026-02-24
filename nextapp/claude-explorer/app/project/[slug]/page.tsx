@@ -1399,7 +1399,6 @@ function ProjectTmux({ slug }: { slug: string }) {
 // --- Tmux launcher ---
 
 function TmuxLauncher({ slug }: { slug: string }) {
-  const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const { data: projects } = useQuery({
     ...orpc.projects.list.queryOptions(),
@@ -1475,26 +1474,6 @@ function TmuxLauncher({ slug }: { slug: string }) {
     if (count >= 4) setLayout("tiled");
     else setLayout("even-horizontal");
   };
-
-  const launchMutation = useMutation({
-    mutationFn: () =>
-      client.tmux.launch({
-        sessionName: `claude-${projectName}`,
-        projectPath: project?.path ?? "",
-        panelCount,
-        layout,
-        resumeSessionIds: resumeIds.slice(0, panelCount),
-        skipPermissions: skipPermissions || undefined,
-        model: model || undefined,
-        maxBudgetUsd: budgetNum && budgetNum > 0 ? budgetNum : undefined,
-        customCommands: hasCustomCmds ? activeCustomCmds : undefined,
-      }),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({
-        queryKey: orpc.tmux.panes.queryOptions().queryKey,
-      });
-    },
-  });
 
   return (
     <div className="mb-4">
@@ -1663,32 +1642,12 @@ function TmuxLauncher({ slug }: { slug: string }) {
 
           {/* Command preview + actions */}
           <div className="relative rounded border bg-muted/30 p-2">
-            <pre className="overflow-x-auto pr-20 text-[11px] text-muted-foreground whitespace-pre-wrap">
+            <pre className="overflow-x-auto pr-6 text-[11px] text-muted-foreground whitespace-pre-wrap">
               {command}
             </pre>
             <div className="absolute top-1.5 right-1.5 flex items-center gap-1">
-              {!noTmux && !sshTarget && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-6 px-2 text-[10px]"
-                  disabled={launchMutation.isPending || !project?.path}
-                  onClick={() => launchMutation.mutate()}
-                >
-                  {launchMutation.isPending
-                    ? "..."
-                    : launchMutation.isSuccess
-                      ? "Launched"
-                      : "Launch"}
-                </Button>
-              )}
               <CopyButton text={command} />
             </div>
-            {launchMutation.isError && (
-              <p className="mt-1 text-[10px] text-red-400">
-                {launchMutation.error?.message ?? "Launch failed"}
-              </p>
-            )}
           </div>
 
           {/* Deployment tips */}

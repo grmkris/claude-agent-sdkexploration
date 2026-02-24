@@ -119,7 +119,6 @@ export type {
   IntegrationWidget,
   WidgetItem,
   RootWorkspace,
-  SavedTmuxSession,
   WorkspaceEmailConfig,
   EmailEvent,
   OAuthApp,

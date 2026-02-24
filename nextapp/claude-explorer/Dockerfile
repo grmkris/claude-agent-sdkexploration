@@ -29,10 +29,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gh \
     && rm -rf /var/lib/apt/lists/*
 
-# Clone tmux-resurrect + tmux-continuum (no TPM needed at runtime)
-RUN git clone --depth=1 https://github.com/tmux-plugins/tmux-resurrect /opt/tmux-resurrect \
-    && git clone --depth=1 https://github.com/tmux-plugins/tmux-continuum /opt/tmux-continuum
-
 # Postgres 17 + Redis for local dev databases
 RUN apt-get update && apt-get install -y --no-install-recommends \
     postgresql-17 \

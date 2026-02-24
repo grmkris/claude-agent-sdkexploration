@@ -191,24 +191,6 @@ export const RootWorkspaceSchema = z.object({
   primarySessionId: z.string().nullable(),
 });
 
-export const SavedTmuxSessionSchema = z.object({
-  sessionName: z.string(),
-  projectPath: z.string(),
-  panelCount: z.number(),
-  layout: z.enum([
-    "even-horizontal",
-    "even-vertical",
-    "tiled",
-    "main-vertical",
-  ]),
-  resumeSessionIds: z.array(z.string().nullable()).optional(),
-  skipPermissions: z.boolean().optional(),
-  model: z.string().optional(),
-  maxBudgetUsd: z.number().optional(),
-  customCommands: z.array(z.string().nullable()).optional(),
-  savedAt: z.string(),
-});
-
 export const WorkspaceEmailConfigSchema = z.object({
   projectSlug: z.string(), // "__root__" for root workspace
   address: z.string(), // e.g. "my-project@domain.com"
@@ -249,7 +231,6 @@ export const ExplorerStoreSchema = z.object({
   integrations: z.array(IntegrationConfigSchema),
   apiKeys: z.array(ApiKeySchema).optional(),
   rootWorkspace: RootWorkspaceSchema.optional(),
-  tmuxSessions: z.array(SavedTmuxSessionSchema).optional(),
   emailConfigs: z.array(WorkspaceEmailConfigSchema).optional(),
   emailEvents: z.array(EmailEventSchema).optional(),
   oauthApps: z.array(OAuthAppSchema).optional(),
@@ -274,7 +255,6 @@ export type IntegrationConfig = z.infer<typeof IntegrationConfigSchema>;
 export type IntegrationWidget = z.infer<typeof IntegrationWidgetSchema>;
 export type WidgetItem = z.infer<typeof WidgetItemSchema>;
 export type RootWorkspace = z.infer<typeof RootWorkspaceSchema>;
-export type SavedTmuxSession = z.infer<typeof SavedTmuxSessionSchema>;
 export type WorkspaceEmailConfig = z.infer<typeof WorkspaceEmailConfigSchema>;
 export type EmailEvent = z.infer<typeof EmailEventSchema>;
 export type OAuthApp = z.infer<typeof OAuthAppSchema>;
