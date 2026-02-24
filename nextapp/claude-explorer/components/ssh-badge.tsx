@@ -1,31 +1,34 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { usePathname } from "next/navigation";
 
 import { CopyButton } from "@/components/copy-button";
 import { orpc } from "@/lib/orpc";
-import { generateAttachCommand } from "@/lib/tmux-command";
 
 export function SshBadge() {
   const { data } = useQuery(orpc.server.config.queryOptions());
-  const { data: panes } = useQuery({
-    ...orpc.tmux.panes.queryOptions(),
-    refetchInterval: 30_000,
-  });
+  const pathname = usePathname();
 
   if (!data?.sshHost) return null;
 
-  // Pick the first active tmux session name if any panes are running
-  const activeSessions = panes?.map((p) => p.session).filter(Boolean) ?? [];
-  const firstSession = activeSessions[0];
+  // Extract session ID from /chat/:id or /project/:slug/chat/:id
+  const chatMatch = pathname.match(/\/chat\/([^/]+)$/);
+  const sessionId = chatMatch?.[1];
 
-  const command = generateAttachCommand({
-    sessionName: firstSession ?? "",
-    sshTarget: data.sshHost,
-  });
+  let command: string;
+  let label: string;
 
-  // Short label: show just the tmux portion
-  const label = firstSession ? `tmux attach -t ${firstSession}` : "tmux attach";
+  if (sessionId) {
+    const shortId = sessionId.slice(0, 8);
+    const sessionName = `claude-${shortId}`;
+    const innerCmd = `tmux new-session -s ${sessionName} 'claude --resume ${sessionId}'`;
+    command = `ssh -t ${data.sshHost} '${innerCmd}'`;
+    label = `tmux new-session ${sessionName}`;
+  } else {
+    command = `ssh ${data.sshHost}`;
+    label = `ssh ${data.sshHost}`;
+  }
 
   return (
     <div className="ml-auto flex items-center gap-1.5">

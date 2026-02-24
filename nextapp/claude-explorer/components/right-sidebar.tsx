@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  Clock01Icon,
   FolderOpenIcon,
   GitBranchIcon,
   Home01Icon,
@@ -14,7 +13,6 @@ import { useState } from "react";
 import { FileTreeTab } from "@/components/right-sidebar/file-tree-tab";
 import { GitTab } from "@/components/right-sidebar/git-tab";
 import { OverviewTab } from "@/components/right-sidebar/overview-tab";
-import { RecentConversationsTab } from "@/components/right-sidebar/recent-conversations-tab";
 import { SkillsMcpsTab } from "@/components/right-sidebar/skills-mcps-tab";
 import { useRightSidebar } from "@/components/ui/right-sidebar-context";
 import {
@@ -35,11 +33,10 @@ import {
 const RIGHT_SIDEBAR_WIDTH = "17rem";
 const RIGHT_SIDEBAR_WIDTH_MOBILE = "18rem";
 
-type TabValue = "overview" | "recent" | "skills" | "git" | "files";
+type TabValue = "overview" | "skills" | "git" | "files";
 
 const TABS = [
   { value: "overview", icon: Home01Icon, label: "Overview" },
-  { value: "recent", icon: Clock01Icon, label: "Recent conversations" },
   { value: "skills", icon: Lightning, label: "Skills & MCPs" },
   { value: "git", icon: GitBranchIcon, label: "Git" },
   { value: "files", icon: FolderOpenIcon, label: "Files" },
@@ -87,9 +84,6 @@ function RightSidebarInner({
         <TabsContent value="overview" hidden={activeTab !== "overview"}>
           <OverviewTab />
         </TabsContent>
-        <TabsContent value="recent" hidden={activeTab !== "recent"}>
-          <RecentConversationsTab />
-        </TabsContent>
         <TabsContent value="skills" hidden={activeTab !== "skills"}>
           <SkillsMcpsTab slug={activeSlug} />
         </TabsContent>
@@ -106,7 +100,7 @@ function RightSidebarInner({
 
 export function RightSidebar() {
   const { state, openMobile, setOpenMobile, isMobile } = useRightSidebar();
-  const [activeTab, setActiveTab] = useState<TabValue>("recent");
+  const [activeTab, setActiveTab] = useState<TabValue>("overview");
   const pathname = usePathname();
 
   const projectMatch = pathname.match(/^\/project\/([^/]+)/);

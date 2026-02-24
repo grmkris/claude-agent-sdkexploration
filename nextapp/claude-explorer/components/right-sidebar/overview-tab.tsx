@@ -2,6 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import { SidebarGroup, SidebarGroupContent } from "@/components/ui/sidebar";
@@ -169,11 +170,72 @@ function RootSessionSection() {
   );
 }
 
+function RecentSection() {
+  const pathname = usePathname();
+  const { data: sessions, isLoading } = useQuery({
+    ...orpc.sessions.recent.queryOptions({ input: { limit: 30 } }),
+    refetchInterval: 30_000,
+  });
+
+  return (
+    <SidebarGroup>
+      <div className="px-2 pb-1 text-[11px] font-medium text-sidebar-foreground/70">
+        Recent conversations
+      </div>
+      <SidebarGroupContent>
+        {isLoading && (
+          <div className="px-2 py-2 text-[11px] animate-pulse text-muted-foreground">
+            Loading…
+          </div>
+        )}
+        {!isLoading && (!sessions || sessions.length === 0) && (
+          <div className="px-2 py-3 text-center text-[11px] text-muted-foreground">
+            No recent conversations
+          </div>
+        )}
+        <div className="flex flex-col">
+          {sessions?.map((session) => {
+            const href = session.projectSlug
+              ? `/project/${session.projectSlug}/chat/${session.id}`
+              : `/chat/${session.id}`;
+            const isActive = pathname.includes(session.id);
+            const projectName = session.projectPath
+              ? session.projectPath.split("/").at(-1)
+              : null;
+
+            return (
+              <Link
+                key={session.id}
+                href={href}
+                className={`flex min-w-0 flex-col gap-0.5 rounded px-2 py-1.5 text-[11px] transition-colors hover:bg-sidebar-accent/50 ${
+                  isActive
+                    ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                    : "text-sidebar-foreground"
+                }`}
+              >
+                <span className="truncate leading-tight">
+                  {session.firstPrompt.slice(0, 60) || "Untitled conversation"}
+                </span>
+                {projectName && (
+                  <span className="truncate text-[10px] text-muted-foreground">
+                    {projectName}
+                  </span>
+                )}
+              </Link>
+            );
+          })}
+        </div>
+      </SidebarGroupContent>
+    </SidebarGroup>
+  );
+}
+
 export function OverviewTab() {
   return (
     <div className="flex flex-col gap-2 py-2">
       <AutomationsSection />
       <RootSessionSection />
+      <RecentSection />
     </div>
   );
 }
