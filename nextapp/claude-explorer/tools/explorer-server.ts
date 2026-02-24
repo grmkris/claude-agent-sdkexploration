@@ -21,7 +21,7 @@ const link = new RPCLink({
 const client: RouterClient<typeof router> = createORPCClient(link);
 
 const server = new McpServer({
-  name: "claude-explorer",
+  name: process.env.INSTANCE_NAME ?? "claude-explorer",
   version: "2.0.0",
 });
 

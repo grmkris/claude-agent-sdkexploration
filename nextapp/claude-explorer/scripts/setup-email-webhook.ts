@@ -11,7 +11,7 @@ const WEBHOOK_URL =
   "https://claude-explorer-v2-production.up.railway.app/api/email/inbound";
 const DOMAIN = "yoda.fun";
 const EMAIL_LOCAL = "explorer";
-const ENDPOINT_NAME = "claude-explorer";
+const ENDPOINT_NAME = process.env.INSTANCE_NAME ?? "claude-explorer";
 
 async function main() {
   const apiKey = process.env.INBOUND_EMAIL_API_KEY;

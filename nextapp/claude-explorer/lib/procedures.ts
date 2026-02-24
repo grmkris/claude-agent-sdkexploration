@@ -877,7 +877,7 @@ const rootChatProc = os
               "You are the root workspace assistant for Claude Explorer. You have cross-project access via MCP tools (project_list, project_sessions, cron_create, webhook_create, etc). Use them to help manage all projects.",
           },
           mcpServers: {
-            "claude-explorer": {
+            [process.env.INSTANCE_NAME ?? "claude-explorer"]: {
               command: "bun",
               args: [explorerServerPath],
               env: {
@@ -1636,7 +1636,7 @@ const removeMcpServerProc = os
   )
   .output(z.object({ success: z.boolean(), error: z.string().optional() }))
   .handler(async ({ input }) => {
-    if (input.name === "claude-explorer") {
+    if (input.name === (process.env.INSTANCE_NAME ?? "claude-explorer")) {
       return { success: false, error: "Cannot remove the system MCP server" };
     }
     let cwd: string | undefined;

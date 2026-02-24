@@ -22,7 +22,7 @@ if [ -n "$TS_AUTHKEY" ]; then
 
     tailscale up \
         --authkey="$TS_AUTHKEY" \
-        --hostname="${TS_HOSTNAME:-claude-explorer}" \
+        --hostname="${TS_HOSTNAME:-${INSTANCE_NAME:-claude-explorer}}" \
         --ssh \
         --accept-dns=false
 
@@ -49,14 +49,14 @@ for d in /home/bun/projects/-home-bun*; do
 done
 
 # Always write .bashrc (we own this file; ensures updates reach existing volumes)
-cat > /home/bun/.bashrc <<'BASHRC'
-export PATH="/home/bun/.bun/bin:/home/bun/.local/bin:$PATH"
+cat > /home/bun/.bashrc <<BASHRC
+export PATH="/home/bun/.bun/bin:/home/bun/.local/bin:\$PATH"
 export LANG=en_GB.UTF-8
 export LC_ALL=en_GB.UTF-8
 export CLAUDE_CONFIG_DIR=/home/bun/.claude
 
 # Colors + prompt
-export PS1='\[\033[1;32m\]\u\[\033[0m\]@\[\033[1;34m\]claude-explorer\[\033[0m\]:\[\033[1;33m\]\w\[\033[0m\]\$ '
+export PS1='\[\033[1;32m\]\u\[\033[0m\]@\[\033[1;34m\]${INSTANCE_NAME:-claude-explorer}\[\033[0m\]:\[\033[1;33m\]\w\[\033[0m\]\\\$ '
 export LS_COLORS='di=1;34:ln=1;36:so=1;35:pi=33:ex=1;32:bd=1;33:cd=1;33'
 alias ls="ls --color=auto"
 alias ll="ls -la --color=auto"
@@ -126,8 +126,9 @@ fi
 export RPC_INTERNAL_TOKEN=$(head -c 32 /dev/urandom | base64 | tr -d '/+=' | head -c 43)
 
 # Register claude-explorer MCP server (token changes each boot, so remove + re-add)
-su bun -c "claude mcp remove -s user claude-explorer" 2>/dev/null || true
-su bun -c "claude mcp add -s user claude-explorer \
+MCP_NAME="${INSTANCE_NAME:-claude-explorer}"
+su bun -c "claude mcp remove -s user $MCP_NAME" 2>/dev/null || true
+su bun -c "claude mcp add -s user $MCP_NAME \
   -e EXPLORER_BASE_URL=http://localhost:${PORT:-3000} \
   -e RPC_INTERNAL_TOKEN=${RPC_INTERNAL_TOKEN} \
   -- bun /app/tools/explorer-server.ts" 2>/dev/null || true

@@ -25,7 +25,7 @@ const baseUrl =
 
 function getExplorerMcpConfig() {
   return {
-    "claude-explorer": {
+    [process.env.INSTANCE_NAME ?? "claude-explorer"]: {
       command: "bun",
       args: [explorerServerPath],
       env: {
