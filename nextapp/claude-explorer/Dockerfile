@@ -90,7 +90,7 @@ RUN bun --bun next build
 
 # Lock /app — root-only, bun user has zero access
 USER root
-RUN chown -R root:root /app && chmod -R 700 /app
+RUN chown -R root:root /app && chmod -R 755 /app
 
 # Create user workspace skeleton
 RUN mkdir -p /home/bun/projects && chown bun:bun /home/bun/projects

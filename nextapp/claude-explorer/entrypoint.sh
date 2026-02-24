@@ -35,7 +35,7 @@ chown -R bun:bun /home/bun/.claude /home/bun/.local
 
 # Clean up stale files from earlier deploys (before CLAUDE_CONFIG_DIR was set in shell)
 # These are Claude CLI artifacts that got written to ~ instead of ~/.claude
-for stale in .claude.json .credentials.json history.jsonl explorer.json \
+for stale in .credentials.json history.jsonl explorer.json \
              settings.json statusline-command.sh statusline-wrapper.sh; do
     [ -f "/home/bun/$stale" ] && rm -f "/home/bun/$stale"
 done
@@ -95,6 +95,16 @@ if [ -d "$CONFIG_SRC" ]; then
     chown bun:bun "$CONFIG_DST/settings.json" "$CONFIG_DST/statusline-wrapper.sh" "$CONFIG_DST/statusline-command.sh" 2>/dev/null
     echo "[claude-config] provisioned"
 fi
+
+# Add claude-explorer MCP server to user-level config (idempotent)
+CLAUDE_JSON=/home/bun/.claude.json
+[ -f "$CLAUDE_JSON" ] || echo '{}' > "$CLAUDE_JSON"
+jq '.mcpServers["claude-explorer"] = {
+  "command": "bun",
+  "args": ["/app/tools/explorer-server.ts"]
+}' "$CLAUDE_JSON" > /tmp/.claude.json.tmp \
+  && mv /tmp/.claude.json.tmp "$CLAUDE_JSON"
+chown bun:bun "$CLAUDE_JSON"
 
 # Strip CLAUDECODE so Agent SDK and Railway CLI work inside this container
 unset CLAUDECODE
