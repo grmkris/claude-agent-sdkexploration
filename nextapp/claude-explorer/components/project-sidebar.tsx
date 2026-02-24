@@ -91,6 +91,16 @@ function ProjectListSidebar({ pathname }: { pathname: string }) {
                 </Link>
               </SidebarMenuItem>
               <SidebarMenuItem>
+                <Link href="/mcps">
+                  <SidebarMenuButton
+                    isActive={pathname === "/mcps"}
+                    tooltip="MCP Servers & Skills"
+                  >
+                    <span>MCPs</span>
+                  </SidebarMenuButton>
+                </Link>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
                 <Link href="/email">
                   <SidebarMenuButton
                     isActive={pathname === "/email"}

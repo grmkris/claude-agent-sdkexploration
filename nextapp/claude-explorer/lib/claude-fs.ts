@@ -1,4 +1,11 @@
-import { readdir, stat, readFile, mkdir } from "node:fs/promises";
+import {
+  readdir,
+  stat,
+  readFile,
+  mkdir,
+  writeFile,
+  rm,
+} from "node:fs/promises";
 import { homedir } from "node:os";
 import { join, dirname, isAbsolute } from "node:path";
 
@@ -949,4 +956,209 @@ export async function readSessionFacets(
   );
 
   return results;
+}
+
+// --- CLI helper ---
+
+export async function runClaudeCli(
+  args: string[],
+  cwd?: string
+): Promise<{ success: boolean; output?: string; error?: string }> {
+  try {
+    const proc = Bun.spawn(["claude", ...args], {
+      cwd,
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    const [stdout, stderr] = await Promise.all([
+      new Response(proc.stdout).text(),
+      new Response(proc.stderr).text(),
+    ]);
+    const exitCode = await proc.exited;
+    if (exitCode !== 0) {
+      return {
+        success: false,
+        error: stderr || stdout || `Exit code ${exitCode}`,
+      };
+    }
+    // Invalidate config cache after CLI mutation
+    configCache = null;
+    return { success: true, output: stdout };
+  } catch (e) {
+    return {
+      success: false,
+      error: e instanceof Error ? e.message : "CLI execution failed",
+    };
+  }
+}
+
+// --- MCP Tool Inspection ---
+
+export interface McpTool {
+  name: string;
+  description?: string;
+  inputSchema?: object;
+}
+
+export interface McpServerConfig {
+  type?: string;
+  command?: string;
+  args?: string[];
+  url?: string;
+  env?: Record<string, string>;
+}
+
+export async function inspectMcpTools(
+  serverConfig: McpServerConfig
+): Promise<McpTool[]> {
+  const { Client } = await import("@modelcontextprotocol/sdk/client/index.js");
+  const transport = serverConfig.type ?? "stdio";
+
+  const mcpClient = new Client({ name: "claude-explorer", version: "1.0.0" });
+
+  let mcpTransport: unknown;
+
+  if (transport === "stdio") {
+    const { StdioClientTransport } =
+      await import("@modelcontextprotocol/sdk/client/stdio.js");
+    if (!serverConfig.command)
+      throw new Error("No command specified for stdio server");
+    mcpTransport = new StdioClientTransport({
+      command: serverConfig.command,
+      args: serverConfig.args ?? [],
+      env: serverConfig.env
+        ? ({ ...process.env, ...serverConfig.env } as Record<string, string>)
+        : undefined,
+    });
+  } else if (transport === "http") {
+    const { StreamableHTTPClientTransport } =
+      await import("@modelcontextprotocol/sdk/client/streamableHttp.js");
+    if (!serverConfig.url) throw new Error("No URL specified for http server");
+    mcpTransport = new StreamableHTTPClientTransport(new URL(serverConfig.url));
+  } else if (transport === "sse") {
+    const { SSEClientTransport } =
+      await import("@modelcontextprotocol/sdk/client/sse.js");
+    if (!serverConfig.url) throw new Error("No URL specified for sse server");
+    mcpTransport = new SSEClientTransport(new URL(serverConfig.url));
+  } else {
+    throw new Error(`Unsupported transport: ${transport}`);
+  }
+
+  try {
+    await Promise.race([
+      mcpClient.connect(
+        mcpTransport as Parameters<typeof mcpClient.connect>[0]
+      ),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("Connection timeout")), 10000)
+      ),
+    ]);
+
+    const result = await Promise.race([
+      mcpClient.listTools(),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("listTools timeout")), 5000)
+      ),
+    ]);
+
+    return (result.tools ?? []).map((t) => ({
+      name: t.name,
+      description: t.description,
+      inputSchema: t.inputSchema as object | undefined,
+    }));
+  } finally {
+    try {
+      await mcpClient.close();
+    } catch {
+      // best-effort cleanup
+    }
+  }
+}
+
+// --- Skill / Command writes ---
+
+export async function writeUserSkill(
+  name: string,
+  content: string
+): Promise<void> {
+  const dir = join(CLAUDE_DIR, "skills", name);
+  await mkdir(dir, { recursive: true });
+  await writeFile(join(dir, "SKILL.md"), content, "utf-8");
+}
+
+export async function removeUserSkill(name: string): Promise<boolean> {
+  const dir = join(CLAUDE_DIR, "skills", name);
+  try {
+    await rm(dir, { recursive: true });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function writeUserCommand(
+  name: string,
+  content: string
+): Promise<void> {
+  const dir = join(CLAUDE_DIR, "commands");
+  await mkdir(dir, { recursive: true });
+  await writeFile(join(dir, `${name}.md`), content, "utf-8");
+}
+
+export async function removeUserCommand(name: string): Promise<boolean> {
+  try {
+    await rm(join(CLAUDE_DIR, "commands", `${name}.md`));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function writeProjectCommand(
+  projectPath: string,
+  name: string,
+  content: string
+): Promise<void> {
+  const dir = join(projectPath, ".claude", "commands");
+  await mkdir(dir, { recursive: true });
+  await writeFile(join(dir, `${name}.md`), content, "utf-8");
+}
+
+export async function removeProjectCommand(
+  projectPath: string,
+  name: string
+): Promise<boolean> {
+  try {
+    await rm(join(projectPath, ".claude", "commands", `${name}.md`));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function readSkillContent(name: string): Promise<string | null> {
+  try {
+    return await readFile(
+      join(CLAUDE_DIR, "skills", name, "SKILL.md"),
+      "utf-8"
+    );
+  } catch {
+    return null;
+  }
+}
+
+export async function readCommandContent(
+  scope: "user" | "project",
+  name: string,
+  projectPath?: string
+): Promise<string | null> {
+  try {
+    const base =
+      scope === "user"
+        ? join(CLAUDE_DIR, "commands")
+        : join(projectPath!, ".claude", "commands");
+    return await readFile(join(base, `${name}.md`), "utf-8");
+  } catch {
+    return null;
+  }
 }

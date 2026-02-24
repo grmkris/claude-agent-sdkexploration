@@ -131,7 +131,8 @@ export function BotIdentitySetup() {
                         rel="noopener noreferrer"
                         className="text-blue-400 hover:underline"
                       >
-                        Linear &rarr; Settings &rarr; API &rarr; Applications &rarr; New
+                        Linear &rarr; Settings &rarr; API &rarr; Applications
+                        &rarr; New
                       </a>
                     </li>
                     <li>

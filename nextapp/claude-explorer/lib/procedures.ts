@@ -31,6 +31,16 @@ import {
   createProjectDirectory,
   invalidateSlugCache,
   resolveSlugForCwd,
+  runClaudeCli,
+  inspectMcpTools,
+  writeUserSkill,
+  removeUserSkill,
+  writeUserCommand,
+  removeUserCommand,
+  writeProjectCommand,
+  removeProjectCommand,
+  readSkillContent,
+  readCommandContent,
 } from "./claude-fs";
 import { sendEmail } from "./email";
 import {
@@ -1349,7 +1359,10 @@ const saveOAuthCredentialsProc = os
 
       if (!res.ok) {
         const body = await res.text();
-        return { ok: false, error: `Token exchange failed (${res.status}): ${body}` };
+        return {
+          ok: false,
+          error: `Token exchange failed (${res.status}): ${body}`,
+        };
       }
 
       const data = (await res.json()) as { access_token: string };
@@ -1376,9 +1389,8 @@ const saveOAuthCredentialsProc = os
 
       // Clear any cached bot token so next request uses new creds
       try {
-        const { clearLinearBotTokenCache } = await import(
-          "./oauth/linear-client-credentials"
-        );
+        const { clearLinearBotTokenCache } =
+          await import("./oauth/linear-client-credentials");
         clearLinearBotTokenCache();
       } catch {
         // ok
@@ -1399,14 +1411,236 @@ const removeOAuthCredentialsProc = os
   .handler(async ({ input }) => {
     const success = await removeOAuthApp(input.provider);
     try {
-      const { clearLinearBotTokenCache } = await import(
-        "./oauth/linear-client-credentials"
-      );
+      const { clearLinearBotTokenCache } =
+        await import("./oauth/linear-client-credentials");
       clearLinearBotTokenCache();
     } catch {
       // ok
     }
     return { success };
+  });
+
+// --- MCP Servers ---
+
+const McpToolSchema = z.object({
+  name: z.string(),
+  description: z.string().optional(),
+  inputSchema: z.unknown().optional(),
+});
+
+const addMcpServerProc = os
+  .input(
+    z.object({
+      name: z.string(),
+      scope: z.enum(["user", "local", "project"]),
+      transport: z.enum(["stdio", "http", "sse"]),
+      command: z.string().optional(),
+      args: z.array(z.string()).optional(),
+      url: z.string().optional(),
+      env: z.record(z.string(), z.string()).optional(),
+      slug: z.string().optional(),
+    })
+  )
+  .output(z.object({ success: z.boolean(), error: z.string().optional() }))
+  .handler(async ({ input }) => {
+    const cliArgs: string[] = ["mcp", "add", "--scope", input.scope];
+
+    if (input.env && Object.keys(input.env).length > 0) {
+      // Use add-json for env vars since CLI doesn't support env via flags easily
+      const jsonConfig: Record<string, unknown> = { type: input.transport };
+      if (input.transport === "stdio") {
+        jsonConfig.command = input.command;
+        jsonConfig.args = input.args ?? [];
+      } else {
+        jsonConfig.url = input.url;
+      }
+      jsonConfig.env = input.env;
+
+      const addJsonArgs = [
+        "mcp",
+        "add-json",
+        "--scope",
+        input.scope,
+        input.name,
+        JSON.stringify(jsonConfig),
+      ];
+
+      let cwd: string | undefined;
+      if (input.scope !== "user" && input.slug) {
+        cwd = await resolveSlugToPath(input.slug);
+      }
+      return runClaudeCli(addJsonArgs, cwd);
+    }
+
+    cliArgs.push("--transport", input.transport);
+    cliArgs.push(input.name);
+
+    if (input.transport === "stdio") {
+      cliArgs.push("--", input.command ?? "");
+      if (input.args?.length) cliArgs.push(...input.args);
+    } else {
+      cliArgs.push(input.url ?? "");
+    }
+
+    let cwd: string | undefined;
+    if (input.scope !== "user" && input.slug) {
+      cwd = await resolveSlugToPath(input.slug);
+    }
+
+    return runClaudeCli(cliArgs, cwd);
+  });
+
+const removeMcpServerProc = os
+  .input(
+    z.object({
+      name: z.string(),
+      scope: z.enum(["user", "local", "project"]),
+      slug: z.string().optional(),
+    })
+  )
+  .output(z.object({ success: z.boolean(), error: z.string().optional() }))
+  .handler(async ({ input }) => {
+    let cwd: string | undefined;
+    if (input.scope !== "user" && input.slug) {
+      cwd = await resolveSlugToPath(input.slug);
+    }
+    return runClaudeCli(
+      ["mcp", "remove", "--scope", input.scope, input.name],
+      cwd
+    );
+  });
+
+const inspectToolsProc = os
+  .input(
+    z.object({
+      name: z.string(),
+      scope: z.enum(["user", "local", "project"]),
+      slug: z.string().optional(),
+    })
+  )
+  .output(
+    z.object({ tools: z.array(McpToolSchema), error: z.string().optional() })
+  )
+  .handler(async ({ input }) => {
+    try {
+      let servers: Record<string, Record<string, unknown>> = {};
+      if (input.scope === "user") {
+        servers = (await readUserMcpServers()) as Record<
+          string,
+          Record<string, unknown>
+        >;
+      } else if (input.scope === "project" && input.slug) {
+        const projectPath = await resolveSlugToPath(input.slug);
+        servers = ((await readProjectMcpConfig(projectPath)) ?? {}) as Record<
+          string,
+          Record<string, unknown>
+        >;
+      } else if (input.scope === "local" && input.slug) {
+        const projectPath = await resolveSlugToPath(input.slug);
+        servers = (await readLocalMcpServers(projectPath)) as Record<
+          string,
+          Record<string, unknown>
+        >;
+      }
+
+      const cfg = servers[input.name];
+      if (!cfg)
+        return {
+          tools: [],
+          error: `Server "${input.name}" not found in ${input.scope} config`,
+        };
+
+      const tools = await inspectMcpTools({
+        type: (cfg.type as string) ?? "stdio",
+        command: cfg.command as string | undefined,
+        args: cfg.args as string[] | undefined,
+        url: cfg.url as string | undefined,
+        env: cfg.env as Record<string, string> | undefined,
+      });
+
+      return { tools };
+    } catch (e) {
+      return {
+        tools: [],
+        error: e instanceof Error ? e.message : "Inspection failed",
+      };
+    }
+  });
+
+// --- Skills & Commands management ---
+
+const addSkillProc = os
+  .input(z.object({ name: z.string(), content: z.string() }))
+  .output(z.object({ success: z.boolean() }))
+  .handler(async ({ input }) => {
+    await writeUserSkill(input.name, input.content);
+    return { success: true };
+  });
+
+const removeSkillProc = os
+  .input(z.object({ name: z.string() }))
+  .output(z.object({ success: z.boolean() }))
+  .handler(async ({ input }) => ({
+    success: await removeUserSkill(input.name),
+  }));
+
+const addCommandProc = os
+  .input(
+    z.object({
+      name: z.string(),
+      content: z.string(),
+      scope: z.enum(["user", "project"]),
+      slug: z.string().optional(),
+    })
+  )
+  .output(z.object({ success: z.boolean() }))
+  .handler(async ({ input }) => {
+    if (input.scope === "project" && input.slug) {
+      const projectPath = await resolveSlugToPath(input.slug);
+      await writeProjectCommand(projectPath, input.name, input.content);
+    } else {
+      await writeUserCommand(input.name, input.content);
+    }
+    return { success: true };
+  });
+
+const removeCommandProc = os
+  .input(
+    z.object({
+      name: z.string(),
+      scope: z.enum(["user", "project"]),
+      slug: z.string().optional(),
+    })
+  )
+  .output(z.object({ success: z.boolean() }))
+  .handler(async ({ input }) => {
+    if (input.scope === "project" && input.slug) {
+      const projectPath = await resolveSlugToPath(input.slug);
+      return { success: await removeProjectCommand(projectPath, input.name) };
+    }
+    return { success: await removeUserCommand(input.name) };
+  });
+
+const getContentProc = os
+  .input(
+    z.object({
+      name: z.string(),
+      type: z.enum(["skill", "command"]),
+      scope: z.enum(["user", "project"]),
+      slug: z.string().optional(),
+    })
+  )
+  .output(z.object({ content: z.string().nullable() }))
+  .handler(async ({ input }) => {
+    if (input.type === "skill") {
+      return { content: await readSkillContent(input.name) };
+    }
+    const projectPath = input.slug
+      ? await resolveSlugToPath(input.slug)
+      : undefined;
+    return {
+      content: await readCommandContent(input.scope, input.name, projectPath),
+    };
   });
 
 export const router = {
@@ -1420,6 +1654,18 @@ export const router = {
     create: createProjectProc,
   },
   user: { config: userConfigProc },
+  mcpServers: {
+    add: addMcpServerProc,
+    remove: removeMcpServerProc,
+    inspectTools: inspectToolsProc,
+  },
+  skills: {
+    add: addSkillProc,
+    remove: removeSkillProc,
+    addCommand: addCommandProc,
+    removeCommand: removeCommandProc,
+    getContent: getContentProc,
+  },
   sessions: {
     list: listSessionsProc,
     messages: getMessagesProc,

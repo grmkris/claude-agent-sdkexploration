@@ -424,14 +424,10 @@ export async function resolveIntegrationToken(
   integration: IntegrationConfig
 ): Promise<string> {
   // For Linear integrations, prefer bot token if OAuth is configured
-  if (
-    integration.type === "linear" &&
-    integration.config?.useOAuth !== false
-  ) {
+  if (integration.type === "linear" && integration.config?.useOAuth !== false) {
     try {
-      const { isLinearBotConfiguredAsync, getLinearBotToken } = await import(
-        "./oauth/linear-client-credentials"
-      );
+      const { isLinearBotConfiguredAsync, getLinearBotToken } =
+        await import("./oauth/linear-client-credentials");
       if (await isLinearBotConfiguredAsync()) {
         const { accessToken } = await getLinearBotToken();
         return accessToken;
@@ -604,9 +600,7 @@ export async function getOAuthApps(): Promise<OAuthApp[]> {
   return (store as any).oauthApps ?? [];
 }
 
-export async function getOAuthApp(
-  provider: string
-): Promise<OAuthApp | null> {
+export async function getOAuthApp(provider: string): Promise<OAuthApp | null> {
   const apps = await getOAuthApps();
   return apps.find((a) => a.provider === provider) ?? null;
 }

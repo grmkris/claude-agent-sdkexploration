@@ -59,6 +59,7 @@ function ChevronIcon({
 // --- Skills bar: MCPs, Agents, Crons, Webhooks, Tmux summary ---
 
 function ProjectSkills({ slug }: { slug: string }) {
+  const queryClient = useQueryClient();
   const [expanded, setExpanded] = useState(false);
   const { data: config } = useQuery({
     ...orpc.projects.config.queryOptions({ input: { slug } }),
@@ -80,11 +81,136 @@ function ProjectSkills({ slug }: { slug: string }) {
     enabled: expanded,
   });
 
+  // Inline add MCP form
+  const [showAddMcp, setShowAddMcp] = useState(false);
+  const [mcpName, setMcpName] = useState("");
+  const [mcpTransport, setMcpTransport] = useState<"stdio" | "http" | "sse">(
+    "stdio"
+  );
+  const [mcpCommand, setMcpCommand] = useState("");
+  const [mcpArgs, setMcpArgs] = useState("");
+  const [mcpUrl, setMcpUrl] = useState("");
+
+  // Inline add command form
+  const [showAddCmd, setShowAddCmd] = useState(false);
+  const [cmdName, setCmdName] = useState("");
+  const [cmdContent, setCmdContent] = useState("");
+
+  // Tool inspection
+  const [inspectingMcp, setInspectingMcp] = useState<string | null>(null);
+  const [toolResults, setToolResults] = useState<
+    Record<
+      string,
+      {
+        tools: Array<{
+          name: string;
+          description?: string;
+          inputSchema?: unknown;
+        }>;
+        error?: string;
+      }
+    >
+  >({});
+  const [expandedSchema, setExpandedSchema] = useState<string | null>(null);
+
+  const invalidateConfig = () => {
+    void queryClient.invalidateQueries({
+      queryKey: orpc.projects.config.queryOptions({ input: { slug } }).queryKey,
+    });
+    void queryClient.invalidateQueries({
+      queryKey: orpc.user.config.queryOptions().queryKey,
+    });
+  };
+
+  const addMcpMutation = useMutation({
+    mutationFn: () =>
+      client.mcpServers.add({
+        name: mcpName,
+        scope: "project",
+        transport: mcpTransport,
+        slug,
+        ...(mcpTransport === "stdio"
+          ? {
+              command: mcpCommand,
+              args: mcpArgs ? mcpArgs.split(/[,\s]+/).filter(Boolean) : [],
+            }
+          : { url: mcpUrl }),
+      }),
+    onSuccess: (result) => {
+      if (result.success) {
+        invalidateConfig();
+        setMcpName("");
+        setMcpCommand("");
+        setMcpArgs("");
+        setMcpUrl("");
+        setShowAddMcp(false);
+      }
+    },
+  });
+
+  const removeMcpMutation = useMutation({
+    mutationFn: (params: {
+      name: string;
+      scope: "user" | "local" | "project";
+    }) => client.mcpServers.remove({ ...params, slug }),
+    onSuccess: invalidateConfig,
+  });
+
+  const addCmdMutation = useMutation({
+    mutationFn: () =>
+      client.skills.addCommand({
+        name: cmdName,
+        content: cmdContent,
+        scope: "project",
+        slug,
+      }),
+    onSuccess: () => {
+      invalidateConfig();
+      setCmdName("");
+      setCmdContent("");
+      setShowAddCmd(false);
+    },
+  });
+
+  const removeCmdMutation = useMutation({
+    mutationFn: (params: { name: string; scope: "user" | "project" }) =>
+      client.skills.removeCommand({
+        ...params,
+        ...(params.scope === "project" ? { slug } : {}),
+      }),
+    onSuccess: invalidateConfig,
+  });
+
+  const handleInspect = async (
+    serverName: string,
+    scope: "user" | "local" | "project"
+  ) => {
+    const key = `${scope}:${serverName}`;
+    if (inspectingMcp === key) {
+      setInspectingMcp(null);
+      return;
+    }
+    setInspectingMcp(key);
+    try {
+      const result = await client.mcpServers.inspectTools({
+        name: serverName,
+        scope,
+        slug,
+      });
+      setToolResults((prev) => ({ ...prev, [key]: result }));
+    } catch (e) {
+      setToolResults((prev) => ({
+        ...prev,
+        [key]: { tools: [], error: e instanceof Error ? e.message : "Failed" },
+      }));
+    }
+  };
+
   const crons = allCrons?.filter((c) => c.projectSlug === slug) ?? [];
   const webhooks = allWebhooks?.filter((w) => w.projectSlug === slug) ?? [];
   const panes = allPanes?.filter((p) => p.projectSlug === slug) ?? [];
 
-  const mcpList: { name: string; scope: string }[] = [];
+  const mcpList: { name: string; scope: "user" | "local" | "project" }[] = [];
   for (const name of Object.keys(config?.localMcpServers ?? {}))
     mcpList.push({ name, scope: "local" });
   for (const name of Object.keys(config?.mcpServers ?? {}))
@@ -99,7 +225,6 @@ function ProjectSkills({ slug }: { slug: string }) {
   const enabledCrons = crons.filter((c) => c.enabled).length;
   const enabledWebhooks = webhooks.filter((w) => w.enabled).length;
 
-  // Build summary parts (only available after expand triggers fetch)
   const parts: string[] = [];
   if (config) {
     if (mcpList.length > 0) parts.push(`${mcpList.length} MCP`);
@@ -127,12 +252,84 @@ function ProjectSkills({ slug }: { slug: string }) {
       {expanded && (
         <TooltipProvider>
           <div className="border-t px-3 py-2 text-xs">
-            {mcpList.length > 0 && (
-              <div className="mb-2">
+            {/* MCP Servers */}
+            <div className="mb-2">
+              <div className="flex items-center gap-1.5">
                 <span className="text-[10px] font-medium text-muted-foreground">
                   MCP Servers
                 </span>
-                <div className="mt-1 flex flex-wrap gap-1.5">
+                <button
+                  onClick={() => setShowAddMcp(!showAddMcp)}
+                  className="text-[10px] text-muted-foreground hover:text-foreground"
+                >
+                  {showAddMcp ? "cancel" : "+"}
+                </button>
+              </div>
+              {showAddMcp && (
+                <div className="mt-1.5 mb-2 flex flex-col gap-1.5">
+                  <div className="flex gap-1.5">
+                    <input
+                      placeholder="Name"
+                      value={mcpName}
+                      onChange={(e) => setMcpName(e.target.value)}
+                      className="w-28 rounded border bg-background px-1.5 py-0.5 text-[11px]"
+                    />
+                    <select
+                      value={mcpTransport}
+                      onChange={(e) =>
+                        setMcpTransport(e.target.value as typeof mcpTransport)
+                      }
+                      className="rounded border bg-background px-1 text-[11px]"
+                    >
+                      <option value="stdio">stdio</option>
+                      <option value="http">http</option>
+                      <option value="sse">sse</option>
+                    </select>
+                    {mcpTransport === "stdio" ? (
+                      <>
+                        <input
+                          placeholder="Command"
+                          value={mcpCommand}
+                          onChange={(e) => setMcpCommand(e.target.value)}
+                          className="w-24 rounded border bg-background px-1.5 py-0.5 text-[11px]"
+                        />
+                        <input
+                          placeholder="Args"
+                          value={mcpArgs}
+                          onChange={(e) => setMcpArgs(e.target.value)}
+                          className="flex-1 rounded border bg-background px-1.5 py-0.5 text-[11px]"
+                        />
+                      </>
+                    ) : (
+                      <input
+                        placeholder="URL"
+                        value={mcpUrl}
+                        onChange={(e) => setMcpUrl(e.target.value)}
+                        className="flex-1 rounded border bg-background px-1.5 py-0.5 text-[11px]"
+                      />
+                    )}
+                    <Button
+                      size="sm"
+                      className="h-6 px-2 text-[10px]"
+                      disabled={
+                        !mcpName ||
+                        (mcpTransport === "stdio" ? !mcpCommand : !mcpUrl) ||
+                        addMcpMutation.isPending
+                      }
+                      onClick={() => addMcpMutation.mutate()}
+                    >
+                      {addMcpMutation.isPending ? "..." : "Add"}
+                    </Button>
+                  </div>
+                  {addMcpMutation.data && !addMcpMutation.data.success && (
+                    <span className="text-[10px] text-red-400">
+                      {addMcpMutation.data.error}
+                    </span>
+                  )}
+                </div>
+              )}
+              {mcpList.length > 0 && (
+                <div className="mt-1 flex flex-col gap-1">
                   {mcpList.map((m) => {
                     const allServers: Record<
                       string,
@@ -155,33 +352,133 @@ function ProjectSkills({ slug }: { slug: string }) {
                     const serverType = (cfg?.type as string) ?? "stdio";
                     const command = cfg?.command as string | undefined;
                     const args = cfg?.args as string[] | undefined;
+                    const key = `${m.scope}:${m.name}`;
+                    const isInspecting = inspectingMcp === key;
+                    const tools = toolResults[key];
+
                     return (
-                      <Tooltip key={`${m.name}-${m.scope}`}>
-                        <TooltipTrigger>
-                          <Badge variant="outline" className="text-[10px]">
-                            {m.name}
-                          </Badge>
-                        </TooltipTrigger>
-                        <TooltipContent side="bottom" className="max-w-xs">
-                          <div className="flex flex-col gap-0.5">
-                            <span className="font-medium">{m.name}</span>
-                            <span className="text-[10px] opacity-70">
-                              {serverType} · {m.scope}
-                            </span>
-                            {command && (
-                              <span className="font-mono text-[10px] opacity-70">
-                                {command}
-                                {args?.length ? ` ${args[0]}` : ""}
+                      <div key={`${m.name}-${m.scope}`}>
+                        <div className="flex items-center gap-1.5">
+                          <Tooltip>
+                            <TooltipTrigger>
+                              <Badge variant="outline" className="text-[10px]">
+                                {m.name}
+                              </Badge>
+                            </TooltipTrigger>
+                            <TooltipContent side="bottom" className="max-w-xs">
+                              <div className="flex flex-col gap-0.5">
+                                <span className="font-medium">{m.name}</span>
+                                <span className="text-[10px] opacity-70">
+                                  {serverType} · {m.scope}
+                                </span>
+                                {command && (
+                                  <span className="font-mono text-[10px] opacity-70">
+                                    {command}
+                                    {args?.length ? ` ${args[0]}` : ""}
+                                  </span>
+                                )}
+                              </div>
+                            </TooltipContent>
+                          </Tooltip>
+                          <span className="text-[10px] text-muted-foreground">
+                            {m.scope}
+                          </span>
+                          <button
+                            onClick={() => handleInspect(m.name, m.scope)}
+                            className="text-[10px] text-muted-foreground hover:text-foreground"
+                          >
+                            {isInspecting ? "hide" : "tools"}
+                          </button>
+                          <button
+                            onClick={() =>
+                              removeMcpMutation.mutate({
+                                name: m.name,
+                                scope: m.scope,
+                              })
+                            }
+                            className="text-muted-foreground hover:text-destructive"
+                            title="Remove"
+                          >
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth={2}
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              className="h-2.5 w-2.5"
+                            >
+                              <path d="M18 6 6 18M6 6l12 12" />
+                            </svg>
+                          </button>
+                        </div>
+                        {isInspecting && tools && (
+                          <div className="ml-4 mt-1 rounded border bg-muted/20 px-2 py-1.5">
+                            {tools.error ? (
+                              <span className="text-[10px] text-red-400">
+                                {tools.error}
                               </span>
+                            ) : tools.tools.length === 0 ? (
+                              <span className="text-[10px] text-muted-foreground">
+                                No tools
+                              </span>
+                            ) : (
+                              <div className="flex flex-col gap-0.5">
+                                <span className="text-[10px] text-muted-foreground">
+                                  {tools.tools.length} tools
+                                </span>
+                                {tools.tools.map((t) => (
+                                  <div key={t.name}>
+                                    <div className="flex items-start gap-1.5">
+                                      <button
+                                        onClick={() =>
+                                          setExpandedSchema(
+                                            expandedSchema ===
+                                              `${key}:${t.name}`
+                                              ? null
+                                              : `${key}:${t.name}`
+                                          )
+                                        }
+                                        className="font-mono text-[10px] hover:underline"
+                                      >
+                                        {t.name}
+                                      </button>
+                                      {t.description && (
+                                        <span className="text-[10px] text-muted-foreground truncate">
+                                          {t.description}
+                                        </span>
+                                      )}
+                                    </div>
+                                    {expandedSchema === `${key}:${t.name}` &&
+                                      !!t.inputSchema && (
+                                        <pre className="mt-0.5 max-h-32 overflow-auto rounded bg-muted/30 p-1 text-[9px] text-muted-foreground">
+                                          {JSON.stringify(
+                                            t.inputSchema,
+                                            null,
+                                            2
+                                          )}
+                                        </pre>
+                                      )}
+                                  </div>
+                                ))}
+                              </div>
                             )}
                           </div>
-                        </TooltipContent>
-                      </Tooltip>
+                        )}
+                        {isInspecting && !tools && (
+                          <div className="ml-4 mt-1 text-[10px] text-muted-foreground animate-pulse">
+                            Connecting...
+                          </div>
+                        )}
+                      </div>
                     );
                   })}
                 </div>
-              </div>
-            )}
+              )}
+            </div>
+
+            {/* Agents (read-only) */}
             {agents.length > 0 && (
               <div className="mb-2">
                 <span className="text-[10px] font-medium text-muted-foreground">
@@ -220,6 +517,8 @@ function ProjectSkills({ slug }: { slug: string }) {
                 </div>
               </div>
             )}
+
+            {/* Skills (read-only) */}
             {skillItems.length > 0 && (
               <div className="mb-2">
                 <span className="text-[10px] font-medium text-muted-foreground">
@@ -251,23 +550,87 @@ function ProjectSkills({ slug }: { slug: string }) {
                 </div>
               </div>
             )}
-            {cmdItems.length > 0 && (
-              <div className="mb-2">
+
+            {/* Commands (with add/delete) */}
+            <div className="mb-2">
+              <div className="flex items-center gap-1.5">
                 <span className="text-[10px] font-medium text-muted-foreground">
                   Commands
                 </span>
+                <button
+                  onClick={() => setShowAddCmd(!showAddCmd)}
+                  className="text-[10px] text-muted-foreground hover:text-foreground"
+                >
+                  {showAddCmd ? "cancel" : "+"}
+                </button>
+              </div>
+              {showAddCmd && (
+                <div className="mt-1.5 mb-2 flex flex-col gap-1.5">
+                  <div className="flex gap-1.5">
+                    <input
+                      placeholder="Name"
+                      value={cmdName}
+                      onChange={(e) => setCmdName(e.target.value)}
+                      className="w-32 rounded border bg-background px-1.5 py-0.5 text-[11px]"
+                    />
+                  </div>
+                  <textarea
+                    placeholder="Command content..."
+                    value={cmdContent}
+                    onChange={(e) => setCmdContent(e.target.value)}
+                    className="min-h-[60px] rounded border bg-background px-2 py-1 text-[11px] font-mono"
+                  />
+                  <Button
+                    size="sm"
+                    className="h-6 w-fit px-2 text-[10px]"
+                    disabled={
+                      !cmdName || !cmdContent || addCmdMutation.isPending
+                    }
+                    onClick={() => addCmdMutation.mutate()}
+                  >
+                    {addCmdMutation.isPending ? "..." : "Add"}
+                  </Button>
+                </div>
+              )}
+              {cmdItems.length > 0 && (
                 <div className="mt-1 flex flex-wrap gap-1.5">
                   {cmdItems.map((s) => (
                     <Tooltip key={s.name}>
                       <TooltipTrigger>
-                        <Badge variant="secondary" className="text-[10px]">
-                          /{s.name}
-                          {s.scope === "project" && (
-                            <span className="ml-1 text-muted-foreground">
-                              proj
-                            </span>
-                          )}
-                        </Badge>
+                        <span className="inline-flex items-center gap-0.5">
+                          <Badge variant="secondary" className="text-[10px]">
+                            /{s.name}
+                            {s.scope === "project" && (
+                              <span className="ml-1 text-muted-foreground">
+                                proj
+                              </span>
+                            )}
+                          </Badge>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              removeCmdMutation.mutate({
+                                name: s.name,
+                                scope: s.scope as "user" | "project",
+                              });
+                            }}
+                            className="text-muted-foreground hover:text-destructive"
+                            title="Delete"
+                          >
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth={2}
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              className="h-2.5 w-2.5"
+                            >
+                              <path d="M18 6 6 18M6 6l12 12" />
+                            </svg>
+                          </button>
+                        </span>
                       </TooltipTrigger>
                       <TooltipContent side="bottom" className="max-w-xs">
                         <div className="flex flex-col gap-0.5">
@@ -285,8 +648,8 @@ function ProjectSkills({ slug }: { slug: string }) {
                     </Tooltip>
                   ))}
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </TooltipProvider>
       )}
