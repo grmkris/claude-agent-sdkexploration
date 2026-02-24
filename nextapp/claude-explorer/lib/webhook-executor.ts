@@ -1,4 +1,5 @@
 import { query } from "@anthropic-ai/claude-agent-sdk";
+import { join } from "node:path";
 
 import type { WebhookConfig } from "./types";
 
@@ -12,7 +13,31 @@ import {
   addWebhookEvent,
   updateWebhookEventStatus,
 } from "./explorer-store";
+import { emitActivity } from "./linear-agent";
 import { getProvider } from "./webhook-providers";
+
+// Explorer MCP server config — gives webhook-spawned Claude sessions access
+// to Linear tools, email, crons, etc.
+const explorerServerPath = join(process.cwd(), "tools", "explorer-server.ts");
+const baseUrl =
+  process.env.EXPLORER_BASE_URL ??
+  `http://localhost:${process.env.PORT ?? 3000}`;
+
+function getExplorerMcpConfig() {
+  return {
+    "claude-explorer": {
+      command: "bun",
+      args: [explorerServerPath],
+      env: {
+        EXPLORER_BASE_URL: baseUrl,
+        EXPLORER_RPC_URL: `${baseUrl}/rpc`,
+        ...(process.env.RPC_INTERNAL_TOKEN
+          ? { RPC_INTERNAL_TOKEN: process.env.RPC_INTERNAL_TOKEN }
+          : {}),
+      },
+    },
+  };
+}
 
 export function executeWebhook(
   webhook: WebhookConfig,
@@ -28,6 +53,23 @@ export function executeWebhook(
 
   const eventId = crypto.randomUUID();
   const now = new Date().toISOString();
+
+  // For Linear agent session events, emit immediate "thinking" activity
+  // (Linear requires a response within 10 seconds)
+  const agentSessionId = (body as any)?.agentSession?.id as string | undefined;
+  const isAgentSession =
+    webhook.provider === "linear" && body.type === "agentSession";
+
+  if (isAgentSession && agentSessionId) {
+    emitActivity(
+      agentSessionId,
+      "thought",
+      { body: "Analyzing..." },
+      { ephemeral: true }
+    ).catch((err) =>
+      console.error("[webhook] Failed to emit initial thought:", err)
+    );
+  }
 
   // Fire and forget
   (async () => {
@@ -57,6 +99,7 @@ export function executeWebhook(
           permissionMode: "bypassPermissions",
           allowDangerouslySkipPermissions: true,
           env: cleanEnv,
+          mcpServers: getExplorerMcpConfig(),
 
           ...(cwd ? { cwd } : {}),
           ...(webhook.sessionId ? { resume: webhook.sessionId } : {}),

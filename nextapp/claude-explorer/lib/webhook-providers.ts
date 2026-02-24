@@ -38,6 +38,15 @@ const linearProvider: WebhookProvider = {
   },
 
   extractEventInfo(body, headers) {
+    // Agent session events have type "agentSession"
+    if (body.type === "agentSession") {
+      const action = (body.action as string) ?? "unknown";
+      const session = body.agentSession as Record<string, unknown> | undefined;
+      const issueId = session?.issueId ?? "";
+      const summary = `agentSession ${action}: issue ${issueId}`;
+      return { eventType: "agentSession", action, summary };
+    }
+
     const eventType = (headers.get("Linear-Event") as string) ?? "unknown";
     const action = (body.action as string) ?? "unknown";
     const data = body.data as Record<string, unknown> | undefined;
@@ -49,6 +58,11 @@ const linearProvider: WebhookProvider = {
   },
 
   formatPrompt(body, headers, userPrompt) {
+    // Agent session events get a special prompt with context + tool hints
+    if (body.type === "agentSession") {
+      return formatAgentSessionPrompt(body, userPrompt);
+    }
+
     const { eventType, action } = this.extractEventInfo(body, headers);
     return [
       `[Linear Webhook] Event: ${eventType}, Action: ${action}`,
@@ -63,6 +77,69 @@ const linearProvider: WebhookProvider = {
     ].join("\n");
   },
 };
+
+function formatAgentSessionPrompt(
+  body: Record<string, unknown>,
+  userPrompt: string
+): string {
+  const action = (body.action as string) ?? "unknown";
+  const promptContext = body.promptContext as string | undefined;
+  const session = body.agentSession as Record<string, unknown> | undefined;
+  const agentSessionId = session?.id as string | undefined;
+  const issueId = session?.issueId as string | undefined;
+
+  // For "prompted" events, the new user message is in agentActivity.body
+  const activity = body.agentActivity as Record<string, unknown> | undefined;
+  const userMessage = activity?.body as string | undefined;
+
+  const lines: string[] = [`[Linear Agent Session] Action: ${action}`, ""];
+
+  if (agentSessionId) {
+    lines.push(`Agent Session ID: ${agentSessionId}`);
+  }
+  if (issueId) {
+    lines.push(`Issue ID: ${issueId}`);
+  }
+  lines.push("");
+
+  if (promptContext) {
+    lines.push("Context:", promptContext, "");
+  }
+
+  if (userMessage) {
+    lines.push("User message:", userMessage, "");
+  }
+
+  // Guidance from workspace/team config
+  const guidance = body.guidance as Array<{ content: string }> | undefined;
+  if (guidance?.length) {
+    lines.push(
+      "Workspace guidance:",
+      ...guidance.map((g) => `- ${g.content}`),
+      ""
+    );
+  }
+
+  lines.push(
+    "Available Linear tools (via claude-explorer MCP):",
+    "- linear_emitActivity — emit thought/action/response/error to the agent session",
+    "- linear_updatePlan — update session checklist",
+    "- linear_createIssue — create a new issue",
+    "- linear_updateIssue — update issue fields",
+    "- linear_addComment — add a comment to an issue",
+    "- linear_setDelegate — set bot as delegate",
+    "- linear_moveToStarted — move issue to started state",
+    "- linear_listMyIssues — list bot's assigned/delegated issues",
+    "",
+    `IMPORTANT: You MUST emit activities to the agent session (ID: ${agentSessionId ?? "unknown"}) to communicate progress.`,
+    "Use linear_emitActivity with type 'thought' for reasoning, 'action' for tool calls, and 'response' for final answers.",
+    "",
+    "Instructions:",
+    userPrompt
+  );
+
+  return lines.join("\n");
+}
 
 const githubProvider: WebhookProvider = {
   getSignatureHeader() {

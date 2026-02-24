@@ -94,6 +94,17 @@ import {
   setCachedWidgets,
 } from "./integration-providers";
 import {
+  emitActivity,
+  updateSessionPlan,
+  setDelegate,
+  moveToStarted,
+  createIssue as linearCreateIssue,
+  updateIssue as linearUpdateIssue,
+  addComment as linearAddComment,
+  listAssignedIssues,
+  createSessionOnIssue,
+} from "./linear-agent";
+import {
   ProjectSchema,
   SessionMetaSchema,
   RecentSessionSchema,
@@ -1420,6 +1431,130 @@ const removeOAuthCredentialsProc = os
     return { success };
   });
 
+// --- Linear Agent ---
+
+const linearEmitActivityProc = os
+  .input(
+    z.object({
+      agentSessionId: z.string(),
+      type: z.enum(["thought", "action", "response", "error", "elicitation"]),
+      body: z.string().optional(),
+      action: z.string().optional(),
+      parameter: z.string().optional(),
+      result: z.string().optional(),
+      ephemeral: z.boolean().optional(),
+    })
+  )
+  .output(z.object({ success: z.boolean(), activityId: z.string().optional() }))
+  .handler(async ({ input }) => {
+    const { agentSessionId, type, ephemeral, ...rest } = input;
+    let content: Record<string, unknown>;
+    if (type === "action") {
+      content = {
+        action: rest.action ?? "",
+        parameter: rest.parameter ?? "",
+        ...(rest.result ? { result: rest.result } : {}),
+      };
+    } else {
+      content = { body: rest.body ?? "" };
+    }
+    return emitActivity(agentSessionId, type, content as any, { ephemeral });
+  });
+
+const linearUpdatePlanProc = os
+  .input(
+    z.object({
+      agentSessionId: z.string(),
+      tasks: z.array(
+        z.object({
+          content: z.string(),
+          status: z.enum(["pending", "inProgress", "completed", "canceled"]),
+        })
+      ),
+    })
+  )
+  .output(z.object({ success: z.boolean() }))
+  .handler(async ({ input }) =>
+    updateSessionPlan(input.agentSessionId, input.tasks)
+  );
+
+const linearSetDelegateProc = os
+  .input(z.object({ issueId: z.string() }))
+  .output(z.object({ success: z.boolean() }))
+  .handler(async ({ input }) => setDelegate(input.issueId));
+
+const linearMoveToStartedProc = os
+  .input(z.object({ issueId: z.string(), teamId: z.string() }))
+  .output(z.object({ success: z.boolean(), stateName: z.string().optional() }))
+  .handler(async ({ input }) => moveToStarted(input.issueId, input.teamId));
+
+const linearCreateIssueProc = os
+  .input(
+    z.object({
+      title: z.string(),
+      teamId: z.string(),
+      description: z.string().optional(),
+      assigneeId: z.string().optional(),
+      priority: z.number().optional(),
+      labelIds: z.array(z.string()).optional(),
+      stateId: z.string().optional(),
+    })
+  )
+  .output(
+    z.object({
+      success: z.boolean(),
+      issueId: z.string().optional(),
+      identifier: z.string().optional(),
+      url: z.string().optional(),
+    })
+  )
+  .handler(async ({ input }) => linearCreateIssue(input));
+
+const linearUpdateIssueProc = os
+  .input(
+    z.object({
+      issueId: z.string(),
+      title: z.string().optional(),
+      description: z.string().optional(),
+      stateId: z.string().optional(),
+      assigneeId: z.string().optional(),
+      priority: z.number().optional(),
+      labelIds: z.array(z.string()).optional(),
+      delegateId: z.string().optional(),
+    })
+  )
+  .output(z.object({ success: z.boolean() }))
+  .handler(async ({ input }) => {
+    const { issueId, ...fields } = input;
+    return linearUpdateIssue(issueId, fields);
+  });
+
+const linearAddCommentProc = os
+  .input(z.object({ issueId: z.string(), body: z.string() }))
+  .output(z.object({ success: z.boolean(), commentId: z.string().optional() }))
+  .handler(async ({ input }) => linearAddComment(input.issueId, input.body));
+
+const linearListMyIssuesProc = os
+  .input(z.object({ teamId: z.string().optional() }))
+  .output(
+    z.array(
+      z.object({
+        id: z.string(),
+        identifier: z.string(),
+        title: z.string(),
+        url: z.string(),
+        state: z.string(),
+        priority: z.number(),
+      })
+    )
+  )
+  .handler(async ({ input }) => listAssignedIssues(input.teamId));
+
+const linearCreateSessionProc = os
+  .input(z.object({ issueId: z.string() }))
+  .output(z.object({ success: z.boolean(), sessionId: z.string().optional() }))
+  .handler(async ({ input }) => createSessionOnIssue(input.issueId));
+
 // --- MCP Servers ---
 
 const McpToolSchema = z.object({
@@ -1748,5 +1883,16 @@ export const router = {
     status: oauthStatusProc,
     saveCredentials: saveOAuthCredentialsProc,
     removeCredentials: removeOAuthCredentialsProc,
+  },
+  linear: {
+    emitActivity: linearEmitActivityProc,
+    updatePlan: linearUpdatePlanProc,
+    setDelegate: linearSetDelegateProc,
+    moveToStarted: linearMoveToStartedProc,
+    createIssue: linearCreateIssueProc,
+    updateIssue: linearUpdateIssueProc,
+    addComment: linearAddCommentProc,
+    listMyIssues: linearListMyIssuesProc,
+    createSession: linearCreateSessionProc,
   },
 };
