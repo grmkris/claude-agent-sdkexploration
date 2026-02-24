@@ -1,5 +1,6 @@
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import { CronExpressionParser } from "cron-parser";
+import { join } from "node:path";
 
 import type { CronJob } from "./types";
 
@@ -7,6 +8,29 @@ import type { CronJob } from "./types";
 const { CLAUDECODE: _CC, ...cleanEnv } = process.env;
 
 import { resolveSlugToPath } from "./claude-fs";
+
+// Explorer MCP server config — gives cron-spawned Claude sessions access
+// to email, Linear tools, webhooks, etc. (mirrors webhook-executor.ts)
+const explorerServerPath = join(process.cwd(), "tools", "explorer-server.ts");
+const baseUrl =
+  process.env.EXPLORER_BASE_URL ??
+  `http://localhost:${process.env.PORT ?? 3000}`;
+
+function getExplorerMcpConfig() {
+  return {
+    [process.env.INSTANCE_NAME ?? "claude-explorer"]: {
+      command: "bun",
+      args: [explorerServerPath],
+      env: {
+        EXPLORER_BASE_URL: baseUrl,
+        EXPLORER_RPC_URL: `${baseUrl}/rpc`,
+        ...(process.env.RPC_INTERNAL_TOKEN
+          ? { RPC_INTERNAL_TOKEN: process.env.RPC_INTERNAL_TOKEN }
+          : {}),
+      },
+    },
+  };
+}
 import {
   getCrons,
   updateCronStatus,
@@ -58,6 +82,7 @@ export async function executeCron(cron: CronJob): Promise<void> {
         permissionMode: "bypassPermissions",
         allowDangerouslySkipPermissions: true,
         env: cleanEnv,
+        mcpServers: getExplorerMcpConfig(),
 
         cwd,
         ...(cron.sessionId ? { resume: cron.sessionId } : {}),
