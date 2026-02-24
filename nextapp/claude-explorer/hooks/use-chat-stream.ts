@@ -2,7 +2,12 @@
 
 import { useState, useCallback, useRef } from "react";
 
-import type { ParsedMessage } from "@/lib/types";
+import type {
+  AttachedImage,
+  ContentBlock,
+  ParsedMessage,
+  UserImageBlock,
+} from "@/lib/types";
 
 import { client } from "@/lib/orpc-client";
 
@@ -14,7 +19,7 @@ export type { ToolProgressEntry };
 
 type UseChatStreamReturn = {
   messages: ParsedMessage[];
-  send: (prompt: string) => void;
+  send: (prompt: string, images?: AttachedImage[]) => void;
   stop: () => void;
   isStreaming: boolean;
   sessionId: string | null;
@@ -43,7 +48,7 @@ export function useChatStream(opts?: {
   }, []);
 
   const send = useCallback(
-    (prompt: string) => {
+    (prompt: string, images?: AttachedImage[]) => {
       if (streamingRef.current) return;
       streamingRef.current = true;
       toolProgressRef.current.clear();
@@ -51,9 +56,20 @@ export function useChatStream(opts?: {
       const ac = new AbortController();
       abortRef.current = ac;
 
+      // Build optimistic content blocks: images first, then text
+      const userContent: ContentBlock[] = [
+        ...(images ?? []).map(
+          (img): UserImageBlock => ({
+            type: "user_image",
+            dataUrl: img.dataUrl,
+          })
+        ),
+        { type: "text", text: prompt, citations: null },
+      ];
+
       const userMsg: ParsedMessage = {
         role: "user",
-        content: [{ type: "text", text: prompt, citations: null }],
+        content: userContent,
         timestamp: new Date().toISOString(),
         uuid: crypto.randomUUID(),
       };
@@ -78,6 +94,10 @@ export function useChatStream(opts?: {
               prompt,
               resume: opts?.resume ?? sessionId ?? undefined,
               cwd: opts?.cwd,
+              images: images?.map((img) => ({
+                base64: img.base64,
+                mediaType: img.mediaType,
+              })),
             },
             { signal: ac.signal }
           );
