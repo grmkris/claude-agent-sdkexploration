@@ -1,18 +1,42 @@
 "use client";
 
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useRef, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { SKILL_CATALOG, type SkillCatalogEntry } from "@/lib/mcp-catalog";
+import { Input } from "@/components/ui/input";
+import type { SkillsShSkill } from "@/lib/mcp-catalog";
 import { orpc } from "@/lib/orpc";
 import { client } from "@/lib/orpc-client";
 
+function formatInstalls(n: number): string {
+  if (n >= 1000) return `${Math.floor(n / 1000)}k`;
+  return String(n);
+}
+
 export function SkillCatalogView() {
   const queryClient = useQueryClient();
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  useEffect(() => {
+    clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(timerRef.current);
+  }, [search]);
+
+  const { data, isLoading } = useQuery(
+    orpc.skills.catalog.queryOptions({
+      input: {
+        search: debouncedSearch || undefined,
+        limit: 30,
+      },
+    })
+  );
 
   const invalidate = () => {
     void queryClient.invalidateQueries({
@@ -21,9 +45,9 @@ export function SkillCatalogView() {
   };
 
   const installSkill = useMutation({
-    mutationFn: (entry: SkillCatalogEntry) =>
+    mutationFn: (skill: SkillsShSkill) =>
       client.skills.installFromCatalog({
-        installCommand: entry.installCommand,
+        installCommand: `${skill.source} --skill ${skill.skillId}`,
       }),
     onSuccess: (result) => {
       if (result.success) {
@@ -33,111 +57,131 @@ export function SkillCatalogView() {
     },
   });
 
-  if (SKILL_CATALOG.length === 0) {
-    return (
-      <p className="text-sm text-muted-foreground">
-        No skills available in catalog yet.
-      </p>
-    );
-  }
+  const skills = data?.skills ?? [];
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-      {SKILL_CATALOG.map((entry) => {
-        const isExpanded = expandedId === entry.id;
-        const isInstalling =
-          installSkill.isPending && installSkill.variables?.id === entry.id;
+    <div className="flex flex-col gap-3">
+      <Input
+        placeholder="Search skills.sh..."
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        className="h-8 text-sm"
+      />
 
-        return (
-          <div key={entry.id} className="flex flex-col">
-            <Card
-              size="sm"
-              className={`cursor-pointer transition-colors hover:bg-accent/50 ${
-                isExpanded ? "ring-1 ring-foreground/20" : ""
-              }`}
-              onClick={() => setExpandedId(isExpanded ? null : entry.id)}
-            >
-              <CardContent className="flex flex-col gap-1.5 py-3">
-                <div className="flex items-center gap-2">
-                  <span className="text-base">{entry.emoji}</span>
-                  <span className="text-sm font-medium">{entry.name}</span>
-                </div>
-                <p className="text-[11px] text-muted-foreground leading-snug">
-                  {entry.description}
-                </p>
-                <div className="flex items-center gap-1.5">
-                  <Badge variant="outline" className="text-[10px]">
-                    {entry.category}
-                  </Badge>
-                  <span className="text-[10px] text-muted-foreground font-mono">
-                    npx skills add {entry.installCommand}
-                  </span>
-                  {!isExpanded && (
-                    <Button
-                      size="xs"
-                      variant="outline"
-                      className="ml-auto h-5 px-2 text-[10px]"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setExpandedId(entry.id);
-                      }}
-                    >
-                      Install
-                    </Button>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+      {isLoading && (
+        <p className="text-sm text-muted-foreground">Loading...</p>
+      )}
 
-            {isExpanded && (
-              <Card size="sm" className="border-t-0">
-                <CardContent className="flex flex-col gap-2 py-3">
-                  <p className="text-[11px] text-muted-foreground">
-                    This will run{" "}
-                    <code className="font-mono text-foreground">
-                      npx skills add {entry.installCommand}
-                    </code>
+      {!isLoading && skills.length === 0 && (
+        <p className="text-sm text-muted-foreground">
+          {debouncedSearch ? "No skills found." : "No skills available."}
+        </p>
+      )}
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+        {skills.map((skill) => {
+          const isExpanded = expandedId === skill.id;
+          const isInstalling =
+            installSkill.isPending && installSkill.variables?.id === skill.id;
+          const installCmd = `npx skills add ${skill.source} --skill ${skill.skillId} -y`;
+
+          return (
+            <div key={skill.id} className="flex flex-col">
+              <Card
+                size="sm"
+                className={`cursor-pointer transition-colors hover:bg-accent/50 ${
+                  isExpanded ? "ring-1 ring-foreground/20" : ""
+                }`}
+                onClick={() => setExpandedId(isExpanded ? null : skill.id)}
+              >
+                <CardContent className="flex flex-col gap-1.5 py-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium">{skill.name}</span>
+                    <Badge variant="outline" className="text-[10px] ml-auto">
+                      {formatInstalls(skill.installs)}
+                    </Badge>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground leading-snug font-mono truncate">
+                    {skill.source}
                   </p>
-                  <div className="flex gap-2 items-center">
-                    <Button
-                      size="xs"
-                      className="h-6 px-3 text-[11px]"
-                      disabled={isInstalling}
-                      onClick={() => installSkill.mutate(entry)}
-                    >
-                      {isInstalling ? "Installing..." : "Install"}
-                    </Button>
-                    {entry.docsUrl && (
+                  {!isExpanded && (
+                    <div className="flex items-center">
+                      <Button
+                        size="xs"
+                        variant="outline"
+                        className="ml-auto h-5 px-2 text-[10px]"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setExpandedId(skill.id);
+                        }}
+                      >
+                        Install
+                      </Button>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {isExpanded && (
+                <Card size="sm" className="border-t-0">
+                  <CardContent className="flex flex-col gap-2 py-3">
+                    <p className="text-[11px] text-muted-foreground">
+                      This will run{" "}
+                      <code className="font-mono text-foreground">
+                        {installCmd}
+                      </code>
+                    </p>
+                    <div className="flex gap-2 items-center">
+                      <Button
+                        size="xs"
+                        className="h-6 px-3 text-[11px]"
+                        disabled={isInstalling}
+                        onClick={() => installSkill.mutate(skill)}
+                      >
+                        {isInstalling ? "Installing..." : "Install"}
+                      </Button>
                       <a
-                        href={entry.docsUrl}
+                        href={`https://skills.sh/skill/${skill.source}/${skill.skillId}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-[10px] text-muted-foreground hover:text-foreground underline"
                         onClick={(e) => e.stopPropagation()}
                       >
-                        Docs
+                        View on skills.sh
                       </a>
-                    )}
-                    <button
-                      onClick={() => setExpandedId(null)}
-                      className="ml-auto text-[10px] text-muted-foreground hover:text-foreground"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                  {installSkill.data &&
-                    !installSkill.data.success &&
-                    expandedId === entry.id && (
-                      <p className="text-xs text-red-400">
-                        {installSkill.data.error}
-                      </p>
-                    )}
-                </CardContent>
-              </Card>
-            )}
-          </div>
-        );
-      })}
+                      <button
+                        onClick={() => setExpandedId(null)}
+                        className="ml-auto text-[10px] text-muted-foreground hover:text-foreground"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                    {installSkill.data &&
+                      !installSkill.data.success &&
+                      expandedId === skill.id && (
+                        <p className="text-xs text-red-400">
+                          {installSkill.data.error}
+                        </p>
+                      )}
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      <p className="text-[10px] text-muted-foreground text-center">
+        Powered by{" "}
+        <a
+          href="https://skills.sh"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline hover:text-foreground"
+        >
+          skills.sh
+        </a>
+      </p>
     </div>
   );
 }

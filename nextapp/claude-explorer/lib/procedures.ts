@@ -105,6 +105,7 @@ import {
   listAssignedIssues,
   createSessionOnIssue,
 } from "./linear-agent";
+import { SUGGESTED_SKILLS, type SkillsShSkill } from "./mcp-catalog";
 import {
   ProjectSchema,
   SessionMetaSchema,
@@ -1852,7 +1853,7 @@ const installCatalogSkillProc = os
   .handler(async ({ input }) => {
     try {
       const proc = Bun.spawn(
-        ["npx", "-y", "skills", "add", input.installCommand],
+        ["npx", "-y", "skills", "add", ...input.installCommand.split(" "), "-y"],
         {
           stdout: "pipe",
           stderr: "pipe",
@@ -1870,6 +1871,47 @@ const installCatalogSkillProc = os
         success: false,
         error: e instanceof Error ? e.message : "Failed to install skill",
       };
+    }
+  });
+
+const SkillsShSkillSchema = z.object({
+  id: z.string(),
+  skillId: z.string(),
+  name: z.string(),
+  installs: z.number(),
+  source: z.string(),
+});
+
+const skillsCatalogProc = os
+  .input(z.object({ search: z.string().optional(), limit: z.number().optional() }))
+  .output(z.object({ skills: z.array(SkillsShSkillSchema), count: z.number() }))
+  .handler(async ({ input }) => {
+    const limit = input.limit ?? 30;
+
+    if (!input.search) {
+      const skills = SUGGESTED_SKILLS.slice(0, limit);
+      return { skills, count: skills.length };
+    }
+
+    try {
+      const ac = new AbortController();
+      const timeout = setTimeout(() => ac.abort(), 5000);
+      const res = await fetch(
+        `https://skills.sh/api/search?q=${encodeURIComponent(input.search)}&limit=${limit}`,
+        { signal: ac.signal }
+      );
+      clearTimeout(timeout);
+
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = (await res.json()) as { skills: SkillsShSkill[]; count: number };
+      return { skills: data.skills, count: data.count };
+    } catch {
+      // Fallback: filter curated list locally
+      const q = input.search.toLowerCase();
+      const filtered = SUGGESTED_SKILLS.filter(
+        (s) => s.name.toLowerCase().includes(q) || s.source.toLowerCase().includes(q)
+      );
+      return { skills: filtered.slice(0, limit), count: filtered.length };
     }
   });
 
@@ -1898,6 +1940,7 @@ export const router = {
     removeCommand: removeCommandProc,
     getContent: getContentProc,
     installFromCatalog: installCatalogSkillProc,
+    catalog: skillsCatalogProc,
   },
   sessions: {
     list: listSessionsProc,

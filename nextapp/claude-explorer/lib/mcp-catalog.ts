@@ -224,3 +224,26 @@ export const SKILL_CATALOG: SkillCatalogEntry[] = [
     docsUrl: "https://www.better-auth.com",
   },
 ];
+
+// --- skills.sh integration ---
+
+export interface SkillsShSkill {
+  id: string;
+  skillId: string;
+  name: string;
+  installs: number;
+  source: string;
+}
+
+export const SUGGESTED_SKILLS: SkillsShSkill[] = [
+  { id: "vercel-labs/skills/find-skills", skillId: "find-skills", name: "find-skills", installs: 312182, source: "vercel-labs/skills" },
+  { id: "vercel-labs/agent-skills/vercel-react-best-practices", skillId: "vercel-react-best-practices", name: "vercel-react-best-practices", installs: 163721, source: "vercel-labs/agent-skills" },
+  { id: "vercel-labs/agent-skills/web-design-guidelines", skillId: "web-design-guidelines", name: "web-design-guidelines", installs: 124752, source: "vercel-labs/agent-skills" },
+  { id: "remotion-dev/skills/remotion-best-practices", skillId: "remotion-best-practices", name: "remotion-best-practices", installs: 109520, source: "remotion-dev/skills" },
+  { id: "anthropics/skills/frontend-design", skillId: "frontend-design", name: "frontend-design", installs: 96060, source: "anthropics/skills" },
+  { id: "vercel-labs/agent-skills/vercel-composition-patterns", skillId: "vercel-composition-patterns", name: "vercel-composition-patterns", installs: 55683, source: "vercel-labs/agent-skills" },
+  { id: "anthropics/skills/skill-creator", skillId: "skill-creator", name: "skill-creator", installs: 46854, source: "anthropics/skills" },
+  { id: "vercel-labs/agent-skills/vercel-react-native-skills", skillId: "vercel-react-native-skills", name: "vercel-react-native-skills", installs: 39210, source: "vercel-labs/agent-skills" },
+  { id: "supabase/agent-skills/supabase-postgres-best-practices", skillId: "supabase-postgres-best-practices", name: "supabase-postgres-best-practices", installs: 23747, source: "supabase/agent-skills" },
+  { id: "anthropics/skills/pdf", skillId: "pdf", name: "pdf", installs: 20766, source: "anthropics/skills" },
+];
