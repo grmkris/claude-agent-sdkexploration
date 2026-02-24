@@ -7,22 +7,30 @@ import type { WorkspaceEmailConfig } from "./types";
 import { resolveSlugToPath } from "./claude-fs";
 import { addEmailEvent, updateEmailEventStatus } from "./explorer-store";
 
-// Strip CLAUDECODE to allow the Agent SDK to spawn inside a Claude Code container
 const { CLAUDECODE: _CC, ...cleanEnv } = process.env;
 
-function formatEmailPrompt(
+export function formatEmailPrompt(
   email: ParsedEmail,
   config: WorkspaceEmailConfig
 ): string {
   const domain = process.env.CHANNEL_EMAIL_DOMAIN ?? "your-domain.com";
   const fromAddress = config.address || `agent@${domain}`;
 
+  let attachmentSection = "";
+  if (email.attachments && email.attachments.length > 0) {
+    const lines = email.attachments.map((a) => {
+      const sizeKb = Math.round(a.size / 1024);
+      return `- ${a.filename} (${a.contentType}, ${sizeKb}KB)`;
+    });
+    attachmentSection = `\n\n[Attachments]\n${lines.join("\n")}\n\nNote: Download and process these attachments using their URLs if needed.`;
+  }
+
   return `[Email Received]
 From: ${email.from}
 Subject: ${email.subject}
 Date: ${email.date}
 
-${email.body}
+${email.body}${attachmentSection}
 
 ---
 To reply, use the email_send tool:
@@ -36,10 +44,6 @@ Workspace instructions:
 ${config.prompt}`;
 }
 
-/**
- * Fire-and-forget inbound email handler.
- * Same pattern as webhook-executor.ts.
- */
 export function executeInboundEmail(
   config: WorkspaceEmailConfig,
   email: ParsedEmail
@@ -48,7 +52,6 @@ export function executeInboundEmail(
   const now = new Date().toISOString();
 
   (async () => {
-    // Log event as running
     await addEmailEvent({
       id: eventId,
       projectSlug: config.projectSlug,
@@ -64,13 +67,11 @@ export function executeInboundEmail(
     try {
       const prompt = formatEmailPrompt(email, config);
 
-      // Resolve cwd for agent
       const isRoot = config.projectSlug === "__root__";
       const cwd = isRoot
         ? undefined
         : await resolveSlugToPath(config.projectSlug);
 
-      // Build MCP server config for root workspace (so agent has email tools)
       const explorerServerPath = join(
         process.cwd(),
         "tools",

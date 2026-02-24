@@ -18,7 +18,9 @@ function SetupGuide({ webhookId }: { webhookId: string }) {
   );
 
   if (isLoading)
-    return <p className="text-xs text-muted-foreground">Loading setup guide…</p>;
+    return (
+      <p className="text-xs text-muted-foreground">Loading setup guide…</p>
+    );
   if (!data) return null;
 
   // Parse the markdown-ish instructions into segments for styled rendering
@@ -67,13 +69,19 @@ function SetupGuide({ webhookId }: { webhookId: string }) {
             );
           if (line.startsWith(">"))
             return (
-              <p key={i} className="border-l-2 border-muted-foreground/30 pl-2 italic text-muted-foreground">
+              <p
+                key={i}
+                className="border-l-2 border-muted-foreground/30 pl-2 italic text-muted-foreground"
+              >
                 {line.slice(1).trim()}
               </p>
             );
           if (line.startsWith("   `") && line.endsWith("`"))
             return (
-              <pre key={i} className="ml-4 overflow-x-auto rounded bg-background px-2 py-0.5 font-mono text-[11px]">
+              <pre
+                key={i}
+                className="ml-4 overflow-x-auto rounded bg-background px-2 py-0.5 font-mono text-[11px]"
+              >
                 {line.trim().replace(/^`|`$/g, "")}
               </pre>
             );
@@ -381,7 +389,13 @@ export default function WebhooksPage() {
       ) : (
         <div className="mb-6 flex flex-col gap-2">
           {webhooks.map((wh) => (
-            <Card key={wh.id} size="sm" className={justCreatedId === wh.id ? "ring-1 ring-primary/40" : ""}>
+            <Card
+              key={wh.id}
+              size="sm"
+              className={
+                justCreatedId === wh.id ? "ring-1 ring-primary/40" : ""
+              }
+            >
               <CardContent className="py-3">
                 {/* Row */}
                 <div className="flex items-center gap-3">
@@ -390,7 +404,9 @@ export default function WebhooksPage() {
                     className={`h-3 w-3 shrink-0 rounded-full border ${wh.enabled ? "bg-green-500 border-green-600" : "bg-muted border-muted-foreground/30"}`}
                     title={wh.enabled ? "Disable" : "Enable"}
                   />
-                  <span className="shrink-0 text-sm font-medium">{wh.name}</span>
+                  <span className="shrink-0 text-sm font-medium">
+                    {wh.name}
+                  </span>
                   <Badge variant="outline" className="shrink-0 text-[10px]">
                     {wh.provider}
                   </Badge>

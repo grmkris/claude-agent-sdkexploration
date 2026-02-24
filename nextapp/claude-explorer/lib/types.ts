@@ -74,12 +74,26 @@ export type ToolUseSummaryBlock = {
   summary?: string;
 };
 
+export type UserImageBlock = {
+  type: "user_image";
+  dataUrl: string; // data: URL for <img src> — display only, never persisted
+};
+
+export type AttachedImage = {
+  id: string; // crypto.randomUUID() for React key / removal
+  dataUrl: string; // "data:image/png;base64,..." — used for <img src>
+  base64: string; // raw base64 without the data: prefix — sent to backend
+  mediaType: "image/jpeg" | "image/png" | "image/gif" | "image/webp";
+  sizeBytes: number;
+};
+
 export type ContentBlock =
   | Exclude<SDKContentBlock, { type: "tool_use" }>
   | EnrichedToolUse
   | ResultBlock
   | SystemEventBlock
-  | ToolUseSummaryBlock;
+  | ToolUseSummaryBlock
+  | UserImageBlock;
 
 export type {
   Project,

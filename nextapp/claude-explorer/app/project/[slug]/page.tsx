@@ -1,7 +1,7 @@
 "use client";
 
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { PatchDiff } from "@pierre/diffs/react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { use, useState, useCallback, useRef, useMemo } from "react";
 
 import { CopyButton } from "@/components/copy-button";
@@ -735,10 +735,22 @@ type DirEntry = { name: string; isDirectory: boolean; size: number };
 
 function gitStatusBadge(status: string) {
   if (status === "??" || status === "A")
-    return <span className="shrink-0 ml-0.5 text-[9px] font-bold text-green-400">{status === "??" ? "U" : "A"}</span>;
+    return (
+      <span className="shrink-0 ml-0.5 text-[9px] font-bold text-green-400">
+        {status === "??" ? "U" : "A"}
+      </span>
+    );
   if (status.includes("D"))
-    return <span className="shrink-0 ml-0.5 text-[9px] font-bold text-red-400/70">D</span>;
-  return <span className="shrink-0 ml-0.5 text-[9px] font-bold text-yellow-400">M</span>;
+    return (
+      <span className="shrink-0 ml-0.5 text-[9px] font-bold text-red-400/70">
+        D
+      </span>
+    );
+  return (
+    <span className="shrink-0 ml-0.5 text-[9px] font-bold text-yellow-400">
+      M
+    </span>
+  );
 }
 
 function FileTreeEntries({
@@ -793,7 +805,9 @@ function FileTreeEntries({
         const isOpen = expanded.has(fullPath);
         const children = dirCache.get(fullPath);
         const isPreviewing = previewPath === fullPath;
-        const fileGitStatus = !entry.isDirectory ? gitStatus?.get(fullPath) : undefined;
+        const fileGitStatus = !entry.isDirectory
+          ? gitStatus?.get(fullPath)
+          : undefined;
         const isChanged = fileGitStatus !== undefined;
         const isDiffing = diffPath === fullPath;
         return (
@@ -805,8 +819,8 @@ function FileTreeEntries({
                 entry.isDirectory
                   ? () => onToggle(fullPath)
                   : isChanged && onDiff
-                  ? () => onDiff(fullPath)
-                  : () => onPreview(fullPath)
+                    ? () => onDiff(fullPath)
+                    : () => onPreview(fullPath)
               }
             >
               <span className="w-3 shrink-0 text-muted-foreground text-[10px]">
@@ -877,21 +891,27 @@ function FileTreeEntries({
               )}
             </div>
             {/* Diff view for changed files */}
-            {!entry.isDirectory && isDiffing && diffContent != null && diffContent !== "(no diff)" && (
-              <div style={{ paddingLeft: `${depth * 16 + 8}px` }} className="py-1 pr-1">
-                <div className="max-h-96 overflow-auto rounded border text-[11px]">
-                  <PatchDiff
-                    patch={diffContent}
-                    options={{
-                      diffStyle: "unified",
-                      themeType: "dark",
-                      disableFileHeader: true,
-                      lineDiffType: "word",
-                    }}
-                  />
+            {!entry.isDirectory &&
+              isDiffing &&
+              diffContent != null &&
+              diffContent !== "(no diff)" && (
+                <div
+                  style={{ paddingLeft: `${depth * 16 + 8}px` }}
+                  className="py-1 pr-1"
+                >
+                  <div className="max-h-96 overflow-auto rounded border text-[11px]">
+                    <PatchDiff
+                      patch={diffContent}
+                      options={{
+                        diffStyle: "unified",
+                        themeType: "dark",
+                        disableFileHeader: true,
+                        lineDiffType: "word",
+                      }}
+                    />
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
             {!entry.isDirectory && isDiffing && diffContent === null && (
               <div
                 style={{ paddingLeft: `${(depth + 1) * 16 + 8}px` }}
@@ -909,21 +929,27 @@ function FileTreeEntries({
               </div>
             )}
             {/* Plain preview for unmodified files */}
-            {!entry.isDirectory && !isChanged && isPreviewing && previewContent !== null && (
-              <div style={{ paddingLeft: `${depth * 16 + 8}px` }}>
-                <pre className="max-h-64 overflow-auto rounded border bg-muted/30 p-2 text-[11px] text-muted-foreground">
-                  {previewContent}
-                </pre>
-              </div>
-            )}
-            {!entry.isDirectory && !isChanged && isPreviewing && previewContent === null && (
-              <div
-                style={{ paddingLeft: `${(depth + 1) * 16 + 8}px` }}
-                className="py-0.5 text-[10px] text-muted-foreground animate-pulse"
-              >
-                loading...
-              </div>
-            )}
+            {!entry.isDirectory &&
+              !isChanged &&
+              isPreviewing &&
+              previewContent !== null && (
+                <div style={{ paddingLeft: `${depth * 16 + 8}px` }}>
+                  <pre className="max-h-64 overflow-auto rounded border bg-muted/30 p-2 text-[11px] text-muted-foreground">
+                    {previewContent}
+                  </pre>
+                </div>
+              )}
+            {!entry.isDirectory &&
+              !isChanged &&
+              isPreviewing &&
+              previewContent === null && (
+                <div
+                  style={{ paddingLeft: `${(depth + 1) * 16 + 8}px` }}
+                  className="py-0.5 text-[10px] text-muted-foreground animate-pulse"
+                >
+                  loading...
+                </div>
+              )}
             {entry.isDirectory && isOpen && children && (
               <>
                 {newFolderParent === fullPath &&
@@ -1166,7 +1192,8 @@ function ProjectFiles({ slug }: { slug: string }) {
         )}
         {gitStatusData?.isRepo && gitStatusData.changes.length > 0 && (
           <span className="text-[10px] font-normal text-yellow-400">
-            {gitStatusData.changes.length} change{gitStatusData.changes.length !== 1 ? "s" : ""}
+            {gitStatusData.changes.length} change
+            {gitStatusData.changes.length !== 1 ? "s" : ""}
           </span>
         )}
       </button>

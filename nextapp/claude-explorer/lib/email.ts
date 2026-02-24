@@ -2,6 +2,15 @@ import type { InboundWebhookPayload } from "inboundemail";
 
 import { Inbound } from "inboundemail";
 
+export type EmailAttachment = {
+  filename: string;
+  contentType: string;
+  size: number;
+  contentId?: string;
+  contentDisposition: "attachment" | "inline";
+  downloadUrl: string;
+};
+
 export type ParsedEmail = {
   from: string;
   to: string;
@@ -9,17 +18,13 @@ export type ParsedEmail = {
   body: string;
   messageId: string;
   date: string;
-  recipient: string; // the specific address that received this
+  recipient: string;
+  attachments: EmailAttachment[];
 };
 
-/**
- * Parse inbound webhook payload from inbound.new
- * Uses the SDK's InboundWebhookPayload type for type safety.
- */
 export function parseInboundEmail(payload: unknown): ParsedEmail | null {
   if (!payload || typeof payload !== "object") return null;
   const p = payload as Record<string, unknown>;
-
   if (p.event !== "email.received") return null;
 
   const wh = payload as InboundWebhookPayload;
@@ -29,6 +34,19 @@ export function parseInboundEmail(payload: unknown): ParsedEmail | null {
   const fromAddress = email.from?.addresses?.[0]?.address ?? "";
   const toAddress = email.to?.addresses?.[0]?.address ?? "";
 
+  const rawAttachments = (email.parsedData as any)?.attachments ?? [];
+  const attachments: EmailAttachment[] = Array.isArray(rawAttachments)
+    ? rawAttachments.map((a: any) => ({
+        filename: a.filename ?? "",
+        contentType: a.contentType ?? "",
+        size: a.size ?? 0,
+        contentId: a.contentId,
+        contentDisposition:
+          a.contentDisposition === "inline" ? "inline" : "attachment",
+        downloadUrl: a.downloadUrl ?? "",
+      }))
+    : [];
+
   return {
     from: fromAddress,
     to: toAddress,
@@ -37,19 +55,16 @@ export function parseInboundEmail(payload: unknown): ParsedEmail | null {
     messageId: email.parsedData?.messageId ?? email.messageId ?? "",
     date: email.receivedAt ?? new Date().toISOString(),
     recipient: email.recipient ?? toAddress,
+    attachments,
   };
 }
 
-/**
- * Send an email via inbound.new
- * Supports threading via In-Reply-To and References headers
- */
 export async function sendEmail(params: {
   from: string;
   to: string;
   subject: string;
   body: string;
-  inReplyTo?: string; // Message-ID to reply to
+  inReplyTo?: string;
 }): Promise<{ id: string; messageId: string }> {
   const headers: Record<string, string> = {};
   if (params.inReplyTo) {
@@ -72,9 +87,6 @@ export async function sendEmail(params: {
   };
 }
 
-/**
- * Verify inbound.new webhook using verification token
- */
 export function verifyWebhookToken(headers: Headers, secret: string): boolean {
   if (!secret) return true;
   const token = headers.get("x-webhook-verification-token");

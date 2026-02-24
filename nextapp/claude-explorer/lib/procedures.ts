@@ -1,3 +1,5 @@
+import type { SDKUserMessage } from "@anthropic-ai/claude-agent-sdk/sdk";
+
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import { os, eventIterator } from "@orpc/server";
 import { stat } from "node:fs/promises";
@@ -344,12 +346,55 @@ const serverConfigProc = os.output(ServerConfigSchema).handler(async () => ({
 
 // --- Chat ---
 
+const ImageInputSchema = z.object({
+  base64: z.string(),
+  mediaType: z.enum(["image/jpeg", "image/png", "image/gif", "image/webp"]),
+});
+
+function buildPromptArg(
+  prompt: string,
+  resume: string | undefined,
+  images: { base64: string; mediaType: string }[] | undefined
+): string | AsyncIterable<SDKUserMessage> {
+  if (!images?.length) return prompt;
+
+  const sessionId = resume ?? crypto.randomUUID();
+  const userMessage: SDKUserMessage = {
+    type: "user",
+    message: {
+      role: "user",
+      content: [
+        ...images.map((img) => ({
+          type: "image" as const,
+          source: {
+            type: "base64" as const,
+            media_type: img.mediaType as
+              | "image/jpeg"
+              | "image/png"
+              | "image/gif"
+              | "image/webp",
+            data: img.base64,
+          },
+        })),
+        { type: "text" as const, text: prompt },
+      ],
+    },
+    parent_tool_use_id: null,
+    session_id: sessionId,
+  };
+
+  return (async function* () {
+    yield userMessage;
+  })();
+}
+
 const chatProc = os
   .input(
     z.object({
       prompt: z.string(),
       resume: z.string().optional(),
       cwd: z.string().optional(),
+      images: z.array(ImageInputSchema).optional(),
     })
   )
   .output(eventIterator(z.custom<SDKMessage>()))
@@ -359,7 +404,7 @@ const chatProc = os
 
     try {
       const conversation = query({
-        prompt: input.prompt,
+        prompt: buildPromptArg(input.prompt, input.resume, input.images),
         options: {
           model: "claude-sonnet-4-6",
           executable: "bun",
@@ -545,7 +590,11 @@ const gitDiffProc = os
   .input(z.object({ slug: z.string(), path: z.string() }))
   .output(
     z
-      .object({ diff: z.string(), additions: z.number(), deletions: z.number() })
+      .object({
+        diff: z.string(),
+        additions: z.number(),
+        deletions: z.number(),
+      })
       .nullable()
   )
   .handler(async ({ input }) => {
@@ -877,6 +926,7 @@ const rootChatProc = os
     z.object({
       prompt: z.string(),
       resume: z.string().optional(),
+      images: z.array(ImageInputSchema).optional(),
     })
   )
   .output(eventIterator(z.custom<SDKMessage>()))
@@ -895,7 +945,7 @@ const rootChatProc = os
 
     try {
       const conversation = query({
-        prompt: input.prompt,
+        prompt: buildPromptArg(input.prompt, input.resume, input.images),
         options: {
           model: "claude-sonnet-4-6",
           permissionMode: "bypassPermissions",

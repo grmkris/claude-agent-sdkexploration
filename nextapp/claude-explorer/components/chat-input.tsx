@@ -1,9 +1,8 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
-
 import { SendHorizontal, StopIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { useState, useRef, useCallback } from "react";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -52,7 +51,7 @@ export function ChatInput({
     <div
       className={cn(
         "flex items-end gap-2 border-t bg-background px-3 pt-3",
-        focused ? "pb-2" : "pb-safe-input",
+        focused ? "pb-2" : "pb-safe-input"
       )}
     >
       <textarea

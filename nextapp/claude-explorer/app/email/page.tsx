@@ -415,7 +415,8 @@ export default function EmailPage() {
                 {ev.sessionId && (
                   <Link
                     href={
-                      ev.projectSlug === "__root__" || ev.projectSlug === "__outbound__"
+                      ev.projectSlug === "__root__" ||
+                      ev.projectSlug === "__outbound__"
                         ? `/chat/${ev.sessionId}`
                         : `/project/${ev.projectSlug}/chat/${ev.sessionId}`
                     }

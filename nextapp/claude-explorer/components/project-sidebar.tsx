@@ -172,7 +172,10 @@ function RootSessionSidebar({ pathname }: { pathname: string }) {
     refetchInterval: 15000,
   });
   const { data: primary } = useQuery(orpc.root.primarySession.queryOptions());
-  const sessionIds = useMemo(() => sessions?.map((s) => s.id) ?? [], [sessions]);
+  const sessionIds = useMemo(
+    () => sessions?.map((s) => s.id) ?? [],
+    [sessions]
+  );
   const { data: facets } = useQuery({
     ...orpc.analytics.facets.queryOptions({ input: { sessionIds } }),
     enabled: sessionIds.length > 0,
@@ -217,10 +220,7 @@ function RootSessionSidebar({ pathname }: { pathname: string }) {
                 return (
                   <SidebarMenuItem key={session.id}>
                     <Link href={`/chat/${session.id}`}>
-                      <SidebarMenuButton
-                        isActive={isSelected}
-                        tooltip={label}
-                      >
+                      <SidebarMenuButton isActive={isSelected} tooltip={label}>
                         {isPrimary && (
                           <span
                             className="mr-1 inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-blue-500"
@@ -263,7 +263,10 @@ function SessionSidebar({
     ...orpc.sessions.list.queryOptions({ input: { slug } }),
     refetchInterval: 15000,
   });
-  const sessionIds = useMemo(() => sessions?.map((s) => s.id) ?? [], [sessions]);
+  const sessionIds = useMemo(
+    () => sessions?.map((s) => s.id) ?? [],
+    [sessions]
+  );
   const { data: facets } = useQuery({
     ...orpc.analytics.facets.queryOptions({ input: { sessionIds } }),
     enabled: sessionIds.length > 0,
@@ -314,10 +317,7 @@ function SessionSidebar({
                 return (
                   <SidebarMenuItem key={session.id}>
                     <Link href={`/project/${slug}/chat/${session.id}`}>
-                      <SidebarMenuButton
-                        isActive={isSelected}
-                        tooltip={label}
-                      >
+                      <SidebarMenuButton isActive={isSelected} tooltip={label}>
                         <span className="truncate">{label}</span>
                         {session.sessionState === "active" && (
                           <span
