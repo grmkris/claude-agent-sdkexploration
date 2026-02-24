@@ -14,6 +14,8 @@ import {
 } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
+import Link from "next/link";
+
 import { Providers } from "./providers";
 
 const geistSans = Geist({
@@ -61,9 +63,9 @@ export default function RootLayout({
                 <header className="flex h-10 shrink-0 items-center gap-2 border-b px-3">
                   <SidebarTrigger className="-ml-1" />
                   <Separator orientation="vertical" className="mr-2 h-4" />
-                  <span className="text-xs text-muted-foreground">
+                  <Link href="/" className="text-xs text-muted-foreground hover:text-foreground transition-colors">
                     Claude Explorer
-                  </span>
+                  </Link>
                   <SshBadge />
                 </header>
                 <div className="flex flex-1 flex-col overflow-hidden">
