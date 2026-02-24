@@ -39,7 +39,7 @@ if [ -n "$TS_AUTHKEY" ]; then
 fi
 
 # Ensure skeleton dirs exist (volume starts empty on first mount)
-mkdir -p /home/bun/.claude /home/bun/.local/bin
+mkdir -p /home/bun/.claude /home/bun/.claude/tmux-resurrect /home/bun/.local/bin
 chown -R bun:bun /home/bun/.claude /home/bun/.local
 
 # Clean up stale files from earlier deploys (before CLAUDE_CONFIG_DIR was set in shell)
@@ -81,9 +81,22 @@ cat > /home/bun/.profile <<'PROFILE'
 PROFILE
 chown bun:bun /home/bun/.profile
 
-# Always write .tmux.conf (enable mouse scrolling in tmux sessions)
+# Always write .tmux.conf (enable mouse scrolling + resurrect/continuum plugins)
 cat > /home/bun/.tmux.conf <<'TMUX'
 set -g mouse on
+set -g history-limit 50000
+
+# tmux-resurrect: save/restore sessions including full pane scrollback
+set -g @resurrect-dir '/home/bun/.claude/tmux-resurrect'
+set -g @resurrect-capture-pane-contents 'on'
+set -g @resurrect-pane-contents-area 'full'
+
+# tmux-continuum: auto-save every 5 min, auto-restore on tmux server start
+set -g @continuum-save-interval '5'
+set -g @continuum-restore 'on'
+
+run-shell /opt/tmux-resurrect/resurrect.tmux
+run-shell /opt/tmux-continuum/continuum.tmux
 TMUX
 chown bun:bun /home/bun/.tmux.conf
 
