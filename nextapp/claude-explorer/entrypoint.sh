@@ -99,6 +99,10 @@ fi
 # Strip CLAUDECODE so Agent SDK and Railway CLI work inside this container
 unset CLAUDECODE
 
+# Set CLAUDE_CONFIG_DIR so the app finds Claude config at /home/bun/.claude
+# (app runs as root, so homedir() would return /root otherwise)
+export CLAUDE_CONFIG_DIR=/home/bun/.claude
+
 # --- Restore tmux sessions from explorer.json ---
 EXPLORER_JSON="/home/bun/.claude/explorer.json"
 if [ -f "$EXPLORER_JSON" ] && command -v jq >/dev/null 2>&1; then
