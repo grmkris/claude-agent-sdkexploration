@@ -291,8 +291,13 @@ function McpServersSection() {
                     >
                       {isInspecting ? "Hide" : "Tools"}
                     </Button>
-                    {s.name === (process.env.NEXT_PUBLIC_INSTANCE_NAME ?? "claude-explorer") ? (
-                      <Badge variant="secondary" className="shrink-0 text-[10px]">
+                    {s.name ===
+                    (process.env.NEXT_PUBLIC_INSTANCE_NAME ??
+                      "claude-explorer") ? (
+                      <Badge
+                        variant="secondary"
+                        className="shrink-0 text-[10px]"
+                      >
                         System
                       </Badge>
                     ) : (

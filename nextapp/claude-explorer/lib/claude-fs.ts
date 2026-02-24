@@ -1013,7 +1013,10 @@ export async function inspectMcpTools(
   const { Client } = await import("@modelcontextprotocol/sdk/client/index.js");
   const transport = serverConfig.type ?? "stdio";
 
-  const mcpClient = new Client({ name: process.env.INSTANCE_NAME ?? "claude-explorer", version: "1.0.0" });
+  const mcpClient = new Client({
+    name: process.env.INSTANCE_NAME ?? "claude-explorer",
+    version: "1.0.0",
+  });
 
   let mcpTransport: unknown;
 

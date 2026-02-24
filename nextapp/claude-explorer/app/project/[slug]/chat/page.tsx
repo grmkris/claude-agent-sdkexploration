@@ -17,9 +17,10 @@ export default function NewChatPage({
   const { data } = useQuery(
     orpc.projects.resolveSlug.queryOptions({ input: { slug } })
   );
-  const { messages, send, isStreaming, error, toolProgress } = useChatStream({
-    cwd: data?.path,
-  });
+  const { messages, send, stop, isStreaming, error, toolProgress } =
+    useChatStream({
+      cwd: data?.path,
+    });
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
@@ -38,7 +39,12 @@ export default function NewChatPage({
           {error}
         </div>
       )}
-      <ChatInput onSend={send} disabled={isStreaming || !data?.path} />
+      <ChatInput
+        onSend={send}
+        onStop={stop}
+        isStreaming={isStreaming}
+        disabled={!data?.path}
+      />
     </div>
   );
 }

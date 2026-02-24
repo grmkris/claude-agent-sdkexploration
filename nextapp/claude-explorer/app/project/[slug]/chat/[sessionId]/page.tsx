@@ -27,6 +27,7 @@ export default function SessionChatPage({
   const {
     messages: streamMessages,
     send,
+    stop,
     isStreaming,
     error,
     toolProgress,
@@ -67,7 +68,12 @@ export default function SessionChatPage({
           {error}
         </div>
       )}
-      <ChatInput onSend={send} disabled={isStreaming || !resolved?.path} />
+      <ChatInput
+        onSend={send}
+        onStop={stop}
+        isStreaming={isStreaming}
+        disabled={!resolved?.path}
+      />
     </div>
   );
 }

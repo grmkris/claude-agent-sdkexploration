@@ -23,6 +23,7 @@ export default function RootSessionChatPage({
   const {
     messages: streamMessages,
     send,
+    stop,
     isStreaming,
     error,
     toolProgress,
@@ -62,7 +63,7 @@ export default function RootSessionChatPage({
           {error}
         </div>
       )}
-      <ChatInput onSend={send} disabled={isStreaming} />
+      <ChatInput onSend={send} onStop={stop} isStreaming={isStreaming} />
     </div>
   );
 }

@@ -15,6 +15,7 @@ export type { ToolProgressEntry };
 type UseRootChatStreamReturn = {
   messages: ParsedMessage[];
   send: (prompt: string) => void;
+  stop: () => void;
   isStreaming: boolean;
   sessionId: string | null;
   error: string | null;
@@ -31,12 +32,23 @@ export function useRootChatStream(opts?: {
   const [, setProgressTick] = useState(0);
   const streamingRef = useRef(false);
   const toolProgressRef = useRef<Map<string, ToolProgressEntry>>(new Map());
+  const abortRef = useRef<AbortController | null>(null);
+
+  const stop = useCallback(() => {
+    abortRef.current?.abort();
+    abortRef.current = null;
+    setIsStreaming(false);
+    streamingRef.current = false;
+  }, []);
 
   const send = useCallback(
     (prompt: string) => {
       if (streamingRef.current) return;
       streamingRef.current = true;
       toolProgressRef.current.clear();
+
+      const ac = new AbortController();
+      abortRef.current = ac;
 
       const userMsg: ParsedMessage = {
         role: "user",
@@ -60,10 +72,13 @@ export function useRootChatStream(opts?: {
 
       void (async () => {
         try {
-          const iterator = await client.rootChat({
-            prompt,
-            resume: opts?.resume ?? sessionId ?? undefined,
-          });
+          const iterator = await client.rootChat(
+            {
+              prompt,
+              resume: opts?.resume ?? sessionId ?? undefined,
+            },
+            { signal: ac.signal }
+          );
 
           for await (const msg of iterator) {
             handleSDKMessage(
@@ -83,6 +98,7 @@ export function useRootChatStream(opts?: {
             streamingRef.current = false;
           }
         } catch (err) {
+          if (ac.signal.aborted) return;
           setError(String(err));
           setIsStreaming(false);
           streamingRef.current = false;
@@ -95,6 +111,7 @@ export function useRootChatStream(opts?: {
   return {
     messages,
     send,
+    stop,
     isStreaming,
     sessionId,
     error,

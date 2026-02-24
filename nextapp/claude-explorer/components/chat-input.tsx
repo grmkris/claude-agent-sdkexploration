@@ -6,10 +6,14 @@ import { Button } from "@/components/ui/button";
 
 export function ChatInput({
   onSend,
+  onStop,
   disabled,
+  isStreaming,
 }: {
   onSend: (prompt: string) => void;
+  onStop?: () => void;
   disabled?: boolean;
+  isStreaming?: boolean;
 }) {
   const [value, setValue] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -23,7 +27,7 @@ export function ChatInput({
 
   const handleSubmit = () => {
     const trimmed = value.trim();
-    if (!trimmed || disabled) return;
+    if (!trimmed || disabled || isStreaming) return;
     onSend(trimmed);
     setValue("");
     if (textareaRef.current) {
@@ -52,16 +56,22 @@ export function ChatInput({
         placeholder="Send a message..."
         disabled={disabled}
         rows={1}
-        className="flex-1 resize-none rounded-md border bg-transparent px-3 py-2 text-sm outline-none placeholder:text-muted-foreground focus:ring-1 focus:ring-ring disabled:opacity-50"
+        className="flex-1 resize-none rounded-md border bg-transparent px-3 py-2 text-sm max-md:text-base outline-none placeholder:text-muted-foreground focus:ring-1 focus:ring-ring disabled:opacity-50"
         style={{ maxHeight: 200 }}
       />
-      <Button
-        size="sm"
-        onClick={handleSubmit}
-        disabled={disabled || !value.trim()}
-      >
-        Send
-      </Button>
+      {isStreaming ? (
+        <Button size="sm" variant="outline" onClick={onStop}>
+          Stop
+        </Button>
+      ) : (
+        <Button
+          size="sm"
+          onClick={handleSubmit}
+          disabled={disabled || !value.trim()}
+        >
+          Send
+        </Button>
+      )}
     </div>
   );
 }

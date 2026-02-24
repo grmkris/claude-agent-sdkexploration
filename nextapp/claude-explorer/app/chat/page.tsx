@@ -16,7 +16,7 @@ const ONBOARD_PROMPT =
 function RootNewChatContent() {
   const queryClient = useQueryClient();
   const searchParams = useSearchParams();
-  const { messages, send, isStreaming, sessionId, error, toolProgress } =
+  const { messages, send, stop, isStreaming, sessionId, error, toolProgress } =
     useRootChatStream();
 
   const setPrimary = useMutation({
@@ -67,7 +67,7 @@ function RootNewChatContent() {
           {error}
         </div>
       )}
-      <ChatInput onSend={send} disabled={isStreaming} />
+      <ChatInput onSend={send} onStop={stop} isStreaming={isStreaming} />
     </div>
   );
 }

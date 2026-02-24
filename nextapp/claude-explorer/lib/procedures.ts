@@ -352,7 +352,10 @@ const chatProc = os
     })
   )
   .output(eventIterator(z.custom<SDKMessage>()))
-  .handler(async function* ({ input }) {
+  .handler(async function* ({ input, signal }) {
+    const ac = new AbortController();
+    signal?.addEventListener("abort", () => ac.abort(), { once: true });
+
     try {
       const conversation = query({
         prompt: input.prompt,
@@ -362,6 +365,7 @@ const chatProc = os
           permissionMode: "bypassPermissions",
           allowDangerouslySkipPermissions: true,
           env: cleanEnv,
+          abortController: ac,
           stderr: (data: string) => {
             console.error("[chat] stderr:", data);
           },
@@ -374,6 +378,7 @@ const chatProc = os
         yield msg;
       }
     } catch (err) {
+      if (signal?.aborted) return;
       console.error("[chat] error:", err);
       throw err;
     }
@@ -848,7 +853,7 @@ const rootChatProc = os
     })
   )
   .output(eventIterator(z.custom<SDKMessage>()))
-  .handler(async function* ({ input }) {
+  .handler(async function* ({ input, signal }) {
     const explorerServerPath = join(
       process.cwd(),
       "tools",
@@ -857,6 +862,9 @@ const rootChatProc = os
     const baseUrl =
       process.env.EXPLORER_BASE_URL ??
       `http://localhost:${process.env.PORT ?? 3000}`;
+
+    const ac = new AbortController();
+    signal?.addEventListener("abort", () => ac.abort(), { once: true });
 
     try {
       const conversation = query({
@@ -867,6 +875,7 @@ const rootChatProc = os
           allowDangerouslySkipPermissions: true,
           env: cleanEnv,
           cwd: USER_HOME,
+          abortController: ac,
           stderr: (data: string) => {
             console.error("[rootChat] stderr:", data);
           },
@@ -897,6 +906,7 @@ const rootChatProc = os
         yield msg;
       }
     } catch (err) {
+      if (signal?.aborted) return;
       console.error("[rootChat] error:", err);
       throw err;
     }
