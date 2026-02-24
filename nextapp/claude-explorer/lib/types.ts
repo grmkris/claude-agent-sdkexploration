@@ -105,6 +105,7 @@ export type {
   IntegrationWidget,
   WidgetItem,
   RootWorkspace,
+  SavedTmuxSession,
 } from "./schemas";
 
 export type RawUserMessage = {

@@ -191,6 +191,24 @@ export const RootWorkspaceSchema = z.object({
   primarySessionId: z.string().nullable(),
 });
 
+export const SavedTmuxSessionSchema = z.object({
+  sessionName: z.string(),
+  projectPath: z.string(),
+  panelCount: z.number(),
+  layout: z.enum([
+    "even-horizontal",
+    "even-vertical",
+    "tiled",
+    "main-vertical",
+  ]),
+  resumeSessionIds: z.array(z.string().nullable()).optional(),
+  skipPermissions: z.boolean().optional(),
+  model: z.string().optional(),
+  maxBudgetUsd: z.number().optional(),
+  customCommands: z.array(z.string().nullable()).optional(),
+  savedAt: z.string(),
+});
+
 export const ExplorerStoreSchema = z.object({
   favorites: FavoritesSchema,
   crons: z.array(CronJobSchema),
@@ -201,6 +219,7 @@ export const ExplorerStoreSchema = z.object({
   integrations: z.array(IntegrationConfigSchema),
   apiKeys: z.array(ApiKeySchema).optional(),
   rootWorkspace: RootWorkspaceSchema.optional(),
+  tmuxSessions: z.array(SavedTmuxSessionSchema).optional(),
 });
 
 export type Project = z.infer<typeof ProjectSchema>;
@@ -222,6 +241,7 @@ export type IntegrationConfig = z.infer<typeof IntegrationConfigSchema>;
 export type IntegrationWidget = z.infer<typeof IntegrationWidgetSchema>;
 export type WidgetItem = z.infer<typeof WidgetItemSchema>;
 export type RootWorkspace = z.infer<typeof RootWorkspaceSchema>;
+export type SavedTmuxSession = z.infer<typeof SavedTmuxSessionSchema>;
 
 // --- Analytics schemas ---
 

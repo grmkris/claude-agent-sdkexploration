@@ -6,8 +6,18 @@
  * Completely independent of Next.js — no hot-reload issues.
  */
 import { startScheduler } from "./lib/cron-scheduler";
+import { cleanupStaleTmuxSessions } from "./lib/tmux";
 
 startScheduler();
+
+// Sweep dead tmux sessions every 60s
+setInterval(async () => {
+  try {
+    await cleanupStaleTmuxSessions();
+  } catch (e) {
+    console.error("[cron-worker] tmux cleanup error:", e);
+  }
+}, 60_000);
 
 // Keep process alive
 process.on("SIGINT", () => {

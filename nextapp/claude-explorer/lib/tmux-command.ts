@@ -19,6 +19,7 @@ export interface TmuxLaunchConfig {
   noTmux?: boolean;
   ccMode?: boolean;
   customCommands?: (string | null)[];
+  detached?: boolean;
 }
 
 export function generateTmuxCommand(config: TmuxLaunchConfig): string {
@@ -36,6 +37,7 @@ export function generateTmuxCommand(config: TmuxLaunchConfig): string {
     noTmux,
     ccMode,
     customCommands,
+    detached,
   } = config;
   const safeName = config.sessionName.replace(/[.:]/g, "-");
   const safePath = projectPath.includes(" ") ? `"${projectPath}"` : projectPath;
@@ -77,7 +79,8 @@ export function generateTmuxCommand(config: TmuxLaunchConfig): string {
   let tmuxCmd: string;
 
   if (panelCount === 1) {
-    tmuxCmd = `${tmuxBin} new-session -s ${safeName} -c ${safePath} '${panelCmd(0)}'`;
+    const sessionFlag = detached ? "-d -s" : "-s";
+    tmuxCmd = `${tmuxBin} new-session ${sessionFlag} ${safeName} -c ${safePath} '${panelCmd(0)}'`;
   } else {
     const tmuxParts: string[] = [
       `${tmuxBin} new-session -d -s ${safeName} -c ${safePath} '${panelCmd(0)}'`,
@@ -90,7 +93,7 @@ export function generateTmuxCommand(config: TmuxLaunchConfig): string {
     }
 
     tmuxParts.push(`select-layout ${layout}`);
-    tmuxParts.push("attach");
+    if (!detached) tmuxParts.push("attach");
 
     tmuxCmd = tmuxParts.join(" \\; \\\n  ");
   }

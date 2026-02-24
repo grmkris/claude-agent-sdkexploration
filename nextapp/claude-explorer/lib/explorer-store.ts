@@ -12,15 +12,13 @@ import type {
   CronEvent,
   IntegrationConfig,
   ApiKey,
+  SavedTmuxSession,
 } from "./types";
 
 const CLAUDE_DIR = process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), ".claude");
 
 function getStorePath() {
-  return (
-    process.env.EXPLORER_STORE_PATH ??
-    join(CLAUDE_DIR, "explorer.json")
-  );
+  return process.env.EXPLORER_STORE_PATH ?? join(CLAUDE_DIR, "explorer.json");
 }
 const OLD_FAVORITES_PATH = join(CLAUDE_DIR, "explorer-favorites.json");
 
@@ -34,6 +32,7 @@ const EMPTY_STORE: ExplorerStore = {
   integrations: [],
   apiKeys: [],
   rootWorkspace: { primarySessionId: null },
+  tmuxSessions: [],
 };
 
 // mtime-based cache to avoid redundant readFile + JSON.parse
@@ -442,4 +441,40 @@ export async function setRootPrimarySessionId(
     store.rootWorkspace.primarySessionId = sessionId;
   }
   await writeStore(store);
+}
+
+// --- Tmux Sessions ---
+
+export async function getTmuxSessions(): Promise<SavedTmuxSession[]> {
+  const store = await readStore();
+  return store.tmuxSessions ?? [];
+}
+
+export async function saveTmuxSession(
+  session: SavedTmuxSession
+): Promise<SavedTmuxSession> {
+  const store = await readStore();
+  if (!store.tmuxSessions) store.tmuxSessions = [];
+  const idx = store.tmuxSessions.findIndex(
+    (s) => s.sessionName === session.sessionName
+  );
+  if (idx >= 0) {
+    store.tmuxSessions[idx] = session;
+  } else {
+    store.tmuxSessions.push(session);
+  }
+  await writeStore(store);
+  return session;
+}
+
+export async function removeTmuxSession(sessionName: string): Promise<boolean> {
+  const store = await readStore();
+  if (!store.tmuxSessions) return false;
+  const idx = store.tmuxSessions.findIndex(
+    (s) => s.sessionName === sessionName
+  );
+  if (idx < 0) return false;
+  store.tmuxSessions.splice(idx, 1);
+  await writeStore(store);
+  return true;
 }

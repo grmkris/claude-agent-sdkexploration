@@ -99,6 +99,91 @@ fi
 # Strip CLAUDECODE so Agent SDK and Railway CLI work inside this container
 unset CLAUDECODE
 
+# --- Restore tmux sessions from explorer.json ---
+EXPLORER_JSON="/home/bun/.claude/explorer.json"
+if [ -f "$EXPLORER_JSON" ] && command -v jq >/dev/null 2>&1; then
+    TMUX_COUNT=$(jq -r '.tmuxSessions // [] | length' "$EXPLORER_JSON" 2>/dev/null || echo 0)
+    if [ "$TMUX_COUNT" -gt 0 ]; then
+        echo "[tmux-restore] Found $TMUX_COUNT saved session(s), restoring..."
+        for i in $(seq 0 $((TMUX_COUNT - 1))); do
+            SESSION_NAME=$(jq -r ".tmuxSessions[$i].sessionName" "$EXPLORER_JSON")
+            PROJECT_PATH=$(jq -r ".tmuxSessions[$i].projectPath" "$EXPLORER_JSON")
+            PANEL_COUNT=$(jq -r ".tmuxSessions[$i].panelCount" "$EXPLORER_JSON")
+            LAYOUT=$(jq -r ".tmuxSessions[$i].layout" "$EXPLORER_JSON")
+            SKIP_PERMS=$(jq -r ".tmuxSessions[$i].skipPermissions // false" "$EXPLORER_JSON")
+            MODEL=$(jq -r ".tmuxSessions[$i].model // empty" "$EXPLORER_JSON")
+            MAX_BUDGET=$(jq -r ".tmuxSessions[$i].maxBudgetUsd // empty" "$EXPLORER_JSON")
+
+            # Validate project path exists
+            if [ ! -d "$PROJECT_PATH" ]; then
+                echo "[tmux-restore] Skipping $SESSION_NAME: $PROJECT_PATH not found"
+                continue
+            fi
+
+            # Skip if session already exists
+            if su bun -c "tmux has-session -t '$SESSION_NAME'" 2>/dev/null; then
+                echo "[tmux-restore] Skipping $SESSION_NAME: already exists"
+                continue
+            fi
+
+            # Build claude command for a given pane index
+            build_claude_cmd() {
+                local idx=$1
+                # Check for custom command first
+                local custom_cmd
+                custom_cmd=$(jq -r ".tmuxSessions[$i].customCommands[$idx] // empty" "$EXPLORER_JSON")
+                if [ -n "$custom_cmd" ]; then
+                    echo "$custom_cmd"
+                    return
+                fi
+
+                local parts="claude"
+                # Check for resume session ID
+                local resume_id
+                resume_id=$(jq -r ".tmuxSessions[$i].resumeSessionIds[$idx] // empty" "$EXPLORER_JSON")
+                if [ -n "$resume_id" ]; then
+                    # Verify the .jsonl file exists before using --resume
+                    local jsonl_path="/home/bun/.claude/projects/-home-bun${PROJECT_PATH//\//-}/$resume_id.jsonl"
+                    if [ -f "$jsonl_path" ]; then
+                        parts="$parts --resume $resume_id"
+                    fi
+                fi
+                if [ "$SKIP_PERMS" = "true" ]; then
+                    parts="$parts --dangerously-skip-permissions"
+                fi
+                if [ -n "$MODEL" ]; then
+                    parts="$parts --model $MODEL"
+                fi
+                if [ -n "$MAX_BUDGET" ]; then
+                    parts="$parts --max-budget-usd $MAX_BUDGET"
+                fi
+                echo "$parts"
+            }
+
+            # Create tmux session
+            FIRST_CMD=$(build_claude_cmd 0)
+            su bun -c "tmux new-session -d -s '$SESSION_NAME' -c '$PROJECT_PATH' '$FIRST_CMD'"
+
+            # Add extra panes
+            for p in $(seq 1 $((PANEL_COUNT - 1))); do
+                PANE_CMD=$(build_claude_cmd "$p")
+                SPLIT_DIR="-h"
+                if [ "$LAYOUT" = "even-vertical" ] || [ "$LAYOUT" = "main-vertical" ]; then
+                    SPLIT_DIR="-v"
+                fi
+                su bun -c "tmux split-window $SPLIT_DIR -t '$SESSION_NAME' -c '$PROJECT_PATH' '$PANE_CMD'"
+            done
+
+            # Apply layout
+            if [ "$PANEL_COUNT" -gt 1 ]; then
+                su bun -c "tmux select-layout -t '$SESSION_NAME' '$LAYOUT'" 2>/dev/null || true
+            fi
+
+            echo "[tmux-restore] Restored $SESSION_NAME ($PANEL_COUNT pane(s))"
+        done
+    fi
+fi
+
 # App processes run as root from /app (bun user has no access to /app)
 cd /app
 bun cron-worker.ts &
