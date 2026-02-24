@@ -35,7 +35,7 @@ function formatPrompt(
     `[Chat Message] Platform: ${thread.adapter.name}, Trigger: ${trigger}`,
     `Thread: ${thread.id}`,
     "",
-    `Message from ${message.author?.name ?? "unknown"}:`,
+    `Message from ${message.author?.fullName ?? "unknown"}:`,
     message.text,
     "",
     "Respond helpfully. Do NOT use linear_addComment — your response will be posted automatically.",
