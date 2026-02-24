@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import Link from "next/link";
 import { useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
@@ -412,9 +413,16 @@ export default function EmailPage() {
                   {ev.status}
                 </Badge>
                 {ev.sessionId && (
-                  <span className="shrink-0 text-[10px] text-blue-400">
-                    session
-                  </span>
+                  <Link
+                    href={
+                      ev.projectSlug === "__root__" || ev.projectSlug === "__outbound__"
+                        ? `/chat/${ev.sessionId}`
+                        : `/project/${ev.projectSlug}/chat/${ev.sessionId}`
+                    }
+                    className="shrink-0 text-[10px] text-blue-400 hover:underline"
+                  >
+                    session &rarr;
+                  </Link>
                 )}
               </div>
             ))}

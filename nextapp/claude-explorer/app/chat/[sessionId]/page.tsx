@@ -15,7 +15,11 @@ export default function RootSessionChatPage({
 }) {
   const { sessionId } = use(params);
 
-  const { data: history, isLoading, refetch } = useQuery({
+  const {
+    data: history,
+    isLoading,
+    refetch,
+  } = useQuery({
     ...orpc.root.messages.queryOptions({ input: { sessionId } }),
     refetchInterval: false,
   });

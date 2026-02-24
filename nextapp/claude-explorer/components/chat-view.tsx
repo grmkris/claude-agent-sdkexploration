@@ -1,8 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useCallback, useState } from "react";
-import { ArrowDown01Icon, ArrowReloadHorizontalIcon } from "@hugeicons/core-free-icons";
+import {
+  ArrowDown01Icon,
+  ArrowReloadHorizontalIcon,
+} from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { useEffect, useRef, useCallback, useState } from "react";
 
 import type { ToolProgressEntry } from "@/hooks/use-chat-stream";
 import type { ParsedMessage } from "@/lib/types";
@@ -107,7 +110,10 @@ export function ChatView({
         <div className="absolute bottom-4 right-4 flex gap-1.5">
           {onRefresh && (
             <button
-              onClick={() => { onRefresh(); scrollToBottom(); }}
+              onClick={() => {
+                onRefresh();
+                scrollToBottom();
+              }}
               className="flex items-center justify-center rounded-full bg-background border border-border shadow-md w-8 h-8 text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors"
               title="Refresh messages"
             >

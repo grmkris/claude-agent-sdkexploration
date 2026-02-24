@@ -19,7 +19,11 @@ export default function SessionChatPage({
     orpc.projects.resolveSlug.queryOptions({ input: { slug } })
   );
 
-  const { data: history, isLoading, refetch } = useQuery({
+  const {
+    data: history,
+    isLoading,
+    refetch,
+  } = useQuery({
     ...orpc.sessions.messages.queryOptions({ input: { slug, sessionId } }),
     refetchInterval: false,
   });
