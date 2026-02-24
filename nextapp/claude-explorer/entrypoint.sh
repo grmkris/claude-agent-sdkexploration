@@ -198,12 +198,12 @@ if [ -f "$EXPLORER_JSON" ] && command -v jq >/dev/null 2>&1; then
     fi
 fi
 
-# App processes run as root from /app (bun user has no access to /app)
+# App processes run as bun user (/app is 755 so bun can read/execute)
 cd /app
-bun cron-worker.ts &
+su bun -c "bun cron-worker.ts" &
 CRON_PID=$!
 
-bun --bun next start -p ${PORT:-3000} &
+su bun -c "bun --bun next start -p ${PORT:-3000}" &
 NEXT_PID=$!
 
 # Trap signals to shut down all

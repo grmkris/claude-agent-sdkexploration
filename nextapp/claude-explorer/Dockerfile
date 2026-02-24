@@ -88,9 +88,10 @@ RUN bun install --frozen-lockfile
 COPY --chown=bun:bun . .
 RUN bun --bun next build
 
-# Lock /app — root-only, bun user has zero access
+# Lock /app — root owns it, bun can read/execute (755)
 USER root
-RUN chown -R root:root /app && chmod -R 755 /app
+RUN chown -R root:root /app && chmod -R 755 /app \
+    && mkdir -p /app/.next/cache && chown -R bun:bun /app/.next/cache
 
 # Create user workspace skeleton
 RUN mkdir -p /home/bun/projects && chown bun:bun /home/bun/projects
