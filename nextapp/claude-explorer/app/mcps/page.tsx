@@ -3,10 +3,13 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
+import { McpCatalogView } from "@/components/mcp-catalog-view";
+import { SkillCatalogView } from "@/components/skill-catalog-view";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { orpc } from "@/lib/orpc";
 import { client } from "@/lib/orpc-client";
 
@@ -706,14 +709,36 @@ export default function McpsPage() {
       <h2 className="mb-3 text-sm font-medium text-muted-foreground">
         MCP Servers
       </h2>
-      <McpServersSection />
+      <Tabs defaultValue="catalog">
+        <TabsList variant="line">
+          <TabsTrigger value="catalog">Catalog</TabsTrigger>
+          <TabsTrigger value="custom">Custom</TabsTrigger>
+        </TabsList>
+        <TabsContent value="catalog">
+          <McpCatalogView />
+        </TabsContent>
+        <TabsContent value="custom">
+          <McpServersSection />
+        </TabsContent>
+      </Tabs>
 
-      <h2 className="mb-3 text-sm font-medium text-muted-foreground">
+      <h2 className="mt-6 mb-3 text-sm font-medium text-muted-foreground">
         User Skills
       </h2>
-      <SkillsSection />
+      <Tabs defaultValue="skill-catalog">
+        <TabsList variant="line">
+          <TabsTrigger value="skill-catalog">Catalog</TabsTrigger>
+          <TabsTrigger value="skill-custom">Custom</TabsTrigger>
+        </TabsList>
+        <TabsContent value="skill-catalog">
+          <SkillCatalogView />
+        </TabsContent>
+        <TabsContent value="skill-custom">
+          <SkillsSection />
+        </TabsContent>
+      </Tabs>
 
-      <h2 className="mb-3 text-sm font-medium text-muted-foreground">
+      <h2 className="mt-6 mb-3 text-sm font-medium text-muted-foreground">
         User Commands
       </h2>
       <CommandsSection />
