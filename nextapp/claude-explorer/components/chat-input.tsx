@@ -60,12 +60,11 @@ export function ChatInput({
         style={{ maxHeight: 200 }}
       />
       {isStreaming ? (
-        <Button size="sm" variant="outline" onClick={onStop}>
+        <Button variant="outline" onClick={onStop}>
           Stop
         </Button>
       ) : (
         <Button
-          size="sm"
           onClick={handleSubmit}
           disabled={disabled || !value.trim()}
         >
