@@ -32,18 +32,17 @@ function RightSidebarInner({
   onTabChange: (tab: TabValue) => void;
 }) {
   return (
-    <div className="bg-sidebar flex size-full flex-col">
+    <Tabs
+      value={activeTab}
+      onValueChange={(v) => onTabChange(v as TabValue)}
+      className="bg-sidebar flex size-full flex-col"
+    >
       <SidebarHeader className="p-0 border-b">
-        <Tabs
-          value={activeTab}
-          onValueChange={(v) => onTabChange(v as TabValue)}
-        >
-          <TabsList variant="line" className="w-full px-2 rounded-none h-10">
-            <TabsTrigger value="recent">Recent</TabsTrigger>
-            <TabsTrigger value="skills">Skills</TabsTrigger>
-            {activeSlug && <TabsTrigger value="files">Files</TabsTrigger>}
-          </TabsList>
-        </Tabs>
+        <TabsList variant="line" className="w-full px-2 rounded-none h-10">
+          <TabsTrigger value="recent">Recent</TabsTrigger>
+          <TabsTrigger value="skills">Skills</TabsTrigger>
+          {activeSlug && <TabsTrigger value="files">Files</TabsTrigger>}
+        </TabsList>
       </SidebarHeader>
       <SidebarContent>
         <TabsContent value="recent" hidden={activeTab !== "recent"}>
@@ -58,7 +57,7 @@ function RightSidebarInner({
           </TabsContent>
         )}
       </SidebarContent>
-    </div>
+    </Tabs>
   );
 }
 
