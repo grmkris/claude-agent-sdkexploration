@@ -1636,6 +1636,9 @@ const removeMcpServerProc = os
   )
   .output(z.object({ success: z.boolean(), error: z.string().optional() }))
   .handler(async ({ input }) => {
+    if (input.name === "claude-explorer") {
+      return { success: false, error: "Cannot remove the system MCP server" };
+    }
     let cwd: string | undefined;
     if (input.scope !== "user" && input.slug) {
       cwd = await resolveSlugToPath(input.slug);

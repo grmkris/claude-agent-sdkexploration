@@ -291,26 +291,32 @@ function McpServersSection() {
                     >
                       {isInspecting ? "Hide" : "Tools"}
                     </Button>
-                    <button
-                      onClick={() =>
-                        removeServer.mutate({ name: s.name, scope: "user" })
-                      }
-                      className="shrink-0 rounded p-1 text-muted-foreground hover:bg-accent hover:text-destructive"
-                      title="Remove"
-                    >
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth={2}
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        className="h-3.5 w-3.5"
+                    {s.name === "claude-explorer" ? (
+                      <Badge variant="secondary" className="shrink-0 text-[10px]">
+                        System
+                      </Badge>
+                    ) : (
+                      <button
+                        onClick={() =>
+                          removeServer.mutate({ name: s.name, scope: "user" })
+                        }
+                        className="shrink-0 rounded p-1 text-muted-foreground hover:bg-accent hover:text-destructive"
+                        title="Remove"
                       >
-                        <path d="M18 6 6 18M6 6l12 12" />
-                      </svg>
-                    </button>
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth={2}
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          className="h-3.5 w-3.5"
+                        >
+                          <path d="M18 6 6 18M6 6l12 12" />
+                        </svg>
+                      </button>
+                    )}
                   </CardContent>
                 </Card>
                 {isInspecting && tools && (
