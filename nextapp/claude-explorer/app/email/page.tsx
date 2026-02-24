@@ -6,10 +6,32 @@ import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import {
+  InputGroup,
+  InputGroupInput,
+  InputGroupAddon,
+} from "@/components/ui/input-group";
 import { orpc } from "@/lib/orpc";
 import { client } from "@/lib/orpc-client";
 import { getTimeAgo } from "@/lib/utils";
+
+const PROMPT_SUGGESTIONS = [
+  {
+    label: "Triage & reply",
+    prompt:
+      "Analyze the incoming email. Categorize it by urgency and topic. Draft a helpful reply addressing the sender's questions or requests.",
+  },
+  {
+    label: "Summarize",
+    prompt:
+      "Summarize the incoming email concisely. Extract key points, action items, and any deadlines mentioned.",
+  },
+  {
+    label: "Forward to session",
+    prompt:
+      "Pass the full email content into the session context for continued conversation. Include sender, subject, and body.",
+  },
+] as const;
 
 export default function EmailPage() {
   const queryClient = useQueryClient();
@@ -22,14 +44,24 @@ export default function EmailPage() {
     ...orpc.email.events.queryOptions({ input: {} }),
     refetchInterval: 30000,
   });
+  const { data: domainInfo } = useQuery(orpc.email.domain.queryOptions());
 
-  const [address, setAddress] = useState("");
+  const domain = domainInfo?.domain ?? "your-domain.com";
+  const existingAddresses = domainInfo?.addresses ?? [];
+  const isDomainConfigured = domain !== "your-domain.com";
+
+  const [addressMode, setAddressMode] = useState<"new" | "existing">("new");
+  const [localPart, setLocalPart] = useState("");
+  const [selectedAddress, setSelectedAddress] = useState("");
   const [projectSlug, setProjectSlug] = useState("__root__");
   const [onInbound, setOnInbound] = useState<
     "new_session" | "existing_session"
   >("new_session");
   const [sessionId, setSessionId] = useState("");
   const [prompt, setPrompt] = useState("");
+
+  const finalAddress =
+    addressMode === "new" ? `${localPart}@${domain}` : selectedAddress;
 
   const { data: projectSessions } = useQuery({
     ...orpc.sessions.list.queryOptions({
@@ -55,13 +87,16 @@ export default function EmailPage() {
     void queryClient.invalidateQueries({
       queryKey: orpc.email.events.queryOptions({ input: {} }).queryKey,
     });
+    void queryClient.invalidateQueries({
+      queryKey: orpc.email.domain.queryOptions().queryKey,
+    });
   };
 
   const saveConfig = useMutation({
     mutationFn: () =>
       client.email.setConfig({
         projectSlug,
-        address,
+        address: finalAddress,
         enabled: true,
         prompt,
         onInbound,
@@ -69,7 +104,8 @@ export default function EmailPage() {
       }),
     onSuccess: () => {
       invalidate();
-      setAddress("");
+      setLocalPart("");
+      setSelectedAddress("");
       setProjectSlug("__root__");
       setOnInbound("new_session");
       setSessionId("");
@@ -95,57 +131,136 @@ export default function EmailPage() {
     onSuccess: invalidate,
   });
 
+  const canSave =
+    addressMode === "new"
+      ? localPart.length > 0 && prompt.length > 0
+      : selectedAddress.length > 0 && prompt.length > 0;
+
   return (
     <div className="p-4">
       <h1 className="mb-4 text-lg font-semibold">Email</h1>
 
+      {/* Domain status banner */}
+      <div className="mb-4 flex items-center gap-2 text-sm">
+        <span
+          className={`h-2 w-2 shrink-0 rounded-full ${isDomainConfigured ? "bg-green-500" : "bg-yellow-500"}`}
+        />
+        <span className="text-muted-foreground">
+          {isDomainConfigured ? (
+            <>
+              Receiving at{" "}
+              <span className="font-medium text-foreground">@{domain}</span>
+            </>
+          ) : (
+            <>
+              No domain configured —{" "}
+              <span className="font-medium text-yellow-500">
+                set CHANNEL_EMAIL_DOMAIN
+              </span>
+            </>
+          )}
+        </span>
+      </div>
+
       {/* Create/Edit form */}
       <Card className="mb-6">
         <CardHeader>
-          <CardTitle>New Email Config</CardTitle>
+          <CardTitle>New Email Route</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-col gap-3">
-            <div className="flex gap-2">
-              <Input
-                placeholder="agent@yourdomain.com"
-                value={address}
-                onChange={(e) => setAddress(e.target.value)}
-                className="w-64"
-              />
-              <select
-                value={projectSlug}
-                onChange={(e) => {
-                  setProjectSlug(e.target.value);
-                  setSessionId("");
-                }}
-                className="rounded border bg-background px-2 text-sm"
-              >
-                <option value="__root__">Root (catch-all)</option>
-                {projects?.map((p) => (
-                  <option key={p.slug} value={p.slug}>
-                    {p.path.split("/").slice(-2).join("/")}
-                  </option>
-                ))}
-              </select>
-              <select
-                value={onInbound}
-                onChange={(e) => {
-                  setOnInbound(e.target.value as typeof onInbound);
-                  setSessionId("");
-                }}
-                className="rounded border bg-background px-2 text-sm"
-              >
-                <option value="new_session">New session</option>
-                <option value="existing_session">Existing session</option>
-              </select>
+          <div className="flex flex-col gap-4">
+            {/* Address */}
+            <div className="flex flex-col gap-1.5">
+              <span className="text-[10px] font-medium text-muted-foreground">
+                Address
+              </span>
+              <div className="flex items-center gap-2">
+                {existingAddresses.length > 0 && (
+                  <select
+                    value={addressMode}
+                    onChange={(e) =>
+                      setAddressMode(e.target.value as "new" | "existing")
+                    }
+                    className="h-8 shrink-0 rounded-none border bg-background px-2 text-xs"
+                  >
+                    <option value="new">New</option>
+                    <option value="existing">Existing</option>
+                  </select>
+                )}
+                {addressMode === "new" ? (
+                  <InputGroup className="max-w-xs">
+                    <InputGroupInput
+                      placeholder="support"
+                      value={localPart}
+                      onChange={(e) => setLocalPart(e.target.value)}
+                    />
+                    <InputGroupAddon align="inline-end">
+                      @{domain}
+                    </InputGroupAddon>
+                  </InputGroup>
+                ) : (
+                  <select
+                    value={selectedAddress}
+                    onChange={(e) => setSelectedAddress(e.target.value)}
+                    className="h-8 rounded-none border bg-background px-2 text-sm"
+                  >
+                    <option value="">Select address...</option>
+                    {existingAddresses.map((addr) => (
+                      <option key={addr} value={addr}>
+                        {addr}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
             </div>
-            <div className="flex gap-2">
+
+            {/* Route to + Session handling */}
+            <div className="flex gap-4">
+              <div className="flex flex-col gap-1.5">
+                <span className="text-[10px] font-medium text-muted-foreground">
+                  Route to
+                </span>
+                <select
+                  value={projectSlug}
+                  onChange={(e) => {
+                    setProjectSlug(e.target.value);
+                    setSessionId("");
+                  }}
+                  className="h-8 rounded-none border bg-background px-2 text-sm"
+                >
+                  <option value="__root__">Root (catch-all)</option>
+                  {projects?.map((p) => (
+                    <option key={p.slug} value={p.slug}>
+                      {p.path.split("/").slice(-2).join("/")}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <span className="text-[10px] font-medium text-muted-foreground">
+                  Session handling
+                </span>
+                <select
+                  value={onInbound}
+                  onChange={(e) => {
+                    setOnInbound(e.target.value as typeof onInbound);
+                    setSessionId("");
+                  }}
+                  className="h-8 rounded-none border bg-background px-2 text-sm"
+                >
+                  <option value="new_session">New session</option>
+                  <option value="existing_session">Existing session</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Session picker */}
+            {onInbound === "existing_session" && (
               <select
                 value={sessionId}
                 onChange={(e) => setSessionId(e.target.value)}
-                className="shrink-0 rounded border bg-background px-2 text-sm"
-                disabled={onInbound !== "existing_session"}
+                className="h-8 rounded-none border bg-background px-2 text-sm"
               >
                 <option value="">Select session...</option>
                 {sessions?.map((s) => (
@@ -155,17 +270,38 @@ export default function EmailPage() {
                   </option>
                 ))}
               </select>
+            )}
+
+            {/* Agent instructions */}
+            <div className="flex flex-col gap-1.5">
+              <span className="text-[10px] font-medium text-muted-foreground">
+                Agent instructions
+              </span>
+              <div className="flex gap-1.5">
+                {PROMPT_SUGGESTIONS.map((s) => (
+                  <Button
+                    key={s.label}
+                    variant="outline"
+                    size="sm"
+                    className="h-6 text-[10px]"
+                    onClick={() => setPrompt(s.prompt)}
+                  >
+                    {s.label}
+                  </Button>
+                ))}
+              </div>
+              <textarea
+                placeholder="Agent prompt when email arrives..."
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                className="min-h-[80px] rounded-none border bg-background px-3 py-2 text-sm"
+              />
             </div>
-            <textarea
-              placeholder="Agent prompt when email arrives..."
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              className="min-h-[80px] rounded border bg-background px-3 py-2 text-sm"
-            />
+
             <Button
               size="sm"
               className="w-fit"
-              disabled={!address || !prompt || saveConfig.isPending}
+              disabled={!canSave || saveConfig.isPending}
               onClick={() => saveConfig.mutate()}
             >
               {saveConfig.isPending ? "Saving..." : "Save"}

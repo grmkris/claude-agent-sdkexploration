@@ -1315,6 +1315,17 @@ const emailListConfigsProc = os
   .output(z.array(WorkspaceEmailConfigSchema))
   .handler(async () => getEmailConfigs());
 
+const emailDomainProc = os
+  .output(z.object({ domain: z.string(), addresses: z.array(z.string()) }))
+  .handler(async () => {
+    const domain = process.env.CHANNEL_EMAIL_DOMAIN ?? "your-domain.com";
+    const configs = await getEmailConfigs();
+    const addresses = [
+      ...new Set(configs.map((c) => c.address).filter(Boolean)),
+    ];
+    return { domain, addresses };
+  });
+
 // --- OAuth / Bot Identity ---
 
 const oauthStatusProc = os
@@ -1792,6 +1803,30 @@ const getContentProc = os
     };
   });
 
+const installCatalogSkillProc = os
+  .input(z.object({ installCommand: z.string() }))
+  .output(z.object({ success: z.boolean(), error: z.string().optional() }))
+  .handler(async ({ input }) => {
+    try {
+      const proc = Bun.spawn(["npx", "-y", "skills", "add", input.installCommand], {
+        stdout: "pipe",
+        stderr: "pipe",
+        env: { ...process.env, PATH: process.env.PATH },
+      });
+      const exitCode = await proc.exited;
+      if (exitCode !== 0) {
+        const stderr = await new Response(proc.stderr).text();
+        return { success: false, error: stderr || `Exit code ${exitCode}` };
+      }
+      return { success: true };
+    } catch (e) {
+      return {
+        success: false,
+        error: e instanceof Error ? e.message : "Failed to install skill",
+      };
+    }
+  });
+
 export const router = {
   projects: {
     list: listProjectsProc,
@@ -1814,6 +1849,7 @@ export const router = {
     addCommand: addCommandProc,
     removeCommand: removeCommandProc,
     getContent: getContentProc,
+    installFromCatalog: installCatalogSkillProc,
   },
   sessions: {
     list: listSessionsProc,
@@ -1892,6 +1928,7 @@ export const router = {
     send: emailSendProc,
     events: emailEventsProc,
     listConfigs: emailListConfigsProc,
+    domain: emailDomainProc,
   },
   oauth: {
     status: oauthStatusProc,
