@@ -38,7 +38,7 @@ export function ChatInput({
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
     }
-    textareaRef.current?.focus();
+    textareaRef.current?.blur();
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
