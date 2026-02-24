@@ -378,7 +378,7 @@ export default function EmailPage() {
             {events.slice(0, 50).map((ev) => (
               <div
                 key={ev.id}
-                className="flex items-center gap-2 rounded border px-2 py-1.5"
+                className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded border px-2 py-1.5"
               >
                 <span
                   className={`h-2 w-2 shrink-0 rounded-full ${ev.status === "success" ? "bg-green-500" : ev.status === "error" ? "bg-red-500" : "bg-yellow-500 animate-pulse"}`}
@@ -395,11 +395,6 @@ export default function EmailPage() {
                 <span className="shrink-0 text-[10px] text-muted-foreground">
                   &rarr; {ev.to}
                 </span>
-                {ev.subject && (
-                  <span className="min-w-0 flex-1 truncate text-[10px] text-muted-foreground">
-                    {ev.subject}
-                  </span>
-                )}
                 <Badge
                   variant={
                     ev.status === "success"
@@ -412,6 +407,11 @@ export default function EmailPage() {
                 >
                   {ev.status}
                 </Badge>
+                {ev.subject && (
+                  <span className="hidden sm:block min-w-0 flex-1 truncate text-[10px] text-muted-foreground">
+                    {ev.subject}
+                  </span>
+                )}
                 {ev.sessionId && (
                   <Link
                     href={
@@ -419,7 +419,7 @@ export default function EmailPage() {
                         ? `/chat/${ev.sessionId}`
                         : `/project/${ev.projectSlug}/chat/${ev.sessionId}`
                     }
-                    className="shrink-0 text-[10px] text-blue-400 hover:underline"
+                    className="hidden sm:block shrink-0 text-[10px] text-blue-400 hover:underline"
                   >
                     session &rarr;
                   </Link>

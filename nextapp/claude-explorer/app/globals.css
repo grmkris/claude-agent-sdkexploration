@@ -119,6 +119,10 @@
   --sidebar-ring: oklch(0.556 0 0);
 }
 
+@utility pb-safe-input {
+  padding-bottom: max(0.75rem, calc(0.75rem + env(safe-area-inset-bottom)));
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
