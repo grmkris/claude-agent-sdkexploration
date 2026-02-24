@@ -110,6 +110,16 @@ function ProjectListSidebar({ pathname }: { pathname: string }) {
                   </SidebarMenuButton>
                 </Link>
               </SidebarMenuItem>
+              <SidebarMenuItem>
+                <Link href="/webhooks">
+                  <SidebarMenuButton
+                    isActive={pathname === "/webhooks"}
+                    tooltip="Webhooks"
+                  >
+                    <span>Webhooks</span>
+                  </SidebarMenuButton>
+                </Link>
+              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

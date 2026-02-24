@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 
 import { Geist, Geist_Mono } from "next/font/google";
+import Script from "next/script";
 
 import "./globals.css";
 import { ProjectSidebar } from "@/components/project-sidebar";
@@ -44,6 +45,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="dark">
+      <Script
+        src="//unpkg.com/react-grab/dist/index.global.js"
+        crossOrigin="anonymous"
+        strategy="beforeInteractive"
+      />
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >

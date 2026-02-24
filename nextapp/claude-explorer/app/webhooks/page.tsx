@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -38,11 +38,51 @@ export default function WebhooksPage() {
   const [sessionId, setSessionId] = useState("");
   const [signingSecret, setSigningSecret] = useState("");
   const [prompt, setPrompt] = useState("");
+  const [selectedEvents, setSelectedEvents] = useState<Set<string>>(new Set());
 
   const { data: projectSessions } = useQuery({
     ...orpc.sessions.list.queryOptions({ input: { slug: projectSlug } }),
     enabled: !!projectSlug,
   });
+
+  const { data: catalog } = useQuery(
+    orpc.webhooks.eventCatalog.queryOptions({ input: { provider } })
+  );
+
+  const eventsByCategory = useMemo(() => {
+    if (!catalog?.events) return {};
+    const groups: Record<
+      string,
+      { key: string; label: string; description?: string }[]
+    > = {};
+    for (const ev of catalog.events) {
+      if (!groups[ev.category]) groups[ev.category] = [];
+      groups[ev.category].push(ev);
+    }
+    return groups;
+  }, [catalog?.events]);
+
+  const toggleEvent = (key: string) => {
+    setSelectedEvents((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
+  const toggleCategory = (category: string) => {
+    const evts = eventsByCategory[category] ?? [];
+    const allSelected = evts.every((e) => selectedEvents.has(e.key));
+    setSelectedEvents((prev) => {
+      const next = new Set(prev);
+      for (const e of evts) {
+        if (allSelected) next.delete(e.key);
+        else next.add(e.key);
+      }
+      return next;
+    });
+  };
 
   const invalidate = () => {
     void queryClient.invalidateQueries({
@@ -59,6 +99,9 @@ export default function WebhooksPage() {
         name,
         provider,
         prompt,
+        ...(selectedEvents.size > 0
+          ? { subscribedEvents: [...selectedEvents] }
+          : {}),
         ...(projectSlug ? { projectSlug } : {}),
         ...(sessionId ? { sessionId } : {}),
         ...(signingSecret ? { signingSecret } : {}),
@@ -71,6 +114,7 @@ export default function WebhooksPage() {
       setSessionId("");
       setSigningSecret("");
       setPrompt("");
+      setSelectedEvents(new Set());
     },
   });
 
@@ -109,7 +153,10 @@ export default function WebhooksPage() {
               />
               <select
                 value={provider}
-                onChange={(e) => setProvider(e.target.value as typeof provider)}
+                onChange={(e) => {
+                  setProvider(e.target.value as typeof provider);
+                  setSelectedEvents(new Set());
+                }}
                 className="rounded border bg-background px-2 text-sm"
               >
                 {PROVIDERS.map((p) => (
@@ -157,6 +204,63 @@ export default function WebhooksPage() {
                 className="w-48"
               />
             </div>
+            {/* Event selector */}
+            {catalog && Object.keys(eventsByCategory).length > 0 && (
+              <div className="space-y-1.5">
+                <span className="text-xs font-medium text-muted-foreground">
+                  Events
+                </span>
+                {Object.entries(eventsByCategory).map(([category, evts]) => (
+                  <div key={category}>
+                    <button
+                      type="button"
+                      onClick={() => toggleCategory(category)}
+                      className="text-xs font-medium text-muted-foreground hover:text-foreground"
+                    >
+                      {category}
+                      <span className="ml-1 text-[10px] font-normal">
+                        ({evts.filter((e) => selectedEvents.has(e.key)).length}/
+                        {evts.length})
+                      </span>
+                    </button>
+                    <div className="ml-2 mt-0.5 flex flex-wrap gap-1">
+                      {evts.map((ev) => (
+                        <button
+                          type="button"
+                          key={ev.key}
+                          onClick={() => toggleEvent(ev.key)}
+                          className={`rounded border px-1.5 py-0.5 text-xs transition-colors ${
+                            selectedEvents.has(ev.key)
+                              ? "border-foreground/30 bg-foreground/10 text-foreground"
+                              : "border-transparent bg-muted text-muted-foreground hover:text-foreground"
+                          }`}
+                          title={ev.description}
+                        >
+                          {ev.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Prompt templates */}
+            {catalog && catalog.promptTemplates.length > 0 && (
+              <div className="flex flex-wrap gap-1">
+                {catalog.promptTemplates.map((t) => (
+                  <button
+                    type="button"
+                    key={t.label}
+                    onClick={() => setPrompt(t.prompt)}
+                    className="rounded bg-muted px-2 py-0.5 text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+            )}
+
             <textarea
               placeholder="Prompt to run when webhook fires..."
               value={prompt}
