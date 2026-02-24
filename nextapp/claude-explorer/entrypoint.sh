@@ -78,6 +78,32 @@ set -g mouse on
 TMUX
 chown bun:bun /home/bun/.tmux.conf
 
+# ── Postgres ──────────────────────────────────────────────
+PG_DATA=/home/bun/pgdata
+PG_PORT=45432
+mkdir -p "$PG_DATA"
+chown postgres:postgres "$PG_DATA"
+
+if [ ! -f "$PG_DATA/PG_VERSION" ]; then
+    su postgres -c "initdb -D $PG_DATA"
+    sed -i 's/^host.*all.*all.*127.*//' "$PG_DATA/pg_hba.conf"
+    cat >> "$PG_DATA/pg_hba.conf" <<'HBA'
+local   all   all                 trust
+host    all   all   127.0.0.1/32  md5
+host    all   all   ::1/128       md5
+HBA
+    echo "[postgres] initialized at $PG_DATA"
+fi
+
+su postgres -c "pg_ctl -D $PG_DATA -l $PG_DATA/postgresql.log -o '-p $PG_PORT' start"
+su postgres -c "psql -p $PG_PORT -c \"ALTER USER postgres PASSWORD 'postgres';\"" 2>/dev/null || true
+echo "[postgres] running on port $PG_PORT"
+
+# ── Redis ─────────────────────────────────────────────────
+REDIS_PORT=46379
+redis-server --port $REDIS_PORT --dir /home/bun --daemonize yes --save 60 1
+echo "[redis] running on port $REDIS_PORT"
+
 # Install Claude CLI if missing (volume replaces .local/bin from image)
 if [ ! -f /home/bun/.local/bin/claude ]; then
     su bun -c 'curl -fsSL https://claude.ai/install.sh | bash' || true
@@ -207,7 +233,7 @@ su bun -c "bun --bun next start -p ${PORT:-3000}" &
 NEXT_PID=$!
 
 # Trap signals to shut down all
-trap "kill $TS_PID $CRON_PID $NEXT_PID 2>/dev/null; exit 0" SIGTERM SIGINT
+trap "kill $TS_PID $CRON_PID $NEXT_PID 2>/dev/null; su postgres -c 'pg_ctl -D /home/bun/pgdata stop -m fast' 2>/dev/null; redis-cli -p 46379 shutdown nosave 2>/dev/null; exit 0" SIGTERM SIGINT
 
 # Wait for either to exit
 wait -n $CRON_PID $NEXT_PID
