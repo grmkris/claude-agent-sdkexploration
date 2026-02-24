@@ -76,6 +76,7 @@ export async function getLinearBotToken(): Promise<{
       grant_type: "client_credentials",
       client_id: creds.clientId,
       client_secret: creds.clientSecret,
+      scope: "read,write",
     }),
   });
 

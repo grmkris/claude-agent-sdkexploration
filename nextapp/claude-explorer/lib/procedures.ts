@@ -1387,6 +1387,7 @@ const saveOAuthCredentialsProc = os
           grant_type: "client_credentials",
           client_id: input.clientId,
           client_secret: input.clientSecret,
+          scope: "read,write",
         }),
       });
 
@@ -1808,11 +1809,14 @@ const installCatalogSkillProc = os
   .output(z.object({ success: z.boolean(), error: z.string().optional() }))
   .handler(async ({ input }) => {
     try {
-      const proc = Bun.spawn(["npx", "-y", "skills", "add", input.installCommand], {
-        stdout: "pipe",
-        stderr: "pipe",
-        env: { ...process.env, PATH: process.env.PATH },
-      });
+      const proc = Bun.spawn(
+        ["npx", "-y", "skills", "add", input.installCommand],
+        {
+          stdout: "pipe",
+          stderr: "pipe",
+          env: { ...process.env, PATH: process.env.PATH },
+        }
+      );
       const exitCode = await proc.exited;
       if (exitCode !== 0) {
         const stderr = await new Response(proc.stderr).text();
