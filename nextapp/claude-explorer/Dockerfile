@@ -52,6 +52,9 @@ RUN echo "bun ALL=(root) NOPASSWD: /usr/sbin/tailscaled" >> /etc/sudoers.d/bun-t
 # Claude CLI — install as bun user so it goes to /home/bun/.local/bin/
 USER bun
 RUN curl -fsSL https://claude.ai/install.sh | bash
+# npx → bunx shim: Bun images have no npm/npx; MCP servers (railway, shadcn, etc.) need it.
+# Also reproduced in entrypoint.sh since the volume mount replaces .local/bin at runtime.
+RUN ln -sf /usr/local/bin/bunx /home/bun/.local/bin/npx
 ENV PATH="/home/bun/.local/bin:$PATH"
 
 # Persist PATH + locale + shell UX for SSH sessions (Tailscale SSH doesn't inherit Docker ENV)

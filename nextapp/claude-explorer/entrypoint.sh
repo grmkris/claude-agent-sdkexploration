@@ -40,6 +40,12 @@ fi
 
 # Ensure skeleton dirs exist (volume starts empty on first mount)
 mkdir -p /home/bun/.claude /home/bun/.claude/tmux-resurrect /home/bun/.local/bin
+
+# Bun-only environment: bunx exists but npx/npm are not installed.
+# Claude marketplace MCP entries hardcode "npx", so we symlink npx → bunx
+# so any npx call transparently uses bunx. Idempotent on every boot.
+ln -sf /usr/local/bin/bunx /home/bun/.local/bin/npx
+
 chown -R bun:bun /home/bun/.claude /home/bun/.local
 
 # Clean up stale files from earlier deploys (before CLAUDE_CONFIG_DIR was set in shell)
@@ -130,6 +136,11 @@ echo "[redis] running on port $REDIS_PORT"
 if [ ! -f /home/bun/.local/bin/claude ]; then
     su bun -c 'curl -fsSL https://claude.ai/install.sh | bash' || true
 fi
+
+# Ensure npx → bunx shim exists on every boot.
+# Bun images have no npm/npx; Railway MCP servers (and any npx call) need it.
+# Volume mount replaces the image's .local/bin, so we can't rely on the Dockerfile alone.
+[ -L /home/bun/.local/bin/npx ] || ln -sf /usr/local/bin/bunx /home/bun/.local/bin/npx
 
 # Provision Claude config — only on first boot
 CONFIG_SRC=/opt/claude-config
