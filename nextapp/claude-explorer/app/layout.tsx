@@ -2,11 +2,11 @@ import type { Metadata, Viewport } from "next";
 
 import { Geist, Geist_Mono } from "next/font/google";
 import { cookies } from "next/headers";
-import Link from "next/link";
 
 import "./globals.css";
 import Script from "next/script";
 
+import { AppBreadcrumb } from "@/components/app-breadcrumb";
 import { ProjectSidebar } from "@/components/project-sidebar";
 import { RightSidebar } from "@/components/right-sidebar";
 import { SshBadge } from "@/components/ssh-badge";
@@ -73,12 +73,7 @@ export default async function RootLayout({
                   <header className="flex h-10 shrink-0 items-center gap-2 border-b px-3">
                     <SidebarTrigger className="-ml-1" />
                     <Separator orientation="vertical" className="mr-2 h-4" />
-                    <Link
-                      href="/"
-                      className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-                    >
-                      Claude Explorer
-                    </Link>
+                    <AppBreadcrumb />
                     <SshBadge />
                     <div className="flex-1" />
                     <RightSidebarTrigger />

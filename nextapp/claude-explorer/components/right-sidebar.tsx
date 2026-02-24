@@ -82,7 +82,7 @@ function RightSidebarInner({
       </SidebarHeader>
       <SidebarContent>
         <TabsContent value="overview" hidden={activeTab !== "overview"}>
-          <OverviewTab />
+          <OverviewTab slug={activeSlug} />
         </TabsContent>
         <TabsContent value="skills" hidden={activeTab !== "skills"}>
           <SkillsMcpsTab slug={activeSlug} />
