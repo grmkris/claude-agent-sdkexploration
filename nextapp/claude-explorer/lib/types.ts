@@ -108,6 +108,7 @@ export type {
   SavedTmuxSession,
   WorkspaceEmailConfig,
   EmailEvent,
+  OAuthApp,
 } from "./schemas";
 
 export type RawUserMessage = {

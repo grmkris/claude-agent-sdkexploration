@@ -3,6 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
+import { BotIdentitySetup } from "@/components/bot-identity-setup";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -97,6 +98,9 @@ export default function KeysPage() {
 
   return (
     <div className="p-4">
+      <div className="mb-6">
+        <BotIdentitySetup />
+      </div>
       <div className="mb-4 flex items-center gap-3">
         <h1 className="text-lg font-semibold">API Keys</h1>
         {!showForm && (

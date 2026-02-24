@@ -232,6 +232,13 @@ export const EmailEventSchema = z.object({
   error: z.string().optional(),
 });
 
+export const OAuthAppSchema = z.object({
+  provider: z.enum(["linear"]),
+  clientId: z.string(),
+  clientSecret: z.string(),
+  botName: z.string().optional(),
+});
+
 export const ExplorerStoreSchema = z.object({
   favorites: FavoritesSchema,
   crons: z.array(CronJobSchema),
@@ -245,6 +252,7 @@ export const ExplorerStoreSchema = z.object({
   tmuxSessions: z.array(SavedTmuxSessionSchema).optional(),
   emailConfigs: z.array(WorkspaceEmailConfigSchema).optional(),
   emailEvents: z.array(EmailEventSchema).optional(),
+  oauthApps: z.array(OAuthAppSchema).optional(),
 });
 
 export type Project = z.infer<typeof ProjectSchema>;
@@ -269,6 +277,7 @@ export type RootWorkspace = z.infer<typeof RootWorkspaceSchema>;
 export type SavedTmuxSession = z.infer<typeof SavedTmuxSessionSchema>;
 export type WorkspaceEmailConfig = z.infer<typeof WorkspaceEmailConfigSchema>;
 export type EmailEvent = z.infer<typeof EmailEventSchema>;
+export type OAuthApp = z.infer<typeof OAuthAppSchema>;
 
 // --- Analytics schemas ---
 

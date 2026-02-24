@@ -471,6 +471,12 @@ export function ProjectIntegrations({ slug }: { slug: string }) {
     enabled: showSection || showForm,
   });
 
+  const { data: oauthStatus } = useQuery({
+    ...orpc.oauth.status.queryOptions(),
+    staleTime: 60_000,
+    enabled: showSection,
+  });
+
   const integrations =
     allIntegrations?.filter((i) => i.projectSlug === slug) ?? [];
 
@@ -572,6 +578,15 @@ export function ProjectIntegrations({ slug }: { slug: string }) {
                     <Badge variant="outline" className="shrink-0 text-[10px]">
                       {integration.type}
                     </Badge>
+                    {integration.type === "linear" &&
+                      oauthStatus?.linear?.configured && (
+                        <Badge
+                          variant="outline"
+                          className="shrink-0 text-[10px] border-blue-500/30 text-blue-400"
+                        >
+                          bot
+                        </Badge>
+                      )}
                     {(() => {
                       const gitUrl = integration.config?.gitRemoteUrl as
                         | string

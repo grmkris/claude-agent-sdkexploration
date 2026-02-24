@@ -73,6 +73,9 @@ import {
   removeEmailConfig,
   addEmailEvent,
   getEmailEvents,
+  saveOAuthApp,
+  getOAuthApp,
+  removeOAuthApp,
 } from "./explorer-store";
 import {
   getProvider,
@@ -103,6 +106,7 @@ import {
   SavedTmuxSessionSchema,
   WorkspaceEmailConfigSchema,
   EmailEventSchema,
+  OAuthAppSchema,
 } from "./schemas";
 import { getTmuxPanes } from "./tmux";
 import { generateTmuxCommand } from "./tmux-command";
@@ -1279,6 +1283,132 @@ const emailListConfigsProc = os
   .output(z.array(WorkspaceEmailConfigSchema))
   .handler(async () => getEmailConfigs());
 
+// --- OAuth / Bot Identity ---
+
+const oauthStatusProc = os
+  .output(
+    z.object({
+      linear: z.object({
+        configured: z.boolean(),
+        source: z.enum(["env", "store", "none"]),
+        botName: z.string().optional(),
+      }),
+    })
+  )
+  .handler(async () => {
+    // Check env vars first
+    const hasEnv =
+      !!process.env.LINEAR_OAUTH_CLIENT_ID &&
+      !!process.env.LINEAR_OAUTH_CLIENT_SECRET;
+    if (hasEnv) {
+      return { linear: { configured: true, source: "env" as const } };
+    }
+
+    // Check store
+    const app = await getOAuthApp("linear");
+    if (app) {
+      return {
+        linear: {
+          configured: true,
+          source: "store" as const,
+          botName: app.botName,
+        },
+      };
+    }
+
+    return { linear: { configured: false, source: "none" as const } };
+  });
+
+const saveOAuthCredentialsProc = os
+  .input(
+    z.object({
+      provider: z.enum(["linear"]),
+      clientId: z.string(),
+      clientSecret: z.string(),
+    })
+  )
+  .output(
+    z.object({
+      ok: z.boolean(),
+      botName: z.string().optional(),
+      error: z.string().optional(),
+    })
+  )
+  .handler(async ({ input }) => {
+    // Test the credentials by exchanging for a token
+    try {
+      const res = await fetch("https://api.linear.app/oauth/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          grant_type: "client_credentials",
+          client_id: input.clientId,
+          client_secret: input.clientSecret,
+        }),
+      });
+
+      if (!res.ok) {
+        const body = await res.text();
+        return { ok: false, error: `Token exchange failed (${res.status}): ${body}` };
+      }
+
+      const data = (await res.json()) as { access_token: string };
+
+      // Use the token to get the app identity
+      let botName: string | undefined;
+      try {
+        const { LinearClient } = await import("@linear/sdk");
+        const lc = new LinearClient({ accessToken: data.access_token });
+        // For app tokens, viewer returns the app's identity
+        const viewer = await lc.viewer;
+        botName = viewer.name;
+      } catch {
+        // Non-critical — name is just for display
+      }
+
+      // Save to store
+      await saveOAuthApp({
+        provider: input.provider,
+        clientId: input.clientId,
+        clientSecret: input.clientSecret,
+        botName,
+      });
+
+      // Clear any cached bot token so next request uses new creds
+      try {
+        const { clearLinearBotTokenCache } = await import(
+          "./oauth/linear-client-credentials"
+        );
+        clearLinearBotTokenCache();
+      } catch {
+        // ok
+      }
+
+      return { ok: true, botName };
+    } catch (e) {
+      return {
+        ok: false,
+        error: e instanceof Error ? e.message : "Credential test failed",
+      };
+    }
+  });
+
+const removeOAuthCredentialsProc = os
+  .input(z.object({ provider: z.enum(["linear"]) }))
+  .output(z.object({ success: z.boolean() }))
+  .handler(async ({ input }) => {
+    const success = await removeOAuthApp(input.provider);
+    try {
+      const { clearLinearBotTokenCache } = await import(
+        "./oauth/linear-client-credentials"
+      );
+      clearLinearBotTokenCache();
+    } catch {
+      // ok
+    }
+    return { success };
+  });
+
 export const router = {
   projects: {
     list: listProjectsProc,
@@ -1367,5 +1497,10 @@ export const router = {
     send: emailSendProc,
     events: emailEventsProc,
     listConfigs: emailListConfigsProc,
+  },
+  oauth: {
+    status: oauthStatusProc,
+    saveCredentials: saveOAuthCredentialsProc,
+    removeCredentials: removeOAuthCredentialsProc,
   },
 };

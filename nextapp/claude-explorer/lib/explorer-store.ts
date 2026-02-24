@@ -15,6 +15,7 @@ import type {
   SavedTmuxSession,
   WorkspaceEmailConfig,
   EmailEvent,
+  OAuthApp,
 } from "./types";
 
 const CLAUDE_DIR = process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), ".claude");
@@ -37,6 +38,7 @@ const EMPTY_STORE: ExplorerStore = {
   tmuxSessions: [],
   emailConfigs: [],
   emailEvents: [],
+  oauthApps: [],
 };
 
 // mtime-based cache to avoid redundant readFile + JSON.parse
@@ -421,6 +423,24 @@ export async function removeApiKey(id: string): Promise<boolean> {
 export async function resolveIntegrationToken(
   integration: IntegrationConfig
 ): Promise<string> {
+  // For Linear integrations, prefer bot token if OAuth is configured
+  if (
+    integration.type === "linear" &&
+    integration.config?.useOAuth !== false
+  ) {
+    try {
+      const { isLinearBotConfiguredAsync, getLinearBotToken } = await import(
+        "./oauth/linear-client-credentials"
+      );
+      if (await isLinearBotConfiguredAsync()) {
+        const { accessToken } = await getLinearBotToken();
+        return accessToken;
+      }
+    } catch {
+      // Fall through to personal token
+    }
+  }
+
   if (integration.apiKeyId) {
     const key = await getApiKey(integration.apiKeyId);
     if (key) return key.token;
@@ -575,4 +595,43 @@ export async function getEmailEvents(
     ? events.filter((e) => e.projectSlug === projectSlug)
     : events;
   return filtered.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+}
+
+// --- OAuth Apps ---
+
+export async function getOAuthApps(): Promise<OAuthApp[]> {
+  const store = await readStore();
+  return (store as any).oauthApps ?? [];
+}
+
+export async function getOAuthApp(
+  provider: string
+): Promise<OAuthApp | null> {
+  const apps = await getOAuthApps();
+  return apps.find((a) => a.provider === provider) ?? null;
+}
+
+export async function saveOAuthApp(app: OAuthApp): Promise<OAuthApp> {
+  const store = await readStore();
+  if (!(store as any).oauthApps) (store as any).oauthApps = [];
+  const apps = (store as any).oauthApps as OAuthApp[];
+  const idx = apps.findIndex((a) => a.provider === app.provider);
+  if (idx >= 0) {
+    apps[idx] = app;
+  } else {
+    apps.push(app);
+  }
+  await writeStore(store);
+  return app;
+}
+
+export async function removeOAuthApp(provider: string): Promise<boolean> {
+  const store = await readStore();
+  const apps = ((store as any).oauthApps ?? []) as OAuthApp[];
+  const idx = apps.findIndex((a) => a.provider === provider);
+  if (idx < 0) return false;
+  apps.splice(idx, 1);
+  (store as any).oauthApps = apps;
+  await writeStore(store);
+  return true;
 }
