@@ -399,6 +399,15 @@ const chatProc = os
   )
   .output(eventIterator(z.custom<SDKMessage>()))
   .handler(async function* ({ input, signal }) {
+    const explorerServerPath = join(
+      process.cwd(),
+      "tools",
+      "explorer-server.ts"
+    );
+    const baseUrl =
+      process.env.EXPLORER_BASE_URL ??
+      `http://localhost:${process.env.PORT ?? 3000}`;
+
     const ac = new AbortController();
     signal?.addEventListener("abort", () => ac.abort(), { once: true });
 
@@ -414,6 +423,19 @@ const chatProc = os
           abortController: ac,
           stderr: (data: string) => {
             console.error("[chat] stderr:", data);
+          },
+          mcpServers: {
+            [process.env.INSTANCE_NAME ?? "claude-explorer"]: {
+              command: "bun",
+              args: [explorerServerPath],
+              env: {
+                EXPLORER_BASE_URL: baseUrl,
+                EXPLORER_RPC_URL: `${baseUrl}/rpc`,
+                ...(process.env.RPC_INTERNAL_TOKEN
+                  ? { RPC_INTERNAL_TOKEN: process.env.RPC_INTERNAL_TOKEN }
+                  : {}),
+              },
+            },
           },
           ...(input.resume ? { resume: input.resume } : {}),
           ...(input.cwd ? { cwd: input.cwd } : {}),
