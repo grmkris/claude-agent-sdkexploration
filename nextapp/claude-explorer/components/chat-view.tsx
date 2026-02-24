@@ -70,7 +70,7 @@ export function ChatView({
 
   return (
     <div className="relative flex-1 overflow-hidden">
-      <div ref={containerRef} className="h-full overflow-y-auto">
+      <div ref={containerRef} className="absolute inset-0 overflow-y-auto">
         <div className="flex flex-col gap-3 p-4">
           {messages.length === 0 && (
             <div className="flex flex-1 items-center justify-center py-20 text-sm text-muted-foreground">
