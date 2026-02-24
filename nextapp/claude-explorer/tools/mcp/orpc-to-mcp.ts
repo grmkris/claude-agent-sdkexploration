@@ -98,6 +98,16 @@ const DESCRIPTIONS: Record<string, string> = {
   root_setPrimary: "Set the root workspace primary session ID",
   root_sessions: "List root workspace sessions",
   root_messages: "Get messages from a root workspace session",
+
+  // Email
+  email_getConfig: "Get email configuration for a workspace",
+  email_setConfig:
+    "Configure email address and inbound behavior for a workspace",
+  email_removeConfig: "Remove email configuration for a workspace",
+  email_send:
+    "Send an email. Supports replies with threading via inReplyTo parameter.",
+  email_events: "List recent email events (sent and received)",
+  email_listConfigs: "List all configured email addresses across workspaces",
 };
 
 /**

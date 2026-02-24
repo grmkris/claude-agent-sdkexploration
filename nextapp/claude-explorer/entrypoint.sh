@@ -97,7 +97,7 @@ if [ -d "$CONFIG_SRC" ]; then
 fi
 
 # Add claude-explorer MCP server at user level (CLI writes to correct config location)
-su bun -c "claude mcp add -s user -e EXPLORER_BASE_URL=http://localhost:${PORT:-3000} claude-explorer -- bun /app/tools/explorer-server.ts" 2>/dev/null || true
+su bun -c "claude mcp add -s user claude-explorer -e EXPLORER_BASE_URL=http://localhost:${PORT:-3000} -- bun /app/tools/explorer-server.ts" 2>/dev/null || true
 
 # Strip CLAUDECODE so Agent SDK and Railway CLI work inside this container
 unset CLAUDECODE

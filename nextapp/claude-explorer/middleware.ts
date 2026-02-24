@@ -15,7 +15,13 @@ async function hmacSign(message: string, key: string): Promise<string> {
     .join("");
 }
 
-const PUBLIC_PATHS = ["/login", "/api/auth", "/api/webhooks"];
+const PUBLIC_PATHS = [
+  "/login",
+  "/api/auth",
+  "/api/webhooks",
+  "/api/email",
+  "/rpc",
+];
 const COOKIE_NAME = "auth_session";
 
 export async function middleware(req: NextRequest) {

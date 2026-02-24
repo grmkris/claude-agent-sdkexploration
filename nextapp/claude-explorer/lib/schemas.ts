@@ -209,6 +209,29 @@ export const SavedTmuxSessionSchema = z.object({
   savedAt: z.string(),
 });
 
+export const WorkspaceEmailConfigSchema = z.object({
+  projectSlug: z.string(), // "__root__" for root workspace
+  address: z.string(), // e.g. "my-project@domain.com"
+  enabled: z.boolean(),
+  prompt: z.string(), // instructions for agent on email receipt
+  onInbound: z.enum(["new_session", "existing_session"]),
+  sessionId: z.string().optional(), // if onInbound="existing_session"
+});
+
+export const EmailEventSchema = z.object({
+  id: z.string(),
+  projectSlug: z.string(),
+  timestamp: z.string(),
+  direction: z.enum(["inbound", "outbound"]),
+  from: z.string(),
+  to: z.string(),
+  subject: z.string().optional(),
+  status: z.enum(["success", "error", "running"]),
+  sessionId: z.string().optional(),
+  messageId: z.string().optional(), // for threading
+  error: z.string().optional(),
+});
+
 export const ExplorerStoreSchema = z.object({
   favorites: FavoritesSchema,
   crons: z.array(CronJobSchema),
@@ -220,6 +243,8 @@ export const ExplorerStoreSchema = z.object({
   apiKeys: z.array(ApiKeySchema).optional(),
   rootWorkspace: RootWorkspaceSchema.optional(),
   tmuxSessions: z.array(SavedTmuxSessionSchema).optional(),
+  emailConfigs: z.array(WorkspaceEmailConfigSchema).optional(),
+  emailEvents: z.array(EmailEventSchema).optional(),
 });
 
 export type Project = z.infer<typeof ProjectSchema>;
@@ -242,6 +267,8 @@ export type IntegrationWidget = z.infer<typeof IntegrationWidgetSchema>;
 export type WidgetItem = z.infer<typeof WidgetItemSchema>;
 export type RootWorkspace = z.infer<typeof RootWorkspaceSchema>;
 export type SavedTmuxSession = z.infer<typeof SavedTmuxSessionSchema>;
+export type WorkspaceEmailConfig = z.infer<typeof WorkspaceEmailConfigSchema>;
+export type EmailEvent = z.infer<typeof EmailEventSchema>;
 
 // --- Analytics schemas ---
 

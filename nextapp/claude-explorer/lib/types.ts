@@ -106,6 +106,8 @@ export type {
   WidgetItem,
   RootWorkspace,
   SavedTmuxSession,
+  WorkspaceEmailConfig,
+  EmailEvent,
 } from "./schemas";
 
 export type RawUserMessage = {

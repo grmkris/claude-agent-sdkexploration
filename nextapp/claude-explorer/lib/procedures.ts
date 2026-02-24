@@ -32,6 +32,7 @@ import {
   invalidateSlugCache,
   resolveSlugForCwd,
 } from "./claude-fs";
+import { sendEmail } from "./email";
 import {
   getFavorites,
   toggleFavoriteProject,
@@ -66,6 +67,12 @@ import {
   getTmuxSessions,
   saveTmuxSession,
   removeTmuxSession,
+  getEmailConfigs,
+  getEmailConfigBySlug,
+  setEmailConfig,
+  removeEmailConfig,
+  addEmailEvent,
+  getEmailEvents,
 } from "./explorer-store";
 import {
   getProvider,
@@ -94,6 +101,8 @@ import {
   ApiKeyProviderSchema,
   ServerConfigSchema,
   SavedTmuxSessionSchema,
+  WorkspaceEmailConfigSchema,
+  EmailEventSchema,
 } from "./schemas";
 import { getTmuxPanes } from "./tmux";
 import { generateTmuxCommand } from "./tmux-command";
@@ -1158,6 +1167,115 @@ const apiKeyUsageProc = os
     return counts;
   });
 
+// --- Email ---
+
+const emailGetConfigProc = os
+  .input(z.object({ projectSlug: z.string() }))
+  .output(WorkspaceEmailConfigSchema.nullable())
+  .handler(async ({ input }) => getEmailConfigBySlug(input.projectSlug));
+
+const emailSetConfigProc = os
+  .input(
+    z.object({
+      projectSlug: z.string(),
+      address: z.string(),
+      enabled: z.boolean(),
+      prompt: z.string(),
+      onInbound: z.enum(["new_session", "existing_session"]),
+      sessionId: z.string().optional(),
+    })
+  )
+  .output(WorkspaceEmailConfigSchema)
+  .handler(async ({ input }) =>
+    setEmailConfig({
+      projectSlug: input.projectSlug,
+      address: input.address,
+      enabled: input.enabled,
+      prompt: input.prompt,
+      onInbound: input.onInbound,
+      sessionId: input.sessionId,
+    })
+  );
+
+const emailRemoveConfigProc = os
+  .input(z.object({ projectSlug: z.string() }))
+  .output(z.object({ success: z.boolean() }))
+  .handler(async ({ input }) => ({
+    success: await removeEmailConfig(input.projectSlug),
+  }));
+
+const emailSendProc = os
+  .input(
+    z.object({
+      to: z.string(),
+      subject: z.string(),
+      body: z.string(),
+      fromAddress: z.string().optional(),
+      inReplyTo: z.string().optional(),
+    })
+  )
+  .output(
+    z.object({
+      success: z.boolean(),
+      messageId: z.string().optional(),
+      error: z.string().optional(),
+    })
+  )
+  .handler(async ({ input }) => {
+    const domain = process.env.CHANNEL_EMAIL_DOMAIN ?? "your-domain.com";
+    const from = input.fromAddress ?? `agent@${domain}`;
+
+    try {
+      const result = await sendEmail({
+        from,
+        to: input.to,
+        subject: input.subject,
+        body: input.body,
+        inReplyTo: input.inReplyTo,
+      });
+
+      // Log outbound event
+      await addEmailEvent({
+        id: crypto.randomUUID(),
+        projectSlug: "__outbound__",
+        timestamp: new Date().toISOString(),
+        direction: "outbound",
+        from,
+        to: input.to,
+        subject: input.subject,
+        status: "success",
+        messageId: result.messageId,
+      });
+
+      return { success: true, messageId: result.messageId };
+    } catch (err) {
+      const error = err instanceof Error ? err.message : "Send failed";
+
+      await addEmailEvent({
+        id: crypto.randomUUID(),
+        projectSlug: "__outbound__",
+        timestamp: new Date().toISOString(),
+        direction: "outbound",
+        from,
+        to: input.to,
+        subject: input.subject,
+        status: "error",
+        error,
+      });
+
+      return { success: false, error };
+    }
+  });
+
+const emailEventsProc = os
+  .input(z.object({ projectSlug: z.string().optional() }))
+  .output(z.array(EmailEventSchema))
+  .handler(async ({ input }) => getEmailEvents(input.projectSlug));
+
+const emailListConfigsProc = os
+  .output(z.array(WorkspaceEmailConfigSchema))
+  .handler(async () => getEmailConfigs());
+
 export const router = {
   projects: {
     list: listProjectsProc,
@@ -1239,4 +1357,12 @@ export const router = {
     messages: rootSessionMessagesProc,
   },
   rootChat: rootChatProc,
+  email: {
+    getConfig: emailGetConfigProc,
+    setConfig: emailSetConfigProc,
+    removeConfig: emailRemoveConfigProc,
+    send: emailSendProc,
+    events: emailEventsProc,
+    listConfigs: emailListConfigsProc,
+  },
 };

@@ -13,6 +13,8 @@ import type {
   IntegrationConfig,
   ApiKey,
   SavedTmuxSession,
+  WorkspaceEmailConfig,
+  EmailEvent,
 } from "./types";
 
 const CLAUDE_DIR = process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), ".claude");
@@ -33,6 +35,8 @@ const EMPTY_STORE: ExplorerStore = {
   apiKeys: [],
   rootWorkspace: { primarySessionId: null },
   tmuxSessions: [],
+  emailConfigs: [],
+  emailEvents: [],
 };
 
 // mtime-based cache to avoid redundant readFile + JSON.parse
@@ -477,4 +481,98 @@ export async function removeTmuxSession(sessionName: string): Promise<boolean> {
   store.tmuxSessions.splice(idx, 1);
   await writeStore(store);
   return true;
+}
+
+// --- Email Configs ---
+
+export async function getEmailConfigs(): Promise<WorkspaceEmailConfig[]> {
+  const store = await readStore();
+  return store.emailConfigs ?? [];
+}
+
+export async function getEmailConfigByAddress(
+  address: string
+): Promise<WorkspaceEmailConfig | null> {
+  const store = await readStore();
+  return (
+    (store.emailConfigs ?? []).find(
+      (c) => c.address.toLowerCase() === address.toLowerCase()
+    ) ?? null
+  );
+}
+
+export async function getEmailConfigBySlug(
+  projectSlug: string
+): Promise<WorkspaceEmailConfig | null> {
+  const store = await readStore();
+  return (
+    (store.emailConfigs ?? []).find((c) => c.projectSlug === projectSlug) ??
+    null
+  );
+}
+
+export async function setEmailConfig(
+  config: WorkspaceEmailConfig
+): Promise<WorkspaceEmailConfig> {
+  const store = await readStore();
+  if (!store.emailConfigs) store.emailConfigs = [];
+  const idx = store.emailConfigs.findIndex(
+    (c) => c.projectSlug === config.projectSlug
+  );
+  if (idx >= 0) {
+    store.emailConfigs[idx] = config;
+  } else {
+    store.emailConfigs.push(config);
+  }
+  await writeStore(store);
+  return config;
+}
+
+export async function removeEmailConfig(projectSlug: string): Promise<boolean> {
+  const store = await readStore();
+  if (!store.emailConfigs) return false;
+  const idx = store.emailConfigs.findIndex(
+    (c) => c.projectSlug === projectSlug
+  );
+  if (idx < 0) return false;
+  store.emailConfigs.splice(idx, 1);
+  await writeStore(store);
+  return true;
+}
+
+// --- Email Events ---
+
+export async function addEmailEvent(event: EmailEvent): Promise<EmailEvent> {
+  const store = await readStore();
+  if (!store.emailEvents) store.emailEvents = [];
+  store.emailEvents.push(event);
+  if (store.emailEvents.length > 100) {
+    store.emailEvents = store.emailEvents.slice(-100);
+  }
+  await writeStore(store);
+  return event;
+}
+
+export async function updateEmailEventStatus(
+  id: string,
+  status: EmailEvent["status"],
+  sessionId?: string
+): Promise<void> {
+  const store = await readStore();
+  const event = (store.emailEvents ?? []).find((e) => e.id === id);
+  if (!event) return;
+  event.status = status;
+  if (sessionId) event.sessionId = sessionId;
+  await writeStore(store);
+}
+
+export async function getEmailEvents(
+  projectSlug?: string
+): Promise<EmailEvent[]> {
+  const store = await readStore();
+  const events = store.emailEvents ?? [];
+  const filtered = projectSlug
+    ? events.filter((e) => e.projectSlug === projectSlug)
+    : events;
+  return filtered.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
 }
