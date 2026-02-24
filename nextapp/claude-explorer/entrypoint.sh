@@ -1,8 +1,8 @@
 #!/bin/bash
 set -e
 
-# Make bun globals available to all child processes (Claude Code, cron, etc.)
-export PATH="/home/bun/.bun/bin:/home/bun/.local/bin:$PATH"
+# Make bun globals + postgres binaries available to all child processes
+export PATH="/usr/lib/postgresql/17/bin:/home/bun/.bun/bin:/home/bun/.local/bin:$PATH"
 
 # Start Tailscale if auth key present (needs root)
 if [ -n "$TS_AUTHKEY" ]; then
