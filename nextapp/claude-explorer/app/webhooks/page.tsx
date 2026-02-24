@@ -11,6 +11,84 @@ import { orpc } from "@/lib/orpc";
 import { client } from "@/lib/orpc-client";
 import { getTimeAgo } from "@/lib/utils";
 
+// Renders the pre-formatted markdown setup instructions as styled HTML
+function SetupGuide({ webhookId }: { webhookId: string }) {
+  const { data, isLoading } = useQuery(
+    orpc.webhooks.setupInstructions.queryOptions({ input: { webhookId } })
+  );
+
+  if (isLoading)
+    return <p className="text-xs text-muted-foreground">Loading setup guide…</p>;
+  if (!data) return null;
+
+  // Parse the markdown-ish instructions into segments for styled rendering
+  const lines = data.instructions.split("\n");
+
+  return (
+    <div className="mt-3 space-y-1.5 rounded-md border bg-muted/40 p-3 text-xs">
+      {/* Webhook URL — always shown prominently */}
+      <div className="mb-2 flex items-center gap-2 rounded border bg-background px-2 py-1.5">
+        <span className="shrink-0 font-medium text-muted-foreground">URL</span>
+        <code className="min-w-0 flex-1 truncate font-mono text-[11px]">
+          {data.webhookUrl}
+        </code>
+        <button
+          type="button"
+          onClick={() => void navigator.clipboard.writeText(data.webhookUrl)}
+          className="shrink-0 rounded px-1.5 py-0.5 text-[10px] text-muted-foreground hover:bg-accent hover:text-foreground"
+          title="Copy webhook URL"
+        >
+          Copy
+        </button>
+        <a
+          href={data.dashboardUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="shrink-0 rounded px-1.5 py-0.5 text-[10px] text-muted-foreground hover:bg-accent hover:text-foreground"
+        >
+          Open ↗
+        </a>
+      </div>
+
+      {/* Instruction lines */}
+      <div className="space-y-0.5">
+        {lines.map((line, i) => {
+          if (line.startsWith("## "))
+            return (
+              <p key={i} className="font-semibold text-foreground">
+                {line.slice(3)}
+              </p>
+            );
+          if (/^\d+\./.test(line))
+            return (
+              <p key={i} className="pl-2 text-foreground">
+                {line}
+              </p>
+            );
+          if (line.startsWith(">"))
+            return (
+              <p key={i} className="border-l-2 border-muted-foreground/30 pl-2 italic text-muted-foreground">
+                {line.slice(1).trim()}
+              </p>
+            );
+          if (line.startsWith("   `") && line.endsWith("`"))
+            return (
+              <pre key={i} className="ml-4 overflow-x-auto rounded bg-background px-2 py-0.5 font-mono text-[11px]">
+                {line.trim().replace(/^`|`$/g, "")}
+              </pre>
+            );
+          if (line.trim() === "") return <div key={i} className="h-1" />;
+          return (
+            <p key={i} className="text-muted-foreground">
+              {line}
+            </p>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 const PROVIDERS = [
   { label: "Linear", value: "linear" },
   { label: "GitHub", value: "github" },
@@ -39,6 +117,17 @@ export default function WebhooksPage() {
   const [signingSecret, setSigningSecret] = useState("");
   const [prompt, setPrompt] = useState("");
   const [selectedEvents, setSelectedEvents] = useState<Set<string>>(new Set());
+  // Track which webhook rows have their setup guide expanded; auto-expand on creation
+  const [expandedGuides, setExpandedGuides] = useState<Set<string>>(new Set());
+  const [justCreatedId, setJustCreatedId] = useState<string | null>(null);
+
+  const toggleGuide = (id: string) =>
+    setExpandedGuides((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
 
   const { data: projectSessions } = useQuery({
     ...orpc.sessions.list.queryOptions({ input: { slug: projectSlug } }),
@@ -106,7 +195,7 @@ export default function WebhooksPage() {
         ...(sessionId ? { sessionId } : {}),
         ...(signingSecret ? { signingSecret } : {}),
       }),
-    onSuccess: () => {
+    onSuccess: (created) => {
       invalidate();
       setName("");
       setProvider("generic");
@@ -115,6 +204,11 @@ export default function WebhooksPage() {
       setSigningSecret("");
       setPrompt("");
       setSelectedEvents(new Set());
+      // Auto-expand setup guide for the newly created webhook
+      if (created?.id) {
+        setJustCreatedId(created.id);
+        setExpandedGuides((prev) => new Set([...prev, created.id]));
+      }
     },
   });
 
@@ -287,95 +381,108 @@ export default function WebhooksPage() {
       ) : (
         <div className="mb-6 flex flex-col gap-2">
           {webhooks.map((wh) => (
-            <Card key={wh.id} size="sm">
-              <CardContent className="flex items-center gap-3 py-3">
-                <button
-                  onClick={() => toggleWebhook.mutate(wh.id)}
-                  className={`h-3 w-3 shrink-0 rounded-full border ${wh.enabled ? "bg-green-500 border-green-600" : "bg-muted border-muted-foreground/30"}`}
-                  title={wh.enabled ? "Disable" : "Enable"}
-                />
-                <span className="shrink-0 text-sm font-medium">{wh.name}</span>
-                <Badge variant="outline" className="shrink-0 text-[10px]">
-                  {wh.provider}
-                </Badge>
-                {wh.integrationId && (
-                  <Badge variant="secondary" className="shrink-0 text-[10px]">
-                    linked
-                  </Badge>
-                )}
-                {wh.subscribedEvents && wh.subscribedEvents.length > 0 && (
+            <Card key={wh.id} size="sm" className={justCreatedId === wh.id ? "ring-1 ring-primary/40" : ""}>
+              <CardContent className="py-3">
+                {/* Row */}
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => toggleWebhook.mutate(wh.id)}
+                    className={`h-3 w-3 shrink-0 rounded-full border ${wh.enabled ? "bg-green-500 border-green-600" : "bg-muted border-muted-foreground/30"}`}
+                    title={wh.enabled ? "Disable" : "Enable"}
+                  />
+                  <span className="shrink-0 text-sm font-medium">{wh.name}</span>
                   <Badge variant="outline" className="shrink-0 text-[10px]">
-                    {wh.subscribedEvents.length} events
+                    {wh.provider}
                   </Badge>
-                )}
-                <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
-                  {wh.prompt}
-                </span>
-                {wh.projectSlug && (
-                  <span className="shrink-0 text-[10px] text-muted-foreground">
-                    {wh.projectSlug
-                      .replace(/-/g, "/")
-                      .split("/")
-                      .slice(-2)
-                      .join("/")}
+                  {wh.integrationId && (
+                    <Badge variant="secondary" className="shrink-0 text-[10px]">
+                      linked
+                    </Badge>
+                  )}
+                  {wh.subscribedEvents && wh.subscribedEvents.length > 0 && (
+                    <Badge variant="outline" className="shrink-0 text-[10px]">
+                      {wh.subscribedEvents.length} events
+                    </Badge>
+                  )}
+                  <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
+                    {wh.prompt}
                   </span>
-                )}
-                <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground">
-                  {wh.triggerCount}x
-                </span>
-                {wh.lastStatus && (
-                  <Badge
-                    variant={
-                      wh.lastStatus === "success"
-                        ? "secondary"
-                        : wh.lastStatus === "error"
-                          ? "destructive"
-                          : "outline"
-                    }
-                    className="text-[10px]"
+                  {wh.projectSlug && (
+                    <span className="shrink-0 text-[10px] text-muted-foreground">
+                      {wh.projectSlug
+                        .replace(/-/g, "/")
+                        .split("/")
+                        .slice(-2)
+                        .join("/")}
+                    </span>
+                  )}
+                  <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground">
+                    {wh.triggerCount}x
+                  </span>
+                  {wh.lastStatus && (
+                    <Badge
+                      variant={
+                        wh.lastStatus === "success"
+                          ? "secondary"
+                          : wh.lastStatus === "error"
+                            ? "destructive"
+                            : "outline"
+                      }
+                      className="text-[10px]"
+                    >
+                      {wh.lastStatus}
+                    </Badge>
+                  )}
+                  {/* Setup guide toggle */}
+                  <button
+                    onClick={() => toggleGuide(wh.id)}
+                    className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] transition-colors ${expandedGuides.has(wh.id) ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-accent hover:text-foreground"}`}
+                    title="Toggle setup guide"
                   >
-                    {wh.lastStatus}
-                  </Badge>
-                )}
-                <button
-                  onClick={() => {
-                    void navigator.clipboard.writeText(webhookUrl(wh.id));
-                  }}
-                  className="shrink-0 rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
-                  title="Copy webhook URL"
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth={2}
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className="h-3.5 w-3.5"
+                    Setup {expandedGuides.has(wh.id) ? "▲" : "▼"}
+                  </button>
+                  <button
+                    onClick={() => {
+                      void navigator.clipboard.writeText(webhookUrl(wh.id));
+                    }}
+                    className="shrink-0 rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
+                    title="Copy webhook URL"
                   >
-                    <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
-                    <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
-                  </svg>
-                </button>
-                <button
-                  onClick={() => deleteWebhook.mutate(wh.id)}
-                  className="shrink-0 rounded p-1 text-muted-foreground hover:bg-accent hover:text-destructive"
-                  title="Delete"
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth={2}
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className="h-3.5 w-3.5"
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="h-3.5 w-3.5"
+                    >
+                      <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
+                      <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
+                    </svg>
+                  </button>
+                  <button
+                    onClick={() => deleteWebhook.mutate(wh.id)}
+                    className="shrink-0 rounded p-1 text-muted-foreground hover:bg-accent hover:text-destructive"
+                    title="Delete"
                   >
-                    <path d="M18 6 6 18M6 6l12 12" />
-                  </svg>
-                </button>
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="h-3.5 w-3.5"
+                    >
+                      <path d="M18 6 6 18M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+                {/* Setup guide panel */}
+                {expandedGuides.has(wh.id) && <SetupGuide webhookId={wh.id} />}
               </CardContent>
             </Card>
           ))}
