@@ -2,7 +2,11 @@
 
 import { useState, useRef, useCallback } from "react";
 
+import { SendHorizontal, StopIcon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
+
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 export function ChatInput({
   onSend,
@@ -16,6 +20,7 @@ export function ChatInput({
   isStreaming?: boolean;
 }) {
   const [value, setValue] = useState("");
+  const [focused, setFocused] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const autoGrow = useCallback(() => {
@@ -44,7 +49,12 @@ export function ChatInput({
   };
 
   return (
-    <div className="flex gap-2 border-t bg-background px-3 pt-3 pb-safe-input">
+    <div
+      className={cn(
+        "flex items-end gap-2 border-t bg-background px-3 pt-3",
+        focused ? "pb-2" : "pb-safe-input",
+      )}
+    >
       <textarea
         ref={textareaRef}
         value={value}
@@ -53,6 +63,8 @@ export function ChatInput({
           autoGrow();
         }}
         onKeyDown={handleKeyDown}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
         placeholder="Send a message..."
         disabled={disabled}
         rows={1}
@@ -60,15 +72,22 @@ export function ChatInput({
         style={{ maxHeight: 200 }}
       />
       {isStreaming ? (
-        <Button variant="outline" onClick={onStop}>
-          Stop
+        <Button
+          size="icon-lg"
+          variant="outline"
+          className="shrink-0 rounded-full"
+          onClick={onStop}
+        >
+          <HugeiconsIcon icon={StopIcon} size={18} />
         </Button>
       ) : (
         <Button
+          size="icon-lg"
+          className="shrink-0 rounded-full"
           onClick={handleSubmit}
           disabled={disabled || !value.trim()}
         >
-          Send
+          <HugeiconsIcon icon={SendHorizontal} size={18} />
         </Button>
       )}
     </div>
