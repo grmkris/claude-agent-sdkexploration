@@ -29,6 +29,7 @@ import {
   readStatsCache,
   readSessionFacets,
   listRootSessions,
+  listAllSessions,
   createDirectory,
   createProjectDirectory,
   invalidateSlugCache,
@@ -172,6 +173,11 @@ const recentSessionsProc = os
   .input(z.object({ limit: z.number().optional() }))
   .output(z.array(RecentSessionSchema))
   .handler(async ({ input }) => getRecentSessions(input.limit));
+
+const timelineSessionsProc = os
+  .input(z.object({ limit: z.number().optional() }))
+  .output(z.array(RecentSessionSchema))
+  .handler(async ({ input }) => listAllSessions(input.limit));
 
 // --- Favorites ---
 
@@ -1853,7 +1859,14 @@ const installCatalogSkillProc = os
   .handler(async ({ input }) => {
     try {
       const proc = Bun.spawn(
-        ["npx", "-y", "skills", "add", ...input.installCommand.split(" "), "-y"],
+        [
+          "npx",
+          "-y",
+          "skills",
+          "add",
+          ...input.installCommand.split(" "),
+          "-y",
+        ],
         {
           stdout: "pipe",
           stderr: "pipe",
@@ -1883,7 +1896,9 @@ const SkillsShSkillSchema = z.object({
 });
 
 const skillsCatalogProc = os
-  .input(z.object({ search: z.string().optional(), limit: z.number().optional() }))
+  .input(
+    z.object({ search: z.string().optional(), limit: z.number().optional() })
+  )
   .output(z.object({ skills: z.array(SkillsShSkillSchema), count: z.number() }))
   .handler(async ({ input }) => {
     const limit = input.limit ?? 30;
@@ -1903,13 +1918,17 @@ const skillsCatalogProc = os
       clearTimeout(timeout);
 
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = (await res.json()) as { skills: SkillsShSkill[]; count: number };
+      const data = (await res.json()) as {
+        skills: SkillsShSkill[];
+        count: number;
+      };
       return { skills: data.skills, count: data.count };
     } catch {
       // Fallback: filter curated list locally
       const q = input.search.toLowerCase();
       const filtered = SUGGESTED_SKILLS.filter(
-        (s) => s.name.toLowerCase().includes(q) || s.source.toLowerCase().includes(q)
+        (s) =>
+          s.name.toLowerCase().includes(q) || s.source.toLowerCase().includes(q)
       );
       return { skills: filtered.slice(0, limit), count: filtered.length };
     }
@@ -1946,6 +1965,7 @@ export const router = {
     list: listSessionsProc,
     messages: getMessagesProc,
     recent: recentSessionsProc,
+    timeline: timelineSessionsProc,
   },
   favorites: {
     get: getFavoritesProc,

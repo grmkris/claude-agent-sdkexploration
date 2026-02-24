@@ -3,11 +3,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 
+import type { SkillsShSkill } from "@/lib/mcp-catalog";
+
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import type { SkillsShSkill } from "@/lib/mcp-catalog";
 import { orpc } from "@/lib/orpc";
 import { client } from "@/lib/orpc-client";
 
@@ -68,9 +69,7 @@ export function SkillCatalogView() {
         className="h-8 text-sm"
       />
 
-      {isLoading && (
-        <p className="text-sm text-muted-foreground">Loading...</p>
-      )}
+      {isLoading && <p className="text-sm text-muted-foreground">Loading...</p>}
 
       {!isLoading && skills.length === 0 && (
         <p className="text-sm text-muted-foreground">

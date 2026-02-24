@@ -544,6 +544,25 @@ export async function updateEmailEventStatus(
   await writeStore(store);
 }
 
+export async function tagOutboundEmailEvents(
+  since: string,
+  sessionId: string,
+  projectSlug: string
+): Promise<void> {
+  const store = await readStore();
+  for (const ev of store.emailEvents ?? []) {
+    if (
+      ev.projectSlug === "__outbound__" &&
+      ev.timestamp >= since &&
+      !ev.sessionId
+    ) {
+      ev.sessionId = sessionId;
+      ev.projectSlug = projectSlug;
+    }
+  }
+  await writeStore(store);
+}
+
 export async function getEmailEvents(
   projectSlug?: string
 ): Promise<EmailEvent[]> {

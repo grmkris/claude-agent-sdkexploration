@@ -4,8 +4,12 @@ import { join } from "node:path";
 import type { ParsedEmail } from "./email";
 import type { WorkspaceEmailConfig } from "./types";
 
-import { resolveSlugToPath } from "./claude-fs";
-import { addEmailEvent, updateEmailEventStatus } from "./explorer-store";
+import { resolveSlugToPath, USER_HOME } from "./claude-fs";
+import {
+  addEmailEvent,
+  updateEmailEventStatus,
+  tagOutboundEmailEvents,
+} from "./explorer-store";
 
 const { CLAUDECODE: _CC, ...cleanEnv } = process.env;
 
@@ -69,7 +73,7 @@ export function executeInboundEmail(
 
       const isRoot = config.projectSlug === "__root__";
       const cwd = isRoot
-        ? undefined
+        ? USER_HOME
         : await resolveSlugToPath(config.projectSlug);
 
       const explorerServerPath = join(
@@ -121,6 +125,14 @@ export function executeInboundEmail(
       }
 
       await updateEmailEventStatus(eventId, "success", capturedSessionId);
+
+      if (capturedSessionId) {
+        await tagOutboundEmailEvents(
+          now,
+          capturedSessionId,
+          config.projectSlug
+        );
+      }
     } catch (err) {
       console.error("[email] Execution error:", err);
       await updateEmailEventStatus(eventId, "error");

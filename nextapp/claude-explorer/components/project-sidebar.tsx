@@ -3,9 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useMemo } from "react";
 
-import { Button } from "@/components/ui/button";
 import {
   Sidebar,
   SidebarContent,
@@ -22,42 +20,9 @@ import { orpc } from "@/lib/orpc";
 export function ProjectSidebar() {
   const pathname = usePathname();
 
-  if (pathname.startsWith("/chat")) {
-    return <RootSessionSidebar pathname={pathname} />;
-  }
-
-  const projectMatch = pathname.match(/^\/project\/([^/]+)/);
-  const activeSlug = projectMatch?.[1] ?? null;
-
-  if (activeSlug) {
-    return <SessionSidebar slug={activeSlug} pathname={pathname} />;
-  }
-
-  return <ProjectListSidebar pathname={pathname} />;
-}
-
-function ProjectListSidebar({ pathname }: { pathname: string }) {
-  const { data: projects, isLoading } = useQuery({
-    ...orpc.projects.list.queryOptions(),
+  const { data: sessions, isLoading } = useQuery({
+    ...orpc.sessions.timeline.queryOptions({ input: { limit: 50 } }),
     refetchInterval: 15000,
-  });
-  const { data: tmuxPanes } = useQuery({
-    ...orpc.tmux.panes.queryOptions(),
-    refetchInterval: 30000,
-  });
-
-  // Build tmux lookup
-  const tmuxBySlug = new Set<string>();
-  if (tmuxPanes) {
-    for (const p of tmuxPanes) tmuxBySlug.add(p.projectSlug);
-  }
-
-  // Sort: tmux-active first, then by lastActive
-  const sorted = [...(projects ?? [])].sort((a, b) => {
-    const aTmux = tmuxBySlug.has(a.slug) ? 1 : 0;
-    const bTmux = tmuxBySlug.has(b.slug) ? 1 : 0;
-    if (aTmux !== bTmux) return bTmux - aTmux;
-    return 0; // already sorted by recency from the API
   });
 
   return (
@@ -128,199 +93,33 @@ function ProjectListSidebar({ pathname }: { pathname: string }) {
           <SidebarGroupContent>
             <SidebarMenu>
               {isLoading &&
-                Array.from({ length: 4 }).map((_, i) => (
-                  <SidebarMenuItem key={i}>
-                    <SidebarMenuSkeleton showIcon />
-                  </SidebarMenuItem>
-                ))}
-              {sorted.map((project) => {
-                const label = project.path.split("/").slice(-2).join("/");
-                const hasTmux = tmuxBySlug.has(project.slug);
-                return (
-                  <SidebarMenuItem key={project.slug}>
-                    <Link
-                      href={`/project/${project.slug}`}
-                      className="flex w-full items-center"
-                    >
-                      <SidebarMenuButton
-                        isActive={pathname === `/project/${project.slug}`}
-                        tooltip={label}
-                      >
-                        <span className="truncate">{label}</span>
-                      </SidebarMenuButton>
-                      {hasTmux && (
-                        <span
-                          className="mr-2 inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-green-500"
-                          title="tmux active"
-                        />
-                      )}
-                    </Link>
-                  </SidebarMenuItem>
-                );
-              })}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-      </SidebarContent>
-    </Sidebar>
-  );
-}
-
-function RootSessionSidebar({ pathname }: { pathname: string }) {
-  const { data: sessions, isLoading } = useQuery({
-    ...orpc.root.sessions.queryOptions({ input: {} }),
-    refetchInterval: 15000,
-  });
-  const { data: primary } = useQuery(orpc.root.primarySession.queryOptions());
-  const sessionIds = useMemo(
-    () => sessions?.map((s) => s.id) ?? [],
-    [sessions]
-  );
-  const { data: facets } = useQuery({
-    ...orpc.analytics.facets.queryOptions({ input: { sessionIds } }),
-    enabled: sessionIds.length > 0,
-  });
-  const facetMap = useMemo(() => {
-    const m = new Map<string, string>();
-    for (const f of facets ?? []) {
-      if (f.briefSummary) m.set(f.sessionId, f.briefSummary);
-    }
-    return m;
-  }, [facets]);
-
-  return (
-    <Sidebar>
-      <SidebarHeader>
-        <Link href="/">
-          <div className="px-2 py-1 text-xs text-muted-foreground hover:text-foreground">
-            &larr; All Projects
-          </div>
-        </Link>
-        <div className="px-2 py-1 text-sm font-semibold">Root</div>
-        <Link href="/chat">
-          <Button size="sm" className="w-full">
-            New Chat
-          </Button>
-        </Link>
-      </SidebarHeader>
-      <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {isLoading &&
-                Array.from({ length: 4 }).map((_, i) => (
-                  <SidebarMenuItem key={i}>
-                    <SidebarMenuSkeleton />
-                  </SidebarMenuItem>
-                ))}
-              {sessions?.map((session) => {
-                const isSelected = pathname === `/chat/${session.id}`;
-                const isPrimary = primary?.sessionId === session.id;
-                const label = facetMap.get(session.id) ?? session.firstPrompt;
-                return (
-                  <SidebarMenuItem key={session.id}>
-                    <Link href={`/chat/${session.id}`}>
-                      <SidebarMenuButton isActive={isSelected} tooltip={label}>
-                        {isPrimary && (
-                          <span
-                            className="mr-1 inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-blue-500"
-                            title="Primary"
-                          />
-                        )}
-                        <span className="truncate">{label}</span>
-                        {session.sessionState === "active" && (
-                          <span
-                            className="ml-auto inline-block h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-green-500"
-                            title="Active"
-                          />
-                        )}
-                      </SidebarMenuButton>
-                    </Link>
-                  </SidebarMenuItem>
-                );
-              })}
-              {!isLoading && (!sessions || sessions.length === 0) && (
-                <div className="px-2 py-4 text-center text-xs text-muted-foreground">
-                  No sessions yet
-                </div>
-              )}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-      </SidebarContent>
-    </Sidebar>
-  );
-}
-
-function SessionSidebar({
-  slug,
-  pathname,
-}: {
-  slug: string;
-  pathname: string;
-}) {
-  const { data: sessions, isLoading } = useQuery({
-    ...orpc.sessions.list.queryOptions({ input: { slug } }),
-    refetchInterval: 15000,
-  });
-  const sessionIds = useMemo(
-    () => sessions?.map((s) => s.id) ?? [],
-    [sessions]
-  );
-  const { data: facets } = useQuery({
-    ...orpc.analytics.facets.queryOptions({ input: { sessionIds } }),
-    enabled: sessionIds.length > 0,
-  });
-  const facetMap = useMemo(() => {
-    const m = new Map<string, string>();
-    for (const f of facets ?? []) {
-      if (f.briefSummary) m.set(f.sessionId, f.briefSummary);
-    }
-    return m;
-  }, [facets]);
-  // Derive short path from slug (e.g. "-Users-foo-Code-myproject" -> "Code/myproject")
-  const slugParts = slug.replace(/^-/, "").split("-");
-  const shortPath =
-    slugParts.length >= 2 ? slugParts.slice(-2).join("/") : slug;
-
-  return (
-    <Sidebar>
-      <SidebarHeader>
-        <Link href="/">
-          <div className="px-2 py-1 text-xs text-muted-foreground hover:text-foreground">
-            &larr; All Projects
-          </div>
-        </Link>
-        <Link href={`/project/${slug}`}>
-          <div className="px-2 py-1 text-sm font-semibold truncate hover:text-foreground/70 cursor-pointer">
-            {shortPath}
-          </div>
-        </Link>
-        <Link href={`/project/${slug}/chat`}>
-          <Button size="sm" className="w-full">
-            New Chat
-          </Button>
-        </Link>
-      </SidebarHeader>
-      <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {isLoading &&
                 Array.from({ length: 6 }).map((_, i) => (
                   <SidebarMenuItem key={i}>
                     <SidebarMenuSkeleton />
                   </SidebarMenuItem>
                 ))}
               {sessions?.map((session) => {
-                const isSelected =
-                  pathname === `/project/${slug}/chat/${session.id}`;
-                const label = facetMap.get(session.id) ?? session.firstPrompt;
+                const sessionUrl = `/project/${session.projectSlug}/chat/${session.id}`;
+                const isSelected = pathname === sessionUrl;
+                const projectLabel = session.projectPath
+                  .split("/")
+                  .slice(-2)
+                  .join("/");
                 return (
                   <SidebarMenuItem key={session.id}>
-                    <Link href={`/project/${slug}/chat/${session.id}`}>
-                      <SidebarMenuButton isActive={isSelected} tooltip={label}>
-                        <span className="truncate">{label}</span>
+                    <Link href={sessionUrl}>
+                      <SidebarMenuButton
+                        isActive={isSelected}
+                        tooltip={session.firstPrompt}
+                      >
+                        <div className="flex min-w-0 flex-1 flex-col">
+                          <span className="truncate text-sm">
+                            {session.firstPrompt}
+                          </span>
+                          <span className="truncate text-[10px] text-muted-foreground">
+                            {projectLabel}
+                          </span>
+                        </div>
                         {session.sessionState === "active" && (
                           <span
                             className="ml-auto inline-block h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-green-500"

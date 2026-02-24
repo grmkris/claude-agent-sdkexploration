@@ -17,6 +17,8 @@
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.47",
     "@base-ui/react": "^1.2.0",
+    "@chat-adapter/linear": "^4.14.0",
+    "@chat-adapter/state-memory": "^4.14.0",
     "@hugeicons/core-free-icons": "^3.1.1",
     "@hugeicons/react": "^1.1.5",
     "@linear/sdk": "^75.0.0",
@@ -28,6 +30,7 @@
     "@pierre/diffs": "^1.0.11",
     "@streamdown/code": "^1.0.3",
     "@tanstack/react-query": "^5.90.21",
+    "chat": "^4.14.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cron-parser": "^5.5.0",

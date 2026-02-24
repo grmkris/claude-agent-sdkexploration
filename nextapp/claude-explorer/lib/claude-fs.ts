@@ -23,7 +23,7 @@ import type {
 
 const CLAUDE_DIR = process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), ".claude");
 const CLAUDE_PROJECTS_DIR = join(CLAUDE_DIR, "projects");
-const USER_HOME = process.env.CLAUDE_CONFIG_DIR
+export const USER_HOME = process.env.CLAUDE_CONFIG_DIR
   ? dirname(process.env.CLAUDE_CONFIG_DIR)
   : homedir();
 const CLAUDE_CONFIG_PATH = join(CLAUDE_DIR, ".claude.json");
@@ -506,6 +506,110 @@ export async function listSessions(
 export async function listRootSessions(limit?: number): Promise<SessionMeta[]> {
   const slug = await getSlugForPath(USER_HOME);
   return listSessions(slug, limit);
+}
+
+// --- Unified session timeline across all projects ---
+
+function floorToMinute(iso: string): number {
+  const d = new Date(iso);
+  d.setSeconds(0, 0);
+  return d.getTime();
+}
+
+export async function listAllSessions(limit = 50): Promise<RecentSession[]> {
+  // Phase 1: stat scan — collect all .jsonl files across all project dirs
+  let slugDirs: string[];
+  try {
+    slugDirs = await readdir(CLAUDE_PROJECTS_DIR);
+  } catch {
+    return [];
+  }
+
+  const candidates: {
+    slug: string;
+    file: string;
+    mtimeMs: number;
+    size: number;
+  }[] = [];
+
+  await Promise.all(
+    slugDirs.map(async (slug) => {
+      const dir = join(CLAUDE_PROJECTS_DIR, slug);
+      let files: string[];
+      try {
+        files = await readdir(dir);
+      } catch {
+        return;
+      }
+      const jsonlFiles = files.filter((f) => f.endsWith(".jsonl"));
+      await Promise.all(
+        jsonlFiles.map(async (file) => {
+          const fStat = await stat(join(dir, file)).catch(() => null);
+          if (fStat && fStat.size > 0) {
+            candidates.push({
+              slug,
+              file,
+              mtimeMs: fStat.mtimeMs,
+              size: fStat.size,
+            });
+          }
+        })
+      );
+    })
+  );
+
+  // Sort by mtime DESC, take top limit*1.5 candidates
+  candidates.sort((a, b) => b.mtimeMs - a.mtimeMs);
+  const topCandidates = candidates.slice(0, Math.ceil(limit * 1.5));
+
+  // Phase 2: parse heads selectively
+  const results = await Promise.all(
+    topCandidates.map(async ({ slug, file, mtimeMs, size }) => {
+      const id = file.replace(".jsonl", "");
+      const filePath = join(CLAUDE_PROJECTS_DIR, slug, file);
+      try {
+        const projectPath = await resolveSlugToPath(slug);
+        const resumeCommand = `cd ${projectPath} && claude --resume ${id}`;
+        const handle = Bun.file(filePath);
+        const content = await handle.slice(0, HEAD_BYTES).text();
+        const meta = parseSessionHead(
+          content,
+          id,
+          mtimeMs,
+          size,
+          resumeCommand
+        );
+        if (!meta) return null;
+
+        const ageMs = Date.now() - mtimeMs;
+        const sessionState: SessionState =
+          ageMs > 300_000 ? "idle" : await inferSessionState(filePath, mtimeMs);
+
+        return {
+          ...meta,
+          projectSlug: slug,
+          projectPath,
+          sessionState,
+        } satisfies RecentSession;
+      } catch {
+        return null;
+      }
+    })
+  );
+
+  const filtered: RecentSession[] = [];
+  for (const s of results) {
+    if (s !== null) filtered.push(s);
+  }
+
+  filtered.sort((a, b) => {
+    const aMin = floorToMinute(a.timestamp);
+    const bMin = floorToMinute(b.timestamp);
+    if (bMin !== aMin) return bMin - aMin;
+    return b.id.localeCompare(a.id);
+  });
+
+  return filtered.slice(0, limit);
 }
 
 // --- Project config reading ---
