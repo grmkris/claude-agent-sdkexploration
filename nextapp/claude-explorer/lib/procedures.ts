@@ -328,7 +328,9 @@ const chatProc = os
           permissionMode: "bypassPermissions",
           allowDangerouslySkipPermissions: true,
           env: cleanEnv,
-
+          stderr: (data: string) => {
+            console.error("[chat] stderr:", data);
+          },
           ...(input.resume ? { resume: input.resume } : {}),
           ...(input.cwd ? { cwd: input.cwd } : {}),
         },
@@ -830,6 +832,9 @@ const rootChatProc = os
           allowDangerouslySkipPermissions: true,
           env: cleanEnv,
           cwd: USER_HOME,
+          stderr: (data: string) => {
+            console.error("[rootChat] stderr:", data);
+          },
           systemPrompt: {
             type: "preset",
             preset: "claude_code",
