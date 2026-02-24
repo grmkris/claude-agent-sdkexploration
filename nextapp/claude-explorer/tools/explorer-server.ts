@@ -10,7 +10,9 @@ import type { router } from "../lib/procedures";
 import { router as routerDef } from "../lib/procedures";
 import { registerAllTools } from "./mcp/orpc-to-mcp";
 
-const baseUrl = process.env.EXPLORER_BASE_URL ?? `http://localhost:${process.env.PORT ?? 3000}`;
+const baseUrl =
+  process.env.EXPLORER_BASE_URL ??
+  `http://localhost:${process.env.PORT ?? 3000}`;
 const link = new RPCLink({
   url: process.env.EXPLORER_RPC_URL ?? `${baseUrl}/rpc`,
 });

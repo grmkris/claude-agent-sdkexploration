@@ -96,15 +96,8 @@ if [ -d "$CONFIG_SRC" ]; then
     echo "[claude-config] provisioned"
 fi
 
-# Add claude-explorer MCP server to user-level config (idempotent)
-CLAUDE_JSON=/home/bun/.claude.json
-[ -f "$CLAUDE_JSON" ] || echo '{}' > "$CLAUDE_JSON"
-jq '.mcpServers["claude-explorer"] = {
-  "command": "bun",
-  "args": ["/app/tools/explorer-server.ts"]
-}' "$CLAUDE_JSON" > /tmp/.claude.json.tmp \
-  && mv /tmp/.claude.json.tmp "$CLAUDE_JSON"
-chown bun:bun "$CLAUDE_JSON"
+# Add claude-explorer MCP server at user level (CLI writes to correct config location)
+su bun -c "claude mcp add -s user -e EXPLORER_BASE_URL=http://localhost:${PORT:-3000} claude-explorer -- bun /app/tools/explorer-server.ts" 2>/dev/null || true
 
 # Strip CLAUDECODE so Agent SDK and Railway CLI work inside this container
 unset CLAUDECODE
