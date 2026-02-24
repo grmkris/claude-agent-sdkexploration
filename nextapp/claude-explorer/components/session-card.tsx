@@ -1,5 +1,6 @@
 "use client";
 
+import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useState } from "react";
 
@@ -14,6 +15,8 @@ import {
   CardDescription,
   CardContent,
 } from "@/components/ui/card";
+import { orpc } from "@/lib/orpc";
+import { generateTmuxCommand } from "@/lib/tmux-command";
 import { getTimeAgo } from "@/lib/utils";
 
 export interface SessionFacetData {
@@ -47,6 +50,9 @@ export function SessionCard({
   sessionState?: SessionState;
 }) {
   const [copied, setCopied] = useState(false);
+  const [copiedTmux, setCopiedTmux] = useState(false);
+
+  const { data: serverConfig } = useQuery(orpc.server.config.queryOptions());
 
   const copyCommand = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -54,6 +60,25 @@ export function SessionCard({
     void navigator.clipboard.writeText(session.resumeCommand);
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
+  };
+
+  const copyTmuxCommand = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    // Extract project path from resumeCommand: "cd PATH && claude --resume ID"
+    const projectPath =
+      session.resumeCommand.split(" && ")[0]?.replace("cd ", "") ?? "";
+    const cmd = generateTmuxCommand({
+      sessionName: `claude-${session.id.slice(0, 8)}`,
+      projectPath,
+      panelCount: 1,
+      layout: "even-horizontal",
+      resumeSessionIds: [session.id],
+      sshTarget: serverConfig?.sshHost ?? undefined,
+    });
+    void navigator.clipboard.writeText(cmd);
+    setCopiedTmux(true);
+    setTimeout(() => setCopiedTmux(false), 1500);
   };
 
   const handleStar = (e: React.MouseEvent) => {
@@ -133,6 +158,17 @@ export function SessionCard({
                   {unreadCount}
                 </span>
               ) : null}
+              <button
+                onClick={copyTmuxCommand}
+                className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
+                title="Open in tmux (copy command)"
+              >
+                {copiedTmux ? (
+                  <CheckIcon className="h-3.5 w-3.5" />
+                ) : (
+                  <TerminalIcon className="h-3.5 w-3.5" />
+                )}
+              </button>
               <button
                 onClick={copyCommand}
                 className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
@@ -216,6 +252,24 @@ function CheckIcon({ className }: { className?: string }) {
       className={className}
     >
       <path d="M20 6 9 17l-5-5" />
+    </svg>
+  );
+}
+
+function TerminalIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+    >
+      <polyline points="4 17 10 11 4 5" />
+      <line x1="12" x2="20" y1="19" y2="19" />
     </svg>
   );
 }

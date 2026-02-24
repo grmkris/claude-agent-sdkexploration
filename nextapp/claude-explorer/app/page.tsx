@@ -9,7 +9,6 @@ import type { TmuxPane } from "@/lib/types";
 
 import { CopyButton } from "@/components/copy-button";
 import { StarIcon, StarFilledIcon } from "@/components/icons";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -20,12 +19,6 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Tooltip,
-  TooltipTrigger,
-  TooltipContent,
-  TooltipProvider,
-} from "@/components/ui/tooltip";
 import { orpc } from "@/lib/orpc";
 import { client } from "@/lib/orpc-client";
 import { getTimeAgo } from "@/lib/utils";
@@ -165,196 +158,6 @@ function RootWorkspaceSection() {
           </div>
         </div>
       )}
-    </section>
-  );
-}
-
-function UserConfigBar() {
-  const [open, setOpen] = useState(false);
-  const { data } = useQuery(orpc.user.config.queryOptions());
-
-  if (!data) return <div className="h-8" />;
-
-  const serverNames = Object.keys(data.mcpServers);
-  const skills = data.skills.filter((s) => s.type === "skill");
-  const commands = data.skills.filter((s) => s.type === "command");
-
-  if (serverNames.length === 0 && data.skills.length === 0) return null;
-
-  const parts: string[] = [];
-  if (serverNames.length > 0) parts.push(`${serverNames.length} MCP`);
-  if (skills.length > 0) parts.push(`${skills.length} skills`);
-  if (commands.length > 0) parts.push(`${commands.length} commands`);
-
-  return (
-    <section className="p-4">
-      <button
-        onClick={() => setOpen(!open)}
-        className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
-      >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth={2}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          className={`h-3 w-3 transition-transform ${open ? "rotate-90" : ""}`}
-        >
-          <polyline points="9 18 15 12 9 6" />
-        </svg>
-        {parts.join(" · ")}
-      </button>
-      {open && (
-        <TooltipProvider>
-          <div className="mt-2 flex flex-col gap-2 pl-5 text-xs">
-            {serverNames.length > 0 && (
-              <div>
-                <span className="text-[10px] text-muted-foreground">
-                  MCP Servers
-                </span>
-                <div className="mt-0.5 flex flex-wrap gap-1">
-                  {serverNames.map((name) => {
-                    const cfg = data.mcpServers[name] as
-                      | Record<string, unknown>
-                      | undefined;
-                    const serverType = (cfg?.type as string) ?? "stdio";
-                    const command = cfg?.command as string | undefined;
-                    const args = cfg?.args as string[] | undefined;
-                    return (
-                      <Tooltip key={name}>
-                        <TooltipTrigger>
-                          <Badge variant="outline" className="text-[10px]">
-                            {name}
-                          </Badge>
-                        </TooltipTrigger>
-                        <TooltipContent side="bottom" className="max-w-xs">
-                          <div className="flex flex-col gap-0.5">
-                            <span className="font-medium">{name}</span>
-                            <span className="text-[10px] opacity-70">
-                              {serverType}
-                            </span>
-                            {command && (
-                              <span className="font-mono text-[10px] opacity-70">
-                                {command}
-                                {args?.length ? ` ${args[0]}` : ""}
-                              </span>
-                            )}
-                          </div>
-                        </TooltipContent>
-                      </Tooltip>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-            {skills.length > 0 && (
-              <div>
-                <span className="text-[10px] text-muted-foreground">
-                  Skills
-                </span>
-                <div className="mt-0.5 flex flex-wrap gap-1">
-                  {skills.map((s) => (
-                    <Tooltip key={s.name}>
-                      <TooltipTrigger>
-                        <Badge variant="secondary" className="text-[10px]">
-                          /{s.name}
-                        </Badge>
-                      </TooltipTrigger>
-                      <TooltipContent side="bottom" className="max-w-xs">
-                        <div className="flex flex-col gap-0.5">
-                          <span className="font-medium">/{s.name}</span>
-                          {s.description && (
-                            <span className="text-[10px] opacity-70">
-                              {s.description}
-                            </span>
-                          )}
-                          <span className="text-[10px] opacity-50">
-                            {s.scope}
-                          </span>
-                        </div>
-                      </TooltipContent>
-                    </Tooltip>
-                  ))}
-                </div>
-              </div>
-            )}
-            {commands.length > 0 && (
-              <div>
-                <span className="text-[10px] text-muted-foreground">
-                  Commands
-                </span>
-                <div className="mt-0.5 flex flex-wrap gap-1">
-                  {commands.map((s) => (
-                    <Tooltip key={s.name}>
-                      <TooltipTrigger>
-                        <Badge variant="secondary" className="text-[10px]">
-                          /{s.name}
-                        </Badge>
-                      </TooltipTrigger>
-                      <TooltipContent side="bottom" className="max-w-xs">
-                        <div className="flex flex-col gap-0.5">
-                          <span className="font-medium">/{s.name}</span>
-                          {s.description && (
-                            <span className="text-[10px] opacity-70">
-                              {s.description}
-                            </span>
-                          )}
-                          <span className="text-[10px] opacity-50">
-                            {s.scope}
-                          </span>
-                        </div>
-                      </TooltipContent>
-                    </Tooltip>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        </TooltipProvider>
-      )}
-    </section>
-  );
-}
-
-function AutomationsSummary() {
-  const { data: crons } = useQuery({
-    ...orpc.crons.list.queryOptions(),
-    refetchInterval: 30000,
-  });
-  const { data: webhooks } = useQuery({
-    ...orpc.webhooks.list.queryOptions(),
-    refetchInterval: 30000,
-  });
-
-  const activeCrons = crons?.filter((c) => c.enabled).length ?? 0;
-  const activeWebhooks = webhooks?.filter((w) => w.enabled).length ?? 0;
-
-  if (!crons && !webhooks) return <div className="h-6" />;
-  if (activeCrons === 0 && activeWebhooks === 0) return null;
-
-  const parts: string[] = [];
-  if (activeCrons > 0)
-    parts.push(`${activeCrons} cron${activeCrons > 1 ? "s" : ""} active`);
-  if (activeWebhooks > 0)
-    parts.push(
-      `${activeWebhooks} webhook${activeWebhooks > 1 ? "s" : ""} active`
-    );
-
-  return (
-    <section className="px-4 pb-2">
-      <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
-        {parts.map((p, i) => (
-          <span key={i}>{p}</span>
-        ))}
-        <Link href="/crons" className="hover:text-foreground">
-          crons
-        </Link>
-        <Link href="/webhooks" className="hover:text-foreground">
-          webhooks
-        </Link>
-      </div>
     </section>
   );
 }
@@ -656,8 +459,6 @@ function UnifiedProjectGrid() {
 export default function DashboardPage() {
   return (
     <div>
-      <UserConfigBar />
-      <AutomationsSummary />
       <RootWorkspaceSection />
       <UnifiedProjectGrid />
     </div>
