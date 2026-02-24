@@ -20,11 +20,20 @@ if [ -n "$TS_AUTHKEY" ]; then
         sleep 0.5
     done
 
+    DESIRED_HOSTNAME="${TS_HOSTNAME:-${INSTANCE_NAME:-claude-explorer}}"
+
     tailscale up \
         --authkey="$TS_AUTHKEY" \
-        --hostname="${TS_HOSTNAME:-${INSTANCE_NAME:-claude-explorer}}" \
+        --hostname="$DESIRED_HOSTNAME" \
         --ssh \
         --accept-dns=false
+
+    # Fix hostname conflict: if Tailscale appended a suffix (-1, -2), force the desired name
+    ACTUAL_HOSTNAME=$(tailscale status --self --json | jq -r '.Self.HostName // empty')
+    if [ -n "$ACTUAL_HOSTNAME" ] && [ "$ACTUAL_HOSTNAME" != "$DESIRED_HOSTNAME" ]; then
+        echo "[tailscale] hostname mismatch: got '$ACTUAL_HOSTNAME', forcing '$DESIRED_HOSTNAME'"
+        tailscale set --hostname="$DESIRED_HOSTNAME"
+    fi
 
     echo "[tailscale] up: $(tailscale ip -4)"
 fi

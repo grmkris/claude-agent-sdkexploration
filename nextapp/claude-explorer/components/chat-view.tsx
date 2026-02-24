@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useCallback } from "react";
 
 import type { ToolProgressEntry } from "@/hooks/use-chat-stream";
 import type { ParsedMessage } from "@/lib/types";
@@ -20,10 +20,29 @@ export function ChatView({
   toolProgress?: Map<string, ToolProgressEntry>;
   projectSlug?: string;
 }) {
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const stickToBottom = useRef(true);
+
+  const handleScroll = useCallback(() => {
+    const el = viewportRef.current;
+    if (!el) return;
+    const threshold = 100;
+    stickToBottom.current =
+      el.scrollHeight - el.scrollTop - el.clientHeight < threshold;
+  }, []);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    const el = viewportRef.current;
+    if (!el) return;
+    el.addEventListener("scroll", handleScroll, { passive: true });
+    return () => el.removeEventListener("scroll", handleScroll);
+  }, [handleScroll]);
+
+  useEffect(() => {
+    if (stickToBottom.current) {
+      const el = viewportRef.current;
+      if (el) el.scrollTop = el.scrollHeight;
+    }
   }, [messages]);
 
   // Determine streaming indicator text
@@ -34,7 +53,7 @@ export function ChatView({
       : "Thinking...";
 
   return (
-    <ScrollArea className="flex-1 overflow-hidden">
+    <ScrollArea className="flex-1 overflow-hidden" viewportRef={viewportRef}>
       <div className="flex flex-col gap-3 p-4">
         {messages.length === 0 && (
           <div className="flex flex-1 items-center justify-center py-20 text-sm text-muted-foreground">
@@ -63,7 +82,6 @@ export function ChatView({
             </div>
           </div>
         )}
-        <div ref={bottomRef} />
       </div>
     </ScrollArea>
   );
