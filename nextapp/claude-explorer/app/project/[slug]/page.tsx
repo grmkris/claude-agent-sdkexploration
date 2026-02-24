@@ -1,7 +1,8 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { use, useState, useCallback, useRef } from "react";
+import { PatchDiff } from "@pierre/diffs/react";
+import { use, useState, useCallback, useRef, useMemo } from "react";
 
 import { CopyButton } from "@/components/copy-button";
 import { ProjectIntegrations } from "@/components/project-integrations";
@@ -732,6 +733,14 @@ function ArtifactPreview({
 
 type DirEntry = { name: string; isDirectory: boolean; size: number };
 
+function gitStatusBadge(status: string) {
+  if (status === "??" || status === "A")
+    return <span className="shrink-0 ml-0.5 text-[9px] font-bold text-green-400">{status === "??" ? "U" : "A"}</span>;
+  if (status.includes("D"))
+    return <span className="shrink-0 ml-0.5 text-[9px] font-bold text-red-400/70">D</span>;
+  return <span className="shrink-0 ml-0.5 text-[9px] font-bold text-yellow-400">M</span>;
+}
+
 function FileTreeEntries({
   entries,
   slug,
@@ -744,6 +753,10 @@ function FileTreeEntries({
   previewContent,
   onPreview,
   onOpenArtifact,
+  gitStatus,
+  diffPath,
+  diffContent,
+  onDiff,
   newFolderParent,
   newFolderName,
   onNewFolderNameChange,
@@ -761,6 +774,10 @@ function FileTreeEntries({
   previewContent: string | null;
   onPreview: (fullPath: string) => void;
   onOpenArtifact: (fullPath: string) => void;
+  gitStatus?: Map<string, string>;
+  diffPath?: string | null;
+  diffContent?: string | null;
+  onDiff?: (fullPath: string) => void;
   newFolderParent?: string | null;
   newFolderName?: string;
   onNewFolderNameChange?: (name: string) => void;
@@ -776,6 +793,9 @@ function FileTreeEntries({
         const isOpen = expanded.has(fullPath);
         const children = dirCache.get(fullPath);
         const isPreviewing = previewPath === fullPath;
+        const fileGitStatus = !entry.isDirectory ? gitStatus?.get(fullPath) : undefined;
+        const isChanged = fileGitStatus !== undefined;
+        const isDiffing = diffPath === fullPath;
         return (
           <div key={entry.name}>
             <div
@@ -784,6 +804,8 @@ function FileTreeEntries({
               onClick={
                 entry.isDirectory
                   ? () => onToggle(fullPath)
+                  : isChanged && onDiff
+                  ? () => onDiff(fullPath)
                   : () => onPreview(fullPath)
               }
             >
@@ -791,11 +813,12 @@ function FileTreeEntries({
                 {entry.isDirectory ? (isOpen ? "▾" : "▸") : ""}
               </span>
               <span
-                className={`text-xs ${entry.isDirectory ? "font-medium" : isPreviewing ? "text-foreground" : "text-muted-foreground"}`}
+                className={`text-xs ${entry.isDirectory ? "font-medium" : isPreviewing || isDiffing ? "text-foreground" : isChanged ? "text-foreground/80" : "text-muted-foreground"}`}
               >
                 {entry.name}
                 {entry.isDirectory ? "/" : ""}
               </span>
+              {isChanged && fileGitStatus && gitStatusBadge(fileGitStatus)}
               {!entry.isDirectory && (
                 <>
                   {entry.size > 0 && (
@@ -853,14 +876,47 @@ function FileTreeEntries({
                 </>
               )}
             </div>
-            {!entry.isDirectory && isPreviewing && previewContent !== null && (
+            {/* Diff view for changed files */}
+            {!entry.isDirectory && isDiffing && diffContent != null && diffContent !== "(no diff)" && (
+              <div style={{ paddingLeft: `${depth * 16 + 8}px` }} className="py-1 pr-1">
+                <div className="max-h-96 overflow-auto rounded border text-[11px]">
+                  <PatchDiff
+                    patch={diffContent}
+                    options={{
+                      diffStyle: "unified",
+                      themeType: "dark",
+                      disableFileHeader: true,
+                      lineDiffType: "word",
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+            {!entry.isDirectory && isDiffing && diffContent === null && (
+              <div
+                style={{ paddingLeft: `${(depth + 1) * 16 + 8}px` }}
+                className="py-0.5 text-[10px] text-muted-foreground animate-pulse"
+              >
+                loading diff...
+              </div>
+            )}
+            {!entry.isDirectory && isDiffing && diffContent === "(no diff)" && (
+              <div
+                style={{ paddingLeft: `${(depth + 1) * 16 + 8}px` }}
+                className="py-0.5 text-[10px] text-muted-foreground"
+              >
+                no diff available
+              </div>
+            )}
+            {/* Plain preview for unmodified files */}
+            {!entry.isDirectory && !isChanged && isPreviewing && previewContent !== null && (
               <div style={{ paddingLeft: `${depth * 16 + 8}px` }}>
                 <pre className="max-h-64 overflow-auto rounded border bg-muted/30 p-2 text-[11px] text-muted-foreground">
                   {previewContent}
                 </pre>
               </div>
             )}
-            {!entry.isDirectory && isPreviewing && previewContent === null && (
+            {!entry.isDirectory && !isChanged && isPreviewing && previewContent === null && (
               <div
                 style={{ paddingLeft: `${(depth + 1) * 16 + 8}px` }}
                 className="py-0.5 text-[10px] text-muted-foreground animate-pulse"
@@ -915,6 +971,10 @@ function FileTreeEntries({
                   previewContent={previewContent}
                   onPreview={onPreview}
                   onOpenArtifact={onOpenArtifact}
+                  gitStatus={gitStatus}
+                  diffPath={diffPath}
+                  diffContent={diffContent}
+                  onDiff={onDiff}
                   newFolderParent={newFolderParent}
                   newFolderName={newFolderName}
                   onNewFolderNameChange={onNewFolderNameChange}
@@ -945,10 +1005,23 @@ function ProjectFiles({ slug }: { slug: string }) {
     ...orpc.projects.files.queryOptions({ input: { slug } }),
     enabled: showFiles,
   });
+  const { data: gitStatusData } = useQuery({
+    ...orpc.projects.gitStatus.queryOptions({ input: { slug } }),
+    enabled: showFiles,
+    refetchInterval: 15_000,
+    refetchOnWindowFocus: true,
+  });
+  const gitStatusMap = useMemo(() => {
+    const map = new Map<string, string>();
+    gitStatusData?.changes.forEach(({ path, status }) => map.set(path, status));
+    return map;
+  }, [gitStatusData]);
   const [dirCache, setDirCache] = useState<Map<string, DirEntry[]>>(new Map());
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [previewPath, setPreviewPath] = useState<string | null>(null);
   const [previewContent, setPreviewContent] = useState<string | null>(null);
+  const [diffPath, setDiffPath] = useState<string | null>(null);
+  const [diffContent, setDiffContent] = useState<string | null>(null);
   const [artifactPath, setArtifactPath] = useState<string | null>(null);
   const [selectedDir, setSelectedDir] = useState("");
   const [newFolderParent, setNewFolderParent] = useState<string | null>(null);
@@ -1018,6 +1091,25 @@ function ProjectFiles({ slug }: { slug: string }) {
     [previewPath, slug]
   );
 
+  const handleDiff = useCallback(
+    async (fullPath: string) => {
+      if (diffPath === fullPath) {
+        setDiffPath(null);
+        setDiffContent(null);
+        return;
+      }
+      setDiffPath(fullPath);
+      setDiffContent(null);
+      try {
+        const result = await client.projects.gitDiff({ slug, path: fullPath });
+        setDiffContent(result?.diff ?? "(no diff)");
+      } catch {
+        setDiffContent("(no diff)");
+      }
+    },
+    [diffPath, slug]
+  );
+
   const handleUpload = useCallback(
     async (files: FileList) => {
       setUploading(true);
@@ -1066,6 +1158,16 @@ function ProjectFiles({ slug }: { slug: string }) {
         Files
         {entries && (
           <span className="text-[10px] font-normal">({entries.length})</span>
+        )}
+        {gitStatusData?.isRepo && gitStatusData.branch && (
+          <span className="text-[10px] font-normal text-muted-foreground/70">
+            {gitStatusData.branch}
+          </span>
+        )}
+        {gitStatusData?.isRepo && gitStatusData.changes.length > 0 && (
+          <span className="text-[10px] font-normal text-yellow-400">
+            {gitStatusData.changes.length} change{gitStatusData.changes.length !== 1 ? "s" : ""}
+          </span>
         )}
       </button>
       {showFiles && isLoading && (
@@ -1147,6 +1249,10 @@ function ProjectFiles({ slug }: { slug: string }) {
               previewContent={previewContent}
               onPreview={previewFile}
               onOpenArtifact={setArtifactPath}
+              gitStatus={gitStatusMap}
+              diffPath={diffPath}
+              diffContent={diffContent}
+              onDiff={handleDiff}
               newFolderParent={newFolderParent}
               newFolderName={newFolderName}
               onNewFolderNameChange={setNewFolderName}

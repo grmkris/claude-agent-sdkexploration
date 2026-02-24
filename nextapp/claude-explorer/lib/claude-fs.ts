@@ -304,6 +304,56 @@ export async function getGitRemoteUrl(
   }
 }
 
+// --- Git status + diff ---
+
+export type GitStatusChange = { path: string; status: string };
+export type GitStatus = {
+  isRepo: boolean;
+  branch: string;
+  changes: GitStatusChange[];
+};
+
+export async function getGitStatus(projectPath: string): Promise<GitStatus> {
+  try {
+    const [statusOut, branchOut] = await Promise.all([
+      Bun.$`git -C ${projectPath} status --porcelain`.text(),
+      Bun.$`git -C ${projectPath} branch --show-current`.text(),
+    ]);
+    const changes = statusOut
+      .trim()
+      .split("\n")
+      .filter(Boolean)
+      .map((line) => ({
+        status: line.slice(0, 2).trim(),
+        path: line.slice(3).trim(),
+      }));
+    return { isRepo: true, branch: branchOut.trim(), changes };
+  } catch {
+    return { isRepo: false, branch: "", changes: [] };
+  }
+}
+
+export async function getGitFileDiff(
+  projectPath: string,
+  filePath: string
+): Promise<{ diff: string; additions: number; deletions: number } | null> {
+  try {
+    const diff =
+      await Bun.$`git -C ${projectPath} diff HEAD -- ${filePath}`.text();
+    if (!diff.trim()) return null;
+    const lines = diff.split("\n");
+    const additions = lines.filter(
+      (l) => l.startsWith("+") && !l.startsWith("+++")
+    ).length;
+    const deletions = lines.filter(
+      (l) => l.startsWith("-") && !l.startsWith("---")
+    ).length;
+    return { diff, additions, deletions };
+  } catch {
+    return null;
+  }
+}
+
 // --- Project list using ~/.claude.json + 1 stat per project for lastActive ---
 
 export async function listProjects(): Promise<Project[]> {

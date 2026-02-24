@@ -41,6 +41,8 @@ import {
   removeProjectCommand,
   readSkillContent,
   readCommandContent,
+  getGitStatus,
+  getGitFileDiff,
 } from "./claude-fs";
 import { sendEmail } from "./email";
 import {
@@ -523,6 +525,32 @@ const readFileProc = os
   .handler(async ({ input }) => {
     const projectPath = await resolveSlugToPath(input.slug);
     return readFileContent(projectPath, input.path);
+  });
+
+const gitStatusProc = os
+  .input(z.object({ slug: z.string() }))
+  .output(
+    z.object({
+      isRepo: z.boolean(),
+      branch: z.string(),
+      changes: z.array(z.object({ path: z.string(), status: z.string() })),
+    })
+  )
+  .handler(async ({ input }) => {
+    const projectPath = await resolveSlugToPath(input.slug);
+    return getGitStatus(projectPath);
+  });
+
+const gitDiffProc = os
+  .input(z.object({ slug: z.string(), path: z.string() }))
+  .output(
+    z
+      .object({ diff: z.string(), additions: z.number(), deletions: z.number() })
+      .nullable()
+  )
+  .handler(async ({ input }) => {
+    const projectPath = await resolveSlugToPath(input.slug);
+    return getGitFileDiff(projectPath, input.path);
   });
 
 const SkillInfoSchema = z.object({
@@ -1839,6 +1867,8 @@ export const router = {
     readFile: readFileProc,
     createDir: createDirProc,
     create: createProjectProc,
+    gitStatus: gitStatusProc,
+    gitDiff: gitDiffProc,
   },
   user: { config: userConfigProc },
   mcpServers: {
