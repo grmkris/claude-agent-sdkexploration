@@ -2,7 +2,13 @@ import type { InboundWebhookPayload } from "inboundemail";
 
 import { Inbound } from "inboundemail";
 
-const inbound = new Inbound({ apiKey: process.env.INBOUND_EMAIL_API_KEY });
+let _inbound: Inbound | undefined;
+function getInbound(): Inbound {
+  if (!_inbound) {
+    _inbound = new Inbound({ apiKey: process.env.INBOUND_EMAIL_API_KEY });
+  }
+  return _inbound;
+}
 
 export type ParsedEmail = {
   from: string;
@@ -59,7 +65,7 @@ export async function sendEmail(params: {
     headers["References"] = params.inReplyTo;
   }
 
-  const result = await inbound.emails.send({
+  const result = await getInbound().emails.send({
     from: params.from,
     to: params.to,
     subject: params.subject,
