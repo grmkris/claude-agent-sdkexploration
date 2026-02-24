@@ -63,6 +63,9 @@ RUN printf '%s\n' \
 # Safety net: .profile sources .bashrc (for shells that source .profile instead)
 RUN printf '%s\n' '[ -f ~/.bashrc ] && . ~/.bashrc' > /home/bun/.profile
 
+# Tmux: enable mouse scrolling for SSH sessions
+RUN printf '%s\n' 'set -g mouse on' > /home/bun/.tmux.conf
+
 # Entrypoint (changes rarely — cache before source copy)
 USER root
 COPY --chown=bun:bun entrypoint.sh /entrypoint.sh

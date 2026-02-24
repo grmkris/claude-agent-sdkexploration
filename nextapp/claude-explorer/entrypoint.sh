@@ -72,6 +72,12 @@ cat > /home/bun/.profile <<'PROFILE'
 PROFILE
 chown bun:bun /home/bun/.profile
 
+# Always write .tmux.conf (enable mouse scrolling in tmux sessions)
+cat > /home/bun/.tmux.conf <<'TMUX'
+set -g mouse on
+TMUX
+chown bun:bun /home/bun/.tmux.conf
+
 # Install Claude CLI if missing (volume replaces .local/bin from image)
 if [ ! -f /home/bun/.local/bin/claude ]; then
     su bun -c 'curl -fsSL https://claude.ai/install.sh | bash' || true
