@@ -1,13 +1,17 @@
 import type { Metadata, Viewport } from "next";
 
 import { Geist, Geist_Mono } from "next/font/google";
+import { cookies } from "next/headers";
 import Link from "next/link";
 
 import "./globals.css";
 import Script from "next/script";
 
 import { ProjectSidebar } from "@/components/project-sidebar";
+import { RightSidebar } from "@/components/right-sidebar";
 import { SshBadge } from "@/components/ssh-badge";
+import { RightSidebarProvider } from "@/components/ui/right-sidebar-context";
+import { RightSidebarTrigger } from "@/components/ui/right-sidebar-trigger";
 import { Separator } from "@/components/ui/separator";
 import {
   SidebarProvider,
@@ -41,11 +45,15 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const cookieStore = await cookies();
+  const rightSidebarOpen =
+    cookieStore.get("right_sidebar_state")?.value === "true";
+
   return (
     <html lang="en" className="dark">
       <Script
@@ -59,23 +67,28 @@ export default function RootLayout({
         <Providers>
           <TooltipProvider>
             <SidebarProvider>
-              <ProjectSidebar />
-              <SidebarInset>
-                <header className="flex h-10 shrink-0 items-center gap-2 border-b px-3">
-                  <SidebarTrigger className="-ml-1" />
-                  <Separator orientation="vertical" className="mr-2 h-4" />
-                  <Link
-                    href="/"
-                    className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    Claude Explorer
-                  </Link>
-                  <SshBadge />
-                </header>
-                <div className="flex flex-1 flex-col overflow-hidden">
-                  {children}
-                </div>
-              </SidebarInset>
+              <RightSidebarProvider defaultOpen={rightSidebarOpen}>
+                <ProjectSidebar />
+                <SidebarInset>
+                  <header className="flex h-10 shrink-0 items-center gap-2 border-b px-3">
+                    <SidebarTrigger className="-ml-1" />
+                    <Separator orientation="vertical" className="mr-2 h-4" />
+                    <Link
+                      href="/"
+                      className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      Claude Explorer
+                    </Link>
+                    <SshBadge />
+                    <div className="flex-1" />
+                    <RightSidebarTrigger />
+                  </header>
+                  <div className="flex flex-1 flex-col overflow-hidden">
+                    {children}
+                  </div>
+                </SidebarInset>
+                <RightSidebar />
+              </RightSidebarProvider>
             </SidebarProvider>
           </TooltipProvider>
         </Providers>
