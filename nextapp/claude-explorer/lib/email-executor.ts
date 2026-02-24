@@ -20,7 +20,7 @@ export function formatEmailPrompt(
   if (email.attachments && email.attachments.length > 0) {
     const lines = email.attachments.map((a) => {
       const sizeKb = Math.round(a.size / 1024);
-      return `- ${a.filename} (${a.contentType}, ${sizeKb}KB)`;
+      return `- ${a.filename} (${a.contentType}, ${sizeKb}KB) — download: ${a.downloadUrl}`;
     });
     attachmentSection = `\n\n[Attachments]\n${lines.join("\n")}\n\nNote: Download and process these attachments using their URLs if needed.`;
   }
