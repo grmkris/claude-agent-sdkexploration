@@ -15,13 +15,7 @@ async function hmacSign(message: string, key: string): Promise<string> {
     .join("");
 }
 
-const PUBLIC_PATHS = [
-  "/login",
-  "/api/auth",
-  "/api/webhooks",
-  "/api/email",
-  "/rpc",
-];
+const PUBLIC_PATHS = ["/login", "/api/auth", "/api/webhooks", "/api/email"];
 const COOKIE_NAME = "auth_session";
 
 export async function middleware(req: NextRequest) {
@@ -32,6 +26,15 @@ export async function middleware(req: NextRequest) {
 
   if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {
     return NextResponse.next();
+  }
+
+  // Allow /rpc with valid internal Bearer token (MCP servers use this)
+  const rpcToken = process.env.RPC_INTERNAL_TOKEN;
+  if (rpcToken && pathname.startsWith("/rpc")) {
+    const authHeader = req.headers.get("authorization");
+    if (authHeader === `Bearer ${rpcToken}`) {
+      return NextResponse.next();
+    }
   }
 
   if (pathname.startsWith("/_next") || pathname.startsWith("/favicon")) {

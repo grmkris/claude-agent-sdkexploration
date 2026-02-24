@@ -857,6 +857,9 @@ const rootChatProc = os
               env: {
                 EXPLORER_BASE_URL: baseUrl,
                 EXPLORER_RPC_URL: `${baseUrl}/rpc`,
+                ...(process.env.RPC_INTERNAL_TOKEN
+                  ? { RPC_INTERNAL_TOKEN: process.env.RPC_INTERNAL_TOKEN }
+                  : {}),
               },
             },
           },

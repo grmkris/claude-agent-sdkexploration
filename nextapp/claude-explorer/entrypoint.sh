@@ -96,8 +96,15 @@ if [ -d "$CONFIG_SRC" ]; then
     echo "[claude-config] provisioned"
 fi
 
-# Add claude-explorer MCP server at user level (CLI writes to correct config location)
-su bun -c "claude mcp add -s user claude-explorer -e EXPLORER_BASE_URL=http://localhost:${PORT:-3000} -- bun /app/tools/explorer-server.ts" 2>/dev/null || true
+# Generate internal RPC token (256-bit, base64url-safe)
+export RPC_INTERNAL_TOKEN=$(head -c 32 /dev/urandom | base64 | tr -d '/+=' | head -c 43)
+
+# Register claude-explorer MCP server (token changes each boot, so remove + re-add)
+su bun -c "claude mcp remove -s user claude-explorer" 2>/dev/null || true
+su bun -c "claude mcp add -s user claude-explorer \
+  -e EXPLORER_BASE_URL=http://localhost:${PORT:-3000} \
+  -e RPC_INTERNAL_TOKEN=${RPC_INTERNAL_TOKEN} \
+  -- bun /app/tools/explorer-server.ts" 2>/dev/null || true
 
 # Strip CLAUDECODE so Agent SDK and Railway CLI work inside this container
 unset CLAUDECODE
