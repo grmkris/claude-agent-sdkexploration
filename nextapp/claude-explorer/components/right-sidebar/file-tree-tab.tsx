@@ -79,12 +79,13 @@ function FileNode({
   );
 }
 
-export function FileTreeTab({ slug }: { slug: string }) {
+export function FileTreeTab({ slug }: { slug: string | null }) {
   const [expandedPaths, setExpandedPaths] = useState<ExpandedPaths>(new Set());
 
-  const { data: rootEntries, isLoading } = useQuery(
-    orpc.projects.files.queryOptions({ input: { slug } })
-  );
+  const { data: rootEntries, isLoading } = useQuery({
+    ...orpc.projects.files.queryOptions({ input: { slug: slug ?? "" } }),
+    enabled: !!slug,
+  });
 
   const handleToggle = useCallback((path: string) => {
     setExpandedPaths((prev) => {
@@ -97,6 +98,14 @@ export function FileTreeTab({ slug }: { slug: string }) {
       return next;
     });
   }, []);
+
+  if (!slug) {
+    return (
+      <div className="px-3 py-6 text-center text-xs text-muted-foreground">
+        Open a project to browse files
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (
@@ -119,7 +128,7 @@ export function FileTreeTab({ slug }: { slug: string }) {
       {rootEntries.map((entry) => (
         <FileNode
           key={entry.name}
-          slug={slug}
+          slug={slug!}
           name={entry.name}
           isDirectory={entry.isDirectory}
           path={entry.name}

@@ -1,9 +1,17 @@
 "use client";
 
+import {
+  Clock01Icon,
+  FolderOpenIcon,
+  GitBranchIcon,
+  Lightning,
+} from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 
 import { FileTreeTab } from "@/components/right-sidebar/file-tree-tab";
+import { GitTab } from "@/components/right-sidebar/git-tab";
 import { RecentConversationsTab } from "@/components/right-sidebar/recent-conversations-tab";
 import { SkillsMcpsTab } from "@/components/right-sidebar/skills-mcps-tab";
 import { useRightSidebar } from "@/components/ui/right-sidebar-context";
@@ -15,12 +23,24 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { SidebarContent, SidebarHeader } from "@/components/ui/sidebar";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 const RIGHT_SIDEBAR_WIDTH = "17rem";
 const RIGHT_SIDEBAR_WIDTH_MOBILE = "18rem";
 
-type TabValue = "recent" | "skills" | "files";
+type TabValue = "recent" | "skills" | "git" | "files";
+
+const TABS = [
+  { value: "recent", icon: Clock01Icon, label: "Recent conversations" },
+  { value: "skills", icon: Lightning, label: "Skills & MCPs" },
+  { value: "git", icon: GitBranchIcon, label: "Git" },
+  { value: "files", icon: FolderOpenIcon, label: "Files" },
+] as const;
 
 function RightSidebarInner({
   activeSlug,
@@ -37,11 +57,27 @@ function RightSidebarInner({
       onValueChange={(v) => onTabChange(v as TabValue)}
       className="bg-sidebar flex size-full flex-col"
     >
-      <SidebarHeader className="p-0 border-b">
-        <TabsList variant="line" className="w-full px-2 rounded-none h-10">
-          <TabsTrigger value="recent">Recent</TabsTrigger>
-          <TabsTrigger value="skills">Skills</TabsTrigger>
-          {activeSlug && <TabsTrigger value="files">Files</TabsTrigger>}
+      <SidebarHeader className="border-b p-0">
+        <TabsList
+          variant="line"
+          className="h-10 w-full rounded-none px-1 gap-0"
+        >
+          {TABS.map(({ value, icon, label }) => (
+            <Tooltip key={value}>
+              <TooltipTrigger
+                render={
+                  <TabsTrigger
+                    value={value}
+                    className="flex-1 justify-center px-0"
+                  />
+                }
+              >
+                <HugeiconsIcon icon={icon} size={15} strokeWidth={2} />
+                <span className="sr-only">{label}</span>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">{label}</TooltipContent>
+            </Tooltip>
+          ))}
         </TabsList>
       </SidebarHeader>
       <SidebarContent>
@@ -51,11 +87,12 @@ function RightSidebarInner({
         <TabsContent value="skills" hidden={activeTab !== "skills"}>
           <SkillsMcpsTab slug={activeSlug} />
         </TabsContent>
-        {activeSlug && (
-          <TabsContent value="files" hidden={activeTab !== "files"}>
-            <FileTreeTab slug={activeSlug} />
-          </TabsContent>
-        )}
+        <TabsContent value="git" hidden={activeTab !== "git"}>
+          <GitTab slug={activeSlug} />
+        </TabsContent>
+        <TabsContent value="files" hidden={activeTab !== "files"}>
+          <FileTreeTab slug={activeSlug} />
+        </TabsContent>
       </SidebarContent>
     </Tabs>
   );
@@ -68,10 +105,6 @@ export function RightSidebar() {
 
   const projectMatch = pathname.match(/^\/project\/([^/]+)/);
   const activeSlug = projectMatch?.[1] ?? null;
-
-  // Switch away from files tab if we navigate away from a project
-  const effectiveTab =
-    activeTab === "files" && !activeSlug ? "recent" : activeTab;
 
   if (isMobile) {
     return (
@@ -90,12 +123,12 @@ export function RightSidebar() {
           <SheetHeader className="sr-only">
             <SheetTitle>Right Sidebar</SheetTitle>
             <SheetDescription>
-              Recent conversations, skills, MCPs, and file tree.
+              Recent conversations, skills, MCPs, git, and file tree.
             </SheetDescription>
           </SheetHeader>
           <RightSidebarInner
             activeSlug={activeSlug}
-            activeTab={effectiveTab}
+            activeTab={activeTab}
             onTabChange={setActiveTab}
           />
         </SheetContent>
@@ -103,8 +136,6 @@ export function RightSidebar() {
     );
   }
 
-  // Desktop: replicate the 3-div structure from sidebar.tsx but driven by
-  // useRightSidebar() — avoids the useSidebar() context conflict.
   return (
     <div
       className="group peer text-sidebar-foreground hidden md:block"
@@ -114,7 +145,7 @@ export function RightSidebar() {
       data-side="right"
       style={{ "--sidebar-width": RIGHT_SIDEBAR_WIDTH } as React.CSSProperties}
     >
-      {/* Gap placeholder — shrinks to 0 when offcanvas, pushing main content */}
+      {/* Gap placeholder — shrinks to 0 when offcanvas */}
       <div className="relative w-(--sidebar-width) bg-transparent transition-[width] duration-200 ease-linear group-data-[collapsible=offcanvas]:w-0" />
 
       {/* Fixed panel */}
@@ -124,7 +155,7 @@ export function RightSidebar() {
       >
         <RightSidebarInner
           activeSlug={activeSlug}
-          activeTab={effectiveTab}
+          activeTab={activeTab}
           onTabChange={setActiveTab}
         />
       </div>
