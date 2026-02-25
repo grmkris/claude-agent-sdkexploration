@@ -6,7 +6,7 @@ import {
   StopIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { useRef, useCallback } from "react";
+import { useState, useRef, useCallback } from "react";
 
 import type { AttachedImage } from "@/lib/types";
 
