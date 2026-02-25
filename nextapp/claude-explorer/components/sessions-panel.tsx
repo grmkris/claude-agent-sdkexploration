@@ -13,6 +13,7 @@ import {
   SidebarMenuSkeleton,
 } from "@/components/ui/sidebar";
 import { orpc } from "@/lib/orpc";
+import { getTimeAgo } from "@/lib/utils";
 
 function ArchiveIcon({ className }: { className?: string }) {
   return (
@@ -86,9 +87,11 @@ export function SessionsPanel({
             .slice(-2)
             .join("/");
 
+          const timeAgo = getTimeAgo(session.lastModified ?? session.timestamp);
+
           return (
             <SidebarMenuItem key={session.id}>
-              <div className="group relative flex items-center">
+              <div className="group flex items-center">
                 <Link href={sessionUrl} className="min-w-0 flex-1">
                   <SidebarMenuButton
                     isActive={isSelected}
@@ -98,28 +101,27 @@ export function SessionsPanel({
                       <span className="truncate text-sm">
                         {session.firstPrompt}
                       </span>
-                      {showProjectLabel && (
-                        <span className="truncate text-[10px] text-muted-foreground">
-                          {projectLabel}
-                        </span>
-                      )}
+                      <span className="truncate text-[10px] text-muted-foreground">
+                        {showProjectLabel ? `${projectLabel} · ` : ""}
+                        {timeAgo}
+                      </span>
                     </div>
-                    <span className="ml-auto shrink-0">
-                      <SessionStateBadge sessionId={session.id} compact />
-                    </span>
                   </SidebarMenuButton>
                 </Link>
-                <button
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    archiveMutation.mutate({ sessionId: session.id });
-                  }}
-                  title="Archive conversation"
-                  className="absolute right-1 opacity-0 group-hover:opacity-100 rounded p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground transition-opacity"
-                >
-                  <ArchiveIcon className="h-3.5 w-3.5" />
-                </button>
+                <div className="ml-auto flex shrink-0 items-center gap-1 pr-1">
+                  <SessionStateBadge sessionId={session.id} compact />
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      archiveMutation.mutate({ sessionId: session.id });
+                    }}
+                    title="Archive conversation"
+                    className="opacity-0 group-hover:opacity-100 rounded p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground transition-opacity"
+                  >
+                    <ArchiveIcon className="h-3.5 w-3.5" />
+                  </button>
+                </div>
               </div>
             </SidebarMenuItem>
           );

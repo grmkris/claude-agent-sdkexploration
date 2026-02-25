@@ -2,7 +2,6 @@
 
 import { SidebarRightIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { usePathname } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import { useRightSidebar } from "@/components/ui/right-sidebar-context";
@@ -14,10 +13,6 @@ function RightSidebarTrigger({
   ...props
 }: React.ComponentProps<typeof Button>) {
   const { toggleSidebar } = useRightSidebar();
-  const pathname = usePathname();
-
-  // Hide trigger on root view — right sidebar only shows in project context
-  if (!pathname.startsWith("/project/")) return null;
 
   return (
     <Button

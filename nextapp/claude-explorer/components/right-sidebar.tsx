@@ -1,7 +1,5 @@
 "use client";
 
-import { usePathname } from "next/navigation";
-
 import { SessionsPanel } from "@/components/sessions-panel";
 import { useRightSidebar } from "@/components/ui/right-sidebar-context";
 import {
@@ -39,13 +37,6 @@ function RightSidebarInner() {
 
 export function RightSidebar() {
   const { state, openMobile, setOpenMobile, isMobile } = useRightSidebar();
-  const pathname = usePathname();
-
-  const projectMatch = pathname.match(/^\/project\/([^/]+)/);
-  const activeSlug = projectMatch?.[1] ?? null;
-
-  // Hide right sidebar on root view
-  if (!activeSlug) return null;
 
   if (isMobile) {
     return (

@@ -57,15 +57,22 @@ export function SessionStateBadge({
   );
 
   if (compact) {
+    const tooltipText =
+      data.state === "tool_running" && data.current_tool
+        ? `${data.current_tool} · ${timeAgo}`
+        : timeAgo;
     return (
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger>
-            <span className="inline-flex items-center">{dot}</span>
+            <span className="inline-flex items-center gap-1">
+              {dot}
+              <span className="text-[10px] text-muted-foreground">
+                {cfg.label}
+              </span>
+            </span>
           </TooltipTrigger>
-          <TooltipContent side="right">
-            {label} · {timeAgo}
-          </TooltipContent>
+          <TooltipContent side="right">{tooltipText}</TooltipContent>
         </Tooltip>
       </TooltipProvider>
     );
