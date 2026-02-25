@@ -66,6 +66,7 @@ export default function SessionChatPage({
         }
         toolProgress={toolProgress}
         projectSlug={slug}
+        sessionId={sessionId}
         onRefresh={() => refetch()}
       />
       {error && (

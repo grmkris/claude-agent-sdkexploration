@@ -9,6 +9,7 @@ import type { TmuxPane } from "@/lib/types";
 
 import { CopyButton } from "@/components/copy-button";
 import { StarIcon, StarFilledIcon } from "@/components/icons";
+import { StateBadgeInline } from "@/components/session-state-badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -80,7 +81,7 @@ function RootWorkspaceSection() {
             Primary Session
           </span>
           {primarySession?.sessionState === "active" && (
-            <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-green-500" />
+            <StateBadgeInline state="thinking" compact />
           )}
         </div>
 
@@ -134,7 +135,7 @@ function RootWorkspaceSection() {
                 className="flex items-center gap-2 rounded border px-3 py-1.5"
               >
                 {session.sessionState === "active" && (
-                  <span className="inline-block h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-green-500" />
+                  <StateBadgeInline state="thinking" compact />
                 )}
                 <Link
                   href={`/chat/${session.id}`}
@@ -456,9 +457,53 @@ function UnifiedProjectGrid() {
   );
 }
 
+function ActiveSessionsSection() {
+  const { data: sessions } = useQuery({
+    ...orpc.liveState.active.queryOptions(),
+    refetchInterval: 10000,
+  });
+
+  if (!sessions || sessions.length === 0) return null;
+
+  return (
+    <section className="px-4 pb-2">
+      <h2 className="mb-2 text-sm font-medium text-muted-foreground">
+        Active Sessions
+      </h2>
+      <div className="flex flex-col gap-1">
+        {sessions.map((s) => (
+          <Link
+            key={s.session_id}
+            href={`/chat/${s.session_id}`}
+            className="flex items-center gap-2 rounded border px-3 py-1.5 hover:bg-accent/50 transition-colors"
+          >
+            <StateBadgeInline
+              state={s.state}
+              currentTool={s.current_tool}
+              compact
+            />
+            <span className="min-w-0 flex-1 truncate text-xs">
+              {s.first_prompt ?? "Session starting..."}
+            </span>
+            {s.project_path && (
+              <span className="shrink-0 truncate max-w-[140px] text-[10px] text-muted-foreground">
+                {s.project_path.split("/").slice(-2).join("/")}
+              </span>
+            )}
+            <span className="shrink-0 text-[10px] text-muted-foreground">
+              {getTimeAgo(s.updated_at)}
+            </span>
+          </Link>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 export default function DashboardPage() {
   return (
     <div>
+      <ActiveSessionsSection />
       <RootWorkspaceSection />
       <UnifiedProjectGrid />
     </div>

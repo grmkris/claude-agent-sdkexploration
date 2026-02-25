@@ -8,6 +8,13 @@ import { join, dirname } from "node:path";
 import { z } from "zod";
 
 import type { SDKMessage } from "./types";
+import {
+  upsertSession,
+  getSession as getDbSession,
+  getActiveSessions as getDbActiveSessions,
+  getProjectSessions as getDbProjectSessions,
+} from "./explorer-db";
+import { createSessionHooks } from "./session-hooks";
 
 import {
   listProjects,
@@ -387,12 +394,37 @@ const chatProc = os
               },
             },
           },
+          hooks: createSessionHooks("chat"),
           ...(input.resume ? { resume: input.resume } : {}),
           ...(input.cwd ? { cwd: input.cwd } : {}),
         },
       });
 
+      let sessionId: string | undefined;
       for await (const msg of conversation) {
+        // Capture session_id from init message
+        if ("type" in msg && msg.type === "system" && "session_id" in msg) {
+          sessionId = (msg as { session_id: string }).session_id;
+        }
+        // Capture result metrics
+        if ("type" in msg && msg.type === "result" && sessionId) {
+          const r = msg as {
+            total_cost_usd?: number;
+            usage?: { input_tokens?: number; output_tokens?: number };
+            num_turns?: number;
+            duration_ms?: number;
+            is_error?: boolean;
+            subtype?: string;
+          };
+          upsertSession(sessionId, {
+            cost_usd: r.total_cost_usd ?? null,
+            input_tokens: r.usage?.input_tokens ?? null,
+            output_tokens: r.usage?.output_tokens ?? null,
+            num_turns: r.num_turns ?? null,
+            duration_ms: r.duration_ms ?? null,
+            ...(r.is_error ? { state: "error", error: r.subtype ?? "error" } : {}),
+          });
+        }
         yield msg;
       }
     } catch (err) {
@@ -947,11 +979,34 @@ const rootChatProc = os
               },
             },
           },
+          hooks: createSessionHooks("root_chat"),
           ...(input.resume ? { resume: input.resume } : {}),
         },
       });
 
+      let sessionId: string | undefined;
       for await (const msg of conversation) {
+        if ("type" in msg && msg.type === "system" && "session_id" in msg) {
+          sessionId = (msg as { session_id: string }).session_id;
+        }
+        if ("type" in msg && msg.type === "result" && sessionId) {
+          const r = msg as {
+            total_cost_usd?: number;
+            usage?: { input_tokens?: number; output_tokens?: number };
+            num_turns?: number;
+            duration_ms?: number;
+            is_error?: boolean;
+            subtype?: string;
+          };
+          upsertSession(sessionId, {
+            cost_usd: r.total_cost_usd ?? null,
+            input_tokens: r.usage?.input_tokens ?? null,
+            output_tokens: r.usage?.output_tokens ?? null,
+            num_turns: r.num_turns ?? null,
+            duration_ms: r.duration_ms ?? null,
+            ...(r.is_error ? { state: "error", error: r.subtype ?? "error" } : {}),
+          });
+        }
         yield msg;
       }
     } catch (err) {
@@ -1454,7 +1509,7 @@ const saveOAuthCredentialsProc = os
           grant_type: "client_credentials",
           client_id: input.clientId,
           client_secret: input.clientSecret,
-          scope: "read,write",
+          scope: "read,write,comments:create,issues:create",
         }),
       });
 
@@ -1496,6 +1551,13 @@ const saveOAuthCredentialsProc = os
       } catch {
         // ok
       }
+      // Reset Chat SDK bot so it's recreated with new credentials
+      try {
+        const { resetBot } = await import("./chat/bot");
+        resetBot();
+      } catch {
+        // ok
+      }
 
       return { ok: true, botName };
     } catch (e) {
@@ -1515,6 +1577,12 @@ const removeOAuthCredentialsProc = os
       const { clearLinearBotTokenCache } =
         await import("./oauth/linear-client-credentials");
       clearLinearBotTokenCache();
+    } catch {
+      // ok
+    }
+    try {
+      const { resetBot } = await import("./chat/bot");
+      resetBot();
     } catch {
       // ok
     }
@@ -1952,6 +2020,43 @@ const skillsCatalogProc = os
     }
   });
 
+// --- Live State Procs ---
+
+const SessionRowSchema = z.object({
+  session_id: z.string(),
+  project_path: z.string().nullable(),
+  state: z.string(),
+  current_tool: z.string().nullable(),
+  source: z.string().nullable(),
+  model: z.string().nullable(),
+  first_prompt: z.string().nullable(),
+  started_at: z.string(),
+  updated_at: z.string(),
+  ended_at: z.string().nullable(),
+  cost_usd: z.number().nullable(),
+  input_tokens: z.number().nullable(),
+  output_tokens: z.number().nullable(),
+  num_turns: z.number().nullable(),
+  duration_ms: z.number().nullable(),
+  error: z.string().nullable(),
+});
+
+const sessionLiveStateProc = os
+  .input(z.object({ sessionId: z.string() }))
+  .output(SessionRowSchema.nullable())
+  .handler(async ({ input }) => getDbSession(input.sessionId) ?? null);
+
+const activeSessionsProc = os
+  .output(z.array(SessionRowSchema))
+  .handler(async () => getDbActiveSessions());
+
+const projectSessionsProc = os
+  .input(z.object({ projectPath: z.string(), limit: z.number().optional() }))
+  .output(z.array(SessionRowSchema))
+  .handler(async ({ input }) =>
+    getDbProjectSessions(input.projectPath, input.limit ?? 20)
+  );
+
 export const router = {
   projects: {
     list: listProjectsProc,
@@ -2047,6 +2152,11 @@ export const router = {
     messages: rootSessionMessagesProc,
   },
   rootChat: rootChatProc,
+  liveState: {
+    session: sessionLiveStateProc,
+    active: activeSessionsProc,
+    project: projectSessionsProc,
+  },
   email: {
     getConfig: emailGetConfigProc,
     setConfig: emailSetConfigProc,

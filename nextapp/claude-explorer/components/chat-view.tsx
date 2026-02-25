@@ -11,18 +11,21 @@ import type { ToolProgressEntry } from "@/hooks/use-chat-stream";
 import type { ParsedMessage } from "@/lib/types";
 
 import { MessageBubble } from "./message-bubble";
+import { SessionStateBadge } from "./session-state-badge";
 
 export function ChatView({
   messages,
   isStreaming,
   toolProgress,
   projectSlug,
+  sessionId,
   onRefresh,
 }: {
   messages: ParsedMessage[];
   isStreaming?: boolean;
   toolProgress?: Map<string, ToolProgressEntry>;
   projectSlug?: string;
+  sessionId?: string | null;
   onRefresh?: () => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -97,8 +100,12 @@ export function ChatView({
           })}
           {isStreaming && (
             <div className="flex justify-start">
-              <div className="rounded-lg px-3 py-2 text-xs text-muted-foreground animate-pulse">
-                {streamingLabel}
+              <div className="rounded-lg px-3 py-2 text-xs text-muted-foreground">
+                {sessionId ? (
+                  <SessionStateBadge sessionId={sessionId} />
+                ) : (
+                  <span className="animate-pulse">{streamingLabel}</span>
+                )}
               </div>
             </div>
           )}

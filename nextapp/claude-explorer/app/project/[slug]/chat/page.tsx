@@ -17,7 +17,7 @@ export default function NewChatPage({
   const { data } = useQuery(
     orpc.projects.resolveSlug.queryOptions({ input: { slug } })
   );
-  const { messages, send, stop, isStreaming, error, toolProgress } =
+  const { messages, send, stop, isStreaming, sessionId, error, toolProgress } =
     useChatStream({
       cwd: data?.path,
     });
@@ -33,6 +33,7 @@ export default function NewChatPage({
         }
         toolProgress={toolProgress}
         projectSlug={slug}
+        sessionId={sessionId}
       />
       {error && (
         <div className="mx-4 mb-2 rounded border border-destructive/50 bg-destructive/10 px-3 py-2 text-xs text-destructive">
