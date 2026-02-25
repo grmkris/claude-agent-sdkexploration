@@ -25,143 +25,31 @@ import { orpc } from "@/lib/orpc";
 import { client } from "@/lib/orpc-client";
 import { getTimeAgo } from "@/lib/utils";
 
-function RootWorkspaceSection() {
-  const queryClient = useQueryClient();
+/**
+ * Finds the best-matching registered project slug for a given working directory.
+ * Uses longest-prefix matching so that subdirectory paths (e.g. a monorepo
+ * sub-package) correctly resolve to the parent project.
+ */
+function resolveProjectForPath(
+  projectPath: string | null | undefined,
+  projects: Array<{ slug: string; path: string }>,
+  homeDir: string | undefined
+): { slug: string; shortName: string } | null {
+  if (!projectPath) return null;
+  if (homeDir && projectPath === homeDir) return null;
 
-  const { data: primary } = useQuery(orpc.root.primarySession.queryOptions());
-  const { data: sessions, isLoading } = useQuery({
-    ...orpc.root.sessions.queryOptions({ input: {} }),
-    refetchInterval: 15000,
-  });
-
-  const setPrimary = useMutation({
-    mutationFn: (sessionId: string | null) =>
-      client.root.setPrimary({ sessionId }),
-    onSuccess: () =>
-      queryClient.invalidateQueries({
-        queryKey: orpc.root.primarySession.queryOptions().queryKey,
-      }),
-  });
-
-  const primarySessionId = primary?.sessionId;
-  const primarySession = sessions?.find((s) => s.id === primarySessionId);
-  const otherSessions =
-    sessions?.filter((s) => s.id !== primarySessionId) ?? [];
-
-  if (!isLoading && (!sessions || sessions.length === 0) && !primarySession) {
-    return (
-      <section className="px-4 pb-2">
-        <h2 className="mb-2 text-sm font-medium text-muted-foreground">
-          Root Workspace
-        </h2>
-        <div className="rounded border border-dashed p-4">
-          <p className="mb-1 text-sm font-medium">Welcome to Claude Explorer</p>
-          <p className="mb-3 text-xs text-muted-foreground">
-            Start your first conversation to set up your workspace. Claude runs
-            from ~/home and can create projects, manage files, and help you
-            build.
-          </p>
-          <Link href="/chat?onboard=1">
-            <Button size="sm">Start Conversation</Button>
-          </Link>
-        </div>
-      </section>
-    );
+  let best: { slug: string; path: string } | null = null;
+  for (const p of projects) {
+    if (
+      projectPath.startsWith(p.path) &&
+      (!best || p.path.length > best.path.length)
+    ) {
+      best = p;
+    }
   }
-
-  return (
-    <section className="px-4 pb-2">
-      <h2 className="mb-2 text-sm font-medium text-muted-foreground">
-        Root Workspace
-      </h2>
-
-      {/* Primary session card */}
-      <div className="mb-3 rounded border p-3">
-        <div className="mb-1.5 flex items-center gap-2">
-          <span className="text-xs font-medium text-muted-foreground">
-            Primary Session
-          </span>
-          {primarySession?.sessionState === "active" && (
-            <StateBadgeInline state="thinking" compact />
-          )}
-        </div>
-
-        {primarySession ? (
-          <div className="flex flex-col gap-1.5">
-            <p className="truncate text-sm">{primarySession.firstPrompt}</p>
-            <p className="text-[10px] text-muted-foreground">
-              Last modified:{" "}
-              {new Date(primarySession.lastModified).toLocaleString()}
-            </p>
-            <div className="flex gap-2">
-              <Link href={`/chat/${primarySession.id}`}>
-                <Button size="sm">Continue</Button>
-              </Link>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setPrimary.mutate(null)}
-              >
-                Unpin
-              </Button>
-            </div>
-          </div>
-        ) : (
-          <div className="flex flex-col gap-1.5">
-            <p className="text-xs text-muted-foreground">
-              No primary session set. Start one or pin an existing session.
-            </p>
-            <Link href="/chat">
-              <Button size="sm">Start Primary Session</Button>
-            </Link>
-          </div>
-        )}
-      </div>
-
-      {/* Session list */}
-      {(isLoading || otherSessions.length > 0) && (
-        <div>
-          <h3 className="mb-1.5 text-xs font-medium text-muted-foreground">
-            Sessions
-          </h3>
-          {isLoading && (
-            <div className="py-2 text-center text-xs text-muted-foreground animate-pulse">
-              Loading...
-            </div>
-          )}
-          <div className="flex flex-col gap-1">
-            {otherSessions.map((session) => (
-              <div
-                key={session.id}
-                className="flex items-center gap-2 rounded border px-3 py-1.5"
-              >
-                {session.sessionState === "active" && (
-                  <StateBadgeInline state="thinking" compact />
-                )}
-                <Link
-                  href={`/chat/${session.id}`}
-                  className="min-w-0 flex-1 truncate text-xs hover:underline"
-                >
-                  {session.firstPrompt}
-                </Link>
-                <span className="shrink-0 text-[10px] text-muted-foreground">
-                  {new Date(session.lastModified).toLocaleDateString()}
-                </span>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-6 px-2 text-[10px]"
-                  onClick={() => setPrimary.mutate(session.id)}
-                >
-                  Pin
-                </Button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </section>
-  );
+  if (!best) return null;
+  const shortName = best.path.split("/").pop() ?? best.slug;
+  return { slug: best.slug, shortName };
 }
 
 function TmuxInCard({ panes }: { panes: TmuxPane[] }) {
@@ -458,47 +346,174 @@ function UnifiedProjectGrid() {
   );
 }
 
-/**
- * Finds the best-matching registered project slug for a given working directory.
- * Uses longest-prefix matching so that subdirectory paths (e.g. a monorepo
- * sub-package) correctly resolve to the parent project.
- */
-function ActiveSessionsSection() {
-  const { data: sessions } = useQuery({
+function UnifiedSessionsSection() {
+  const queryClient = useQueryClient();
+
+  const { data: liveSessions } = useQuery({
     ...orpc.liveState.active.queryOptions(),
     refetchInterval: 10000,
   });
+  const { data: rootSessions, isLoading } = useQuery({
+    ...orpc.root.sessions.queryOptions({ input: {} }),
+    refetchInterval: 15000,
+  });
+  const { data: primary } = useQuery(orpc.root.primarySession.queryOptions());
+  const { data: projects } = useQuery(orpc.projects.list.queryOptions());
+  const { data: serverConfig } = useQuery(orpc.server.config.queryOptions());
 
-  if (!sessions || sessions.length === 0) return null;
+  const setPrimary = useMutation({
+    mutationFn: (sessionId: string | null) =>
+      client.root.setPrimary({ sessionId }),
+    onSuccess: () =>
+      queryClient.invalidateQueries({
+        queryKey: orpc.root.primarySession.queryOptions().queryKey,
+      }),
+  });
+
+  const homeDir = serverConfig?.homeDir;
+  const primarySessionId = primary?.sessionId;
+
+  // Build a set of live session IDs so we can deduplicate with root sessions
+  const liveIds = new Set(liveSessions?.map((s) => s.session_id) ?? []);
+
+  // Root workspace sessions that aren't already shown in the live list
+  const rootSessionsNotLive =
+    rootSessions?.filter((s) => !liveIds.has(s.id)) ?? [];
+
+  const hasAnything =
+    (liveSessions && liveSessions.length > 0) ||
+    rootSessionsNotLive.length > 0;
+
+  if (!isLoading && !hasAnything) {
+    return (
+      <section className="px-4 pb-4">
+        <h2 className="mb-2 text-sm font-medium text-muted-foreground">
+          Sessions
+        </h2>
+        <div className="rounded border border-dashed p-4">
+          <p className="mb-1 text-sm font-medium">Welcome to Claude Explorer</p>
+          <p className="mb-3 text-xs text-muted-foreground">
+            Start your first conversation to set up your workspace. Claude runs
+            from your home directory and can create projects, manage files, and
+            help you build.
+          </p>
+          <Link href="/chat?onboard=1">
+            <Button size="sm">Start Conversation</Button>
+          </Link>
+        </div>
+      </section>
+    );
+  }
 
   return (
-    <section className="px-4 pb-2">
-      <h2 className="mb-2 text-sm font-medium text-muted-foreground">
-        Active Sessions
-      </h2>
+    <section className="px-4 pb-4">
+      <div className="mb-2 flex items-center gap-2">
+        <h2 className="text-sm font-medium text-muted-foreground">Sessions</h2>
+        <Link
+          href="/chat"
+          className="text-[10px] text-muted-foreground hover:text-foreground"
+        >
+          + New
+        </Link>
+      </div>
+
       <div className="flex flex-col gap-1">
-        {sessions.map((s) => (
-          <ResumeSessionPopover key={s.session_id} session={s}>
-            <div className="flex cursor-pointer items-center gap-2 rounded border px-3 py-1.5 transition-colors hover:bg-accent/50">
-              <StateBadgeInline
-                state={s.state}
-                currentTool={s.current_tool}
-                compact
-              />
-              <span className="min-w-0 flex-1 truncate text-xs">
-                {s.first_prompt ?? "Session starting..."}
-              </span>
-              {s.project_path && (
-                <span className="max-w-[140px] shrink-0 truncate text-[10px] text-muted-foreground">
-                  {s.project_path.split("/").slice(-2).join("/")}
+        {/* Active (live) sessions — across all projects */}
+        {liveSessions?.map((s) => {
+          const resolved = resolveProjectForPath(
+            s.project_path,
+            projects ?? [],
+            homeDir
+          );
+          const sessionHref = resolved
+            ? `/project/${resolved.slug}/chat/${s.session_id}`
+            : `/chat/${s.session_id}`;
+          const isPrimary = s.session_id === primarySessionId;
+
+          return (
+            <ResumeSessionPopover key={s.session_id} session={s}>
+              <div className="flex cursor-pointer items-center gap-2 rounded border px-3 py-1.5 transition-colors hover:bg-accent/50">
+                <StateBadgeInline
+                  state={s.state}
+                  currentTool={s.current_tool}
+                  compact
+                />
+                <Link
+                  href={sessionHref}
+                  className="min-w-0 flex-1 truncate text-xs hover:underline"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {s.first_prompt ?? "Session starting..."}
+                </Link>
+                {resolved ? (
+                  <Link
+                    href={`/project/${resolved.slug}`}
+                    className="shrink-0 rounded bg-accent px-1.5 py-0.5 text-[10px] text-muted-foreground hover:text-foreground"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {resolved.shortName}
+                  </Link>
+                ) : (
+                  <span className="shrink-0 text-[10px] text-muted-foreground">
+                    root
+                  </span>
+                )}
+                <span className="shrink-0 text-[10px] text-muted-foreground">
+                  {getTimeAgo(s.updated_at)}
                 </span>
-              )}
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-5 shrink-0 px-1.5 text-[10px]"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setPrimary.mutate(isPrimary ? null : s.session_id);
+                  }}
+                  title={
+                    isPrimary ? "Unpin primary session" : "Pin as primary"
+                  }
+                >
+                  {isPrimary ? "unpin" : "pin"}
+                </Button>
+              </div>
+            </ResumeSessionPopover>
+          );
+        })}
+
+        {/* Root workspace sessions that are not currently live */}
+        {rootSessionsNotLive.map((session) => {
+          const isPrimary = session.id === primarySessionId;
+          return (
+            <div
+              key={session.id}
+              className="flex items-center gap-2 rounded border px-3 py-1.5"
+            >
+              <Link
+                href={`/chat/${session.id}`}
+                className="min-w-0 flex-1 truncate text-xs hover:underline"
+              >
+                {session.firstPrompt}
+              </Link>
               <span className="shrink-0 text-[10px] text-muted-foreground">
-                {getTimeAgo(s.updated_at)}
+                root
               </span>
+              <span className="shrink-0 text-[10px] text-muted-foreground">
+                {getTimeAgo(session.lastModified)}
+              </span>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-5 shrink-0 px-1.5 text-[10px]"
+                onClick={() =>
+                  setPrimary.mutate(isPrimary ? null : session.id)
+                }
+                title={isPrimary ? "Unpin primary session" : "Pin as primary"}
+              >
+                {isPrimary ? "unpin" : "pin"}
+              </Button>
             </div>
-          </ResumeSessionPopover>
-        ))}
+          );
+        })}
       </div>
     </section>
   );
@@ -507,9 +522,8 @@ function ActiveSessionsSection() {
 export default function DashboardPage() {
   return (
     <div>
-      <ActiveSessionsSection />
-      <RootWorkspaceSection />
       <UnifiedProjectGrid />
+      <UnifiedSessionsSection />
     </div>
   );
 }
