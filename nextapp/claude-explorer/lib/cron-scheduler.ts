@@ -7,12 +7,10 @@ import type { CronJob } from "./types";
 const { CLAUDECODE: _CC, ...cleanEnv } = process.env;
 
 import { resolveSlugToPath } from "./claude-fs";
-
 // Note: the claude-explorer MCP server is configured at the user level in
 // ~/.claude.json (http://localhost:PORT), so cron-spawned Claude sessions
 // automatically have access to email_send and other explorer tools without
 // needing to pass mcpServers here (which would conflict/override the user config).
-
 import {
   getCrons,
   updateCronStatus,
