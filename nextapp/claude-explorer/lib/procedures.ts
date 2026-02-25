@@ -1300,6 +1300,23 @@ const emailSendProc = os
       body: z.string(),
       fromAddress: z.string().optional(),
       inReplyTo: z.string().optional(),
+      attachments: z
+        .array(
+          z.object({
+            filePath: z
+              .string()
+              .describe("Absolute local file path of the file to attach"),
+            filename: z
+              .string()
+              .describe("Filename as it will appear in the email"),
+            contentType: z
+              .string()
+              .optional()
+              .describe('MIME type, e.g. "image/jpeg" or "application/pdf"'),
+          })
+        )
+        .optional()
+        .describe("Files to attach to the outbound email"),
     })
   )
   .output(
@@ -1320,6 +1337,7 @@ const emailSendProc = os
         subject: input.subject,
         body: input.body,
         inReplyTo: input.inReplyTo,
+        attachments: input.attachments,
       });
 
       // Log outbound event
