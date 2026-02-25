@@ -5,8 +5,8 @@ import { use } from "react";
 import { SessionList } from "@/components/session-list";
 
 // All project config sections (Skills, Integrations, Tmux, Files, CLAUDE.md,
-// Crons, Webhooks) have moved to the left sidebar via ProjectContextSection.
-// This page now focuses solely on the session list.
+// Crons, Webhooks) live in the left sidebar (explorer-sidebar-sections.tsx).
+// This page focuses solely on the session list.
 
 export default function ProjectPage({
   params,
