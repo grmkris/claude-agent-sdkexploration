@@ -6,111 +6,140 @@ import { query } from "@anthropic-ai/claude-agent-sdk";
 import type { EmailAttachment, ParsedEmail } from "./email";
 import type { WorkspaceEmailConfig } from "./types";
 
-import { resolveSlugToPath, USER_HOME } from "./claude-fs";
+import { USER_HOME, resolveSlugToPath } from "./claude-fs";
 import {
   addEmailEvent,
-  updateEmailEventStatus,
   tagOutboundEmailEvents,
+  updateEmailEventStatus,
 } from "./explorer-store";
 
 const { CLAUDECODE: _CC, ...cleanEnv } = process.env;
 
-/** Root directory where all inbound emails are materialized on disk */
-const EMAILS_DIR = join(USER_HOME, "emails");
+/** Root directory where materialised email directories are stored */
+const EMAIL_STORE = join(USER_HOME, "emails");
 
 /**
- * Materializes an inbound email to disk as a structured directory:
+ * Download a single attachment from the Inbound API to disk.
+ * Returns the local path on success, null on failure.
+ */
+async function downloadAttachment(
+  att: EmailAttachment,
+  destDir: string,
+  apiKey: string
+): Promise<string | null> {
+  if (!att.downloadUrl) return null;
+  try {
+    const resp = await fetch(att.downloadUrl, {
+      headers: { Authorization: `Bearer ${apiKey}` },
+    });
+    if (!resp.ok) return null;
+    const buf = await resp.arrayBuffer();
+    const safeName =
+      att.filename.replace(/[^a-zA-Z0-9._-]/g, "_") ||
+      `file-${crypto.randomUUID()}`;
+    const localPath = join(destDir, safeName);
+    await writeFile(localPath, Buffer.from(buf));
+    return localPath;
+  } catch (err) {
+    console.warn(`[email] Failed to download attachment "${att.filename}":`, err);
+    return null;
+  }
+}
+
+/**
+ * Materialise a parsed email to a directory on disk:
  *
  *   ~/emails/{eventId}/
- *     email.md          — headers + body in readable markdown
- *     attachments/
- *       photo.jpg       — downloaded from Inbound API
- *       document.pdf
- *       ...
+ *     email.md          — structured markdown: headers + body + attachment table
+ *     attachments/      — downloaded attachment files (images, PDFs, …)
+ *
+ * Claude Code's Read tool natively renders images and PDFs, so the spawned
+ * session can see inline images pixel-by-pixel just by reading the file.
  *
  * Returns the absolute path to the email directory.
- * Claude can Read email.md and any attachment directly (images, PDFs, text).
  */
 async function materializeEmail(
   email: ParsedEmail,
   eventId: string
 ): Promise<string> {
-  const emailDir = join(EMAILS_DIR, eventId);
+  const emailDir = join(EMAIL_STORE, eventId);
   const attachmentsDir = join(emailDir, "attachments");
   await mkdir(attachmentsDir, { recursive: true });
 
+  const apiKey = process.env.INBOUND_EMAIL_API_KEY ?? "";
+
+  // Download all attachments in parallel
+  const resolved = await Promise.all(
+    email.attachments.map(async (att) => ({
+      att,
+      localPath: apiKey
+        ? await downloadAttachment(att, attachmentsDir, apiKey)
+        : null,
+    }))
+  );
+
   // Build attachment table for email.md
-  const downloadedAttachments: EmailAttachment[] = [];
-  const apiKey = process.env.INBOUND_EMAIL_API_KEY;
+  const attachmentRows = resolved
+    .map(({ att, localPath }) => {
+      const sizeKb = Math.round(att.size / 1024);
+      const disposition =
+        att.contentDisposition === "inline" ? "inline" : "attachment";
+      const path = localPath
+        ? `attachments/${att.filename.replace(/[^a-zA-Z0-9._-]/g, "_")}`
+        : `*(unavailable — download: ${att.downloadUrl})*`;
+      return `| ${att.filename || "(unnamed)"} | ${att.contentType} | ${sizeKb} KB | ${disposition} | ${path} |`;
+    })
+    .join("\n");
 
-  if (email.attachments.length > 0 && apiKey) {
-    for (const att of email.attachments) {
-      if (!att.downloadUrl || !att.filename) continue;
-      try {
-        const resp = await fetch(att.downloadUrl, {
-          headers: { Authorization: `Bearer ${apiKey}` },
-        });
-        if (!resp.ok) {
-          console.warn(
-            `[email] Failed to download attachment "${att.filename}": HTTP ${resp.status}`
-          );
-          continue;
-        }
-        const buf = await resp.arrayBuffer();
-        await writeFile(join(attachmentsDir, att.filename), Buffer.from(buf));
-        downloadedAttachments.push(att);
-      } catch (err) {
-        console.warn(
-          `[email] Error downloading attachment "${att.filename}":`,
-          err
-        );
-      }
-    }
-  }
+  const attachmentSection =
+    resolved.length > 0
+      ? `\n\n## Attachments\n\n| Filename | Type | Size | Disposition | Path |\n|----------|------|------|-------------|------|\n${attachmentRows}\n\n> Use the \`Read\` tool to open image or PDF files — they will be rendered visually.`
+      : "";
 
-  // Build attachment section for email.md
-  let attachmentSection = "";
-  if (email.attachments.length > 0) {
-    const rows = email.attachments.map((a) => {
-      const sizeKb = Math.round(a.size / 1024);
-      const downloaded = downloadedAttachments.some(
-        (d) => d.filename === a.filename
-      );
-      const pathCol = downloaded
-        ? `\`${join(attachmentsDir, a.filename)}\``
-        : `*(download failed — URL: ${a.downloadUrl})*`;
-      return `| ${a.filename} | ${a.contentType} | ${sizeKb} KB | ${a.contentDisposition} | ${pathCol} |`;
-    });
-
-    attachmentSection = `
-
-## Attachments
-
-| Filename | Type | Size | Disposition | Path |
-|----------|------|------|-------------|------|
-${rows.join("\n")}
-
-> Use the \`Read\` tool on any path above to view the file.
-> Images (jpg/png/gif/webp) and PDFs are natively supported — Claude can see their full content.`;
-  }
-
-  // Write email.md
   const emailMd = `# Email
 
 **From:** ${email.from}
 **To:** ${email.to}
 **Subject:** ${email.subject}
 **Date:** ${email.date}
-**Message-ID:** ${email.messageId}
+**Message-ID:** \`${email.messageId}\`
 
 ---
 
-${email.body || "*(no body)*"}
+${email.body || "*(no text body)*"}
 ${attachmentSection}
 `;
 
-  await writeFile(join(emailDir, "email.md"), emailMd, "utf8");
+  await writeFile(join(emailDir, "email.md"), emailMd, "utf-8");
   return emailDir;
+}
+
+/** Build the short pointer prompt that points Claude at the email directory */
+function formatEmailPrompt(
+  emailDir: string,
+  config: WorkspaceEmailConfig
+): string {
+  const domain = process.env.CHANNEL_EMAIL_DOMAIN ?? "your-domain.com";
+  const fromAddress = config.address || `agent@${domain}`;
+
+  return `New email received. All content has been saved to:
+
+  ${emailDir}/email.md
+
+Read that file to see the full email (headers, body, attachments).
+Attachments (images, PDFs, …) live in ${emailDir}/attachments/ — use the Read tool to view them; images will be rendered visually.
+
+When replying use the email_send tool:
+  - \`to\`:          the sender's address (From: field in email.md)
+  - \`subject\`:     "Re: " + the original subject
+  - \`inReplyTo\`:   the Message-ID value in email.md
+  - \`fromAddress\`: "${fromAddress}"
+  - \`attachments\`: optional — array of { filePath, filename } for files to attach
+
+---
+
+Workspace instructions:
+${config.prompt}`;
 }
 
 export function executeInboundEmail(
@@ -134,29 +163,11 @@ export function executeInboundEmail(
     });
 
     try {
-      // Materialize email + attachments to disk before spawning Claude
+      // 1. Materialise email → ~/emails/{eventId}/
       const emailDir = await materializeEmail(email, eventId);
 
-      const domain = process.env.CHANNEL_EMAIL_DOMAIN ?? "your-domain.com";
-      const fromAddress = config.address || `agent@${domain}`;
-
-      const prompt = `New email received. All content has been saved to disk.
-
-Read \`${emailDir}/email.md\` to see the full email (headers, body, and attachment list).
-Any attachments are in \`${emailDir}/attachments/\` — use the Read tool to view images and PDFs directly.
-
-To reply, use the email_send tool:
-  to: "${email.from}"
-  subject: "Re: ${email.subject}"
-  body: "your reply here"
-  inReplyTo: "${email.messageId}"
-  fromAddress: "${fromAddress}"
-
-To reply with an attachment, add:
-  attachments: [{ filePath: "${emailDir}/attachments/<filename>", filename: "<filename>" }]
-
-Workspace instructions:
-${config.prompt}`;
+      // 2. Build a short pointer prompt
+      const prompt = formatEmailPrompt(emailDir, config);
 
       const isRoot = config.projectSlug === "__root__";
       const cwd = isRoot
@@ -214,11 +225,7 @@ ${config.prompt}`;
       await updateEmailEventStatus(eventId, "success", capturedSessionId);
 
       if (capturedSessionId) {
-        await tagOutboundEmailEvents(
-          now,
-          capturedSessionId,
-          config.projectSlug
-        );
+        await tagOutboundEmailEvents(now, capturedSessionId, config.projectSlug);
       }
     } catch (err) {
       console.error("[email] Execution error:", err);
