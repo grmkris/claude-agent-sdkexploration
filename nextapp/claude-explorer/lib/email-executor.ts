@@ -1,7 +1,6 @@
+import { query } from "@anthropic-ai/claude-agent-sdk";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-
-import { query } from "@anthropic-ai/claude-agent-sdk";
 
 import type { EmailAttachment, ParsedEmail } from "./email";
 import type { WorkspaceEmailConfig } from "./types";
@@ -41,7 +40,10 @@ async function downloadAttachment(
     await writeFile(localPath, Buffer.from(buf));
     return localPath;
   } catch (err) {
-    console.warn(`[email] Failed to download attachment "${att.filename}":`, err);
+    console.warn(
+      `[email] Failed to download attachment "${att.filename}":`,
+      err
+    );
     return null;
   }
 }
@@ -114,32 +116,45 @@ ${attachmentSection}
   return emailDir;
 }
 
-/** Build the short pointer prompt that points Claude at the email directory */
-function formatEmailPrompt(
-  emailDir: string,
+/** Build the prompt for Claude with the full email content embedded inline */
+export function formatEmailPrompt(
+  email: ParsedEmail,
   config: WorkspaceEmailConfig
 ): string {
   const domain = process.env.CHANNEL_EMAIL_DOMAIN ?? "your-domain.com";
   const fromAddress = config.address || `agent@${domain}`;
 
-  return `New email received. All content has been saved to:
+  let prompt = `[Email Received]
+From: ${email.from}
+To: ${email.to}
+Subject: ${email.subject}
+Date: ${email.date}
 
-  ${emailDir}/email.md
+${email.body}`;
 
-Read that file to see the full email (headers, body, attachments).
-Attachments (images, PDFs, …) live in ${emailDir}/attachments/ — use the Read tool to view them; images will be rendered visually.
+  if (email.attachments.length > 0) {
+    prompt += `\n\n[Attachments]`;
+    for (const att of email.attachments) {
+      const sizeKb = Math.round(att.size / 1024);
+      prompt += `\n- ${att.filename} (${att.contentType}, ${sizeKb}KB) — ${att.downloadUrl}`;
+    }
+    prompt += `\n\nNote: Download and process these attachments using their URLs if needed.`;
+  }
 
-When replying use the email_send tool:
-  - \`to\`:          the sender's address (From: field in email.md)
-  - \`subject\`:     "Re: " + the original subject
-  - \`inReplyTo\`:   the Message-ID value in email.md
-  - \`fromAddress\`: "${fromAddress}"
-  - \`attachments\`: optional — array of { filePath, filename } for files to attach
+  prompt += `\n\n---
+When replying, use the email_send tool with:
+  to: "${email.from}"
+  subject: "Re: ${email.subject}"
+  inReplyTo: "${email.messageId}"
+  fromAddress: "${fromAddress}"
+  attachments: optional — array of { filePath, filename } for files to attach
 
 ---
 
 Workspace instructions:
 ${config.prompt}`;
+
+  return prompt;
 }
 
 export function executeInboundEmail(
@@ -163,11 +178,11 @@ export function executeInboundEmail(
     });
 
     try {
-      // 1. Materialise email → ~/emails/{eventId}/
-      const emailDir = await materializeEmail(email, eventId);
+      // 1. Materialise email → ~/emails/{eventId}/ (keeps attachments on disk)
+      await materializeEmail(email, eventId);
 
-      // 2. Build a short pointer prompt
-      const prompt = formatEmailPrompt(emailDir, config);
+      // 2. Build prompt with full email content embedded inline
+      const prompt = formatEmailPrompt(email, config);
 
       const isRoot = config.projectSlug === "__root__";
       const cwd = isRoot
@@ -225,7 +240,11 @@ export function executeInboundEmail(
       await updateEmailEventStatus(eventId, "success", capturedSessionId);
 
       if (capturedSessionId) {
-        await tagOutboundEmailEvents(now, capturedSessionId, config.projectSlug);
+        await tagOutboundEmailEvents(
+          now,
+          capturedSessionId,
+          config.projectSlug
+        );
       }
     } catch (err) {
       console.error("[email] Execution error:", err);
