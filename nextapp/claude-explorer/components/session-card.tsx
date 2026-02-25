@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useState } from "react";
 
-import type { SessionMeta, SessionState, TmuxPane } from "@/lib/types";
+import type { SessionMeta, TmuxPane } from "@/lib/types";
 
 import { StarIcon, StarFilledIcon } from "@/components/icons";
 import { Badge } from "@/components/ui/badge";
@@ -16,6 +16,7 @@ import {
   CardContent,
 } from "@/components/ui/card";
 import { orpc } from "@/lib/orpc";
+import { SessionStateBadge } from "@/components/session-state-badge";
 import { generateTmuxCommand } from "@/lib/tmux-command";
 import { getTimeAgo } from "@/lib/utils";
 
@@ -36,7 +37,6 @@ export function SessionCard({
   tmuxPane,
   unreadCount,
   facet,
-  sessionState,
 }: {
   session: SessionMeta;
   projectSlug: string;
@@ -47,7 +47,6 @@ export function SessionCard({
   tmuxPane?: TmuxPane;
   unreadCount?: number;
   facet?: SessionFacetData;
-  sessionState?: SessionState;
 }) {
   const [copied, setCopied] = useState(false);
   const [copiedTmux, setCopiedTmux] = useState(false);
@@ -104,24 +103,7 @@ export function SessionCard({
                 </p>
               )}
               <CardTitle className="flex items-center gap-1.5 line-clamp-2">
-                {sessionState === "active" && (
-                  <span
-                    className="inline-block h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-green-500"
-                    title="Active"
-                  />
-                )}
-                {sessionState === "idle" && (
-                  <span
-                    className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-amber-400"
-                    title="Waiting for input"
-                  />
-                )}
-                {sessionState === "stale" && (
-                  <span
-                    className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-gray-400"
-                    title="Stale"
-                  />
-                )}
+                <SessionStateBadge sessionId={session.id} compact />
                 {facet?.briefSummary || session.firstPrompt}
               </CardTitle>
               {facet?.briefSummary &&

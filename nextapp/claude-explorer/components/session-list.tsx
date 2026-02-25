@@ -72,7 +72,6 @@ export function SessionList({ projectSlug }: { projectSlug: string }) {
             isFavorite={favorites?.sessions.includes(session.id)}
             onToggleFavorite={() => toggleSession.mutate(session.id)}
             facet={f}
-            sessionState={session.sessionState}
           />
         );
       })}

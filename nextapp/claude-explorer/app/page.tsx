@@ -9,6 +9,7 @@ import type { TmuxPane } from "@/lib/types";
 
 import { CopyButton } from "@/components/copy-button";
 import { StarIcon, StarFilledIcon } from "@/components/icons";
+import { ResumeSessionPopover } from "@/components/resume-session-popover";
 import { StateBadgeInline } from "@/components/session-state-badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -457,11 +458,30 @@ function UnifiedProjectGrid() {
   );
 }
 
+/**
+ * Finds the best-matching registered project slug for a given working directory.
+ * Uses longest-prefix matching so that subdirectory paths (e.g. a monorepo
+ * sub-package) correctly resolve to the parent project.
+ */
+function getProjectSlugForPath(
+  projects: { slug: string; path: string }[],
+  projectPath: string
+): string | null {
+  const matches = projects
+    .filter(
+      (p) => projectPath === p.path || projectPath.startsWith(p.path + "/")
+    )
+    .sort((a, b) => b.path.length - a.path.length); // longest prefix wins
+  return matches[0]?.slug ?? null;
+}
+
 function ActiveSessionsSection() {
   const { data: sessions } = useQuery({
     ...orpc.liveState.active.queryOptions(),
     refetchInterval: 10000,
   });
+  const { data: projects } = useQuery(orpc.projects.list.queryOptions());
+  const { data: serverConfig } = useQuery(orpc.server.config.queryOptions());
 
   if (!sessions || sessions.length === 0) return null;
 
@@ -471,30 +491,51 @@ function ActiveSessionsSection() {
         Active Sessions
       </h2>
       <div className="flex flex-col gap-1">
-        {sessions.map((s) => (
-          <Link
-            key={s.session_id}
-            href={`/chat/${s.session_id}`}
-            className="flex items-center gap-2 rounded border px-3 py-1.5 hover:bg-accent/50 transition-colors"
-          >
-            <StateBadgeInline
-              state={s.state}
-              currentTool={s.current_tool}
-              compact
-            />
-            <span className="min-w-0 flex-1 truncate text-xs">
-              {s.first_prompt ?? "Session starting..."}
-            </span>
-            {s.project_path && (
-              <span className="shrink-0 truncate max-w-[140px] text-[10px] text-muted-foreground">
-                {s.project_path.split("/").slice(-2).join("/")}
-              </span>
-            )}
-            <span className="shrink-0 text-[10px] text-muted-foreground">
-              {getTimeAgo(s.updated_at)}
-            </span>
-          </Link>
-        ))}
+        {sessions.map((s) => {
+          // Derive the correct project slug via prefix-matching against the
+          // registered projects list, then build the right URL.
+          const projectSlug =
+            s.project_path && projects
+              ? getProjectSlugForPath(projects, s.project_path)
+              : null;
+          const href = projectSlug
+            ? `/project/${projectSlug}/chat/${s.session_id}`
+            : `/chat/${s.session_id}`;
+
+          return (
+            <div
+              key={s.session_id}
+              className="flex items-center gap-1 rounded border px-3 py-1.5 transition-colors hover:bg-accent/50"
+            >
+              <Link
+                href={href}
+                className="flex min-w-0 flex-1 items-center gap-2"
+              >
+                <StateBadgeInline
+                  state={s.state}
+                  currentTool={s.current_tool}
+                  compact
+                />
+                <span className="min-w-0 flex-1 truncate text-xs">
+                  {s.first_prompt ?? "Session starting..."}
+                </span>
+                {s.project_path && (
+                  <span className="max-w-[140px] shrink-0 truncate text-[10px] text-muted-foreground">
+                    {s.project_path.split("/").slice(-2).join("/")}
+                  </span>
+                )}
+                <span className="shrink-0 text-[10px] text-muted-foreground">
+                  {getTimeAgo(s.updated_at)}
+                </span>
+              </Link>
+              <ResumeSessionPopover
+                sessionId={s.session_id}
+                projectPath={s.project_path}
+                sshHost={serverConfig?.sshHost}
+              />
+            </div>
+          );
+        })}
       </div>
     </section>
   );

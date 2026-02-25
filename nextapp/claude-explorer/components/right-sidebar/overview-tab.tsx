@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { SidebarGroup, SidebarGroupContent } from "@/components/ui/sidebar";
 import { orpc } from "@/lib/orpc";
 import { client } from "@/lib/orpc-client";
+import { SessionStateBadge } from "@/components/session-state-badge";
 
 // ── Project-scoped automations (shown when inside a project) ─────────────────
 
@@ -180,9 +181,7 @@ function RootSessionSection() {
                 <span className="text-[10px] text-muted-foreground">
                   Primary
                 </span>
-                {primarySession.sessionState === "active" && (
-                  <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-green-500" />
-                )}
+                <SessionStateBadge sessionId={primarySession.id} compact />
               </div>
               <p className="mb-1.5 truncate text-[11px]">
                 {primarySession.firstPrompt}
@@ -223,9 +222,7 @@ function RootSessionSection() {
                   key={session.id}
                   className="flex items-center gap-1.5 rounded px-1 py-1 hover:bg-sidebar-accent/50"
                 >
-                  {session.sessionState === "active" && (
-                    <span className="inline-block h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-green-500" />
-                  )}
+                  <SessionStateBadge sessionId={session.id} compact />
                   <Link
                     href={`/chat/${session.id}`}
                     className="min-w-0 flex-1 truncate text-[11px] hover:underline"

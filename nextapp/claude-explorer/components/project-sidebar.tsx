@@ -16,6 +16,7 @@ import {
   SidebarMenuSkeleton,
 } from "@/components/ui/sidebar";
 import { orpc } from "@/lib/orpc";
+import { SessionStateBadge } from "@/components/session-state-badge";
 
 export function ProjectSidebar() {
   const pathname = usePathname();
@@ -130,12 +131,9 @@ export function ProjectSidebar() {
                             {projectLabel}
                           </span>
                         </div>
-                        {session.sessionState === "active" && (
-                          <span
-                            className="ml-auto inline-block h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-green-500"
-                            title="Active"
-                          />
-                        )}
+                        <span className="ml-auto">
+                          <SessionStateBadge sessionId={session.id} compact />
+                        </span>
                       </SidebarMenuButton>
                     </Link>
                   </SidebarMenuItem>

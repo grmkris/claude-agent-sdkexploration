@@ -3,6 +3,9 @@ import type { Thread, Message } from "chat";
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import { join } from "node:path";
 
+import { upsertSession } from "../explorer-db";
+import { createSessionHooks } from "../session-hooks";
+
 const { CLAUDECODE: _CC, ...cleanEnv } = process.env;
 
 const explorerServerPath = join(process.cwd(), "tools", "explorer-server.ts");
@@ -59,18 +62,45 @@ export async function executeChatMessage(
         permissionMode: "bypassPermissions",
         allowDangerouslySkipPermissions: true,
         env: cleanEnv,
+        hooks: createSessionHooks("linear_chat"),
         mcpServers: getExplorerMcpConfig(),
       },
     });
 
     let responseText = "";
+    let capturedSessionId: string | undefined;
     for await (const msg of conversation) {
+      if (
+        msg.type === "system" &&
+        msg.subtype === "init" &&
+        "session_id" in msg
+      ) {
+        capturedSessionId = msg.session_id as string;
+      }
       if (msg.type === "assistant" && msg.message?.content) {
         for (const block of msg.message.content) {
           if (block.type === "text") {
             responseText += block.text;
           }
         }
+      }
+      if (capturedSessionId && msg.type === "result") {
+        const r = msg as {
+          total_cost_usd?: number;
+          usage?: { input_tokens?: number; output_tokens?: number };
+          num_turns?: number;
+          duration_ms?: number;
+          is_error?: boolean;
+          subtype?: string;
+        };
+        upsertSession(capturedSessionId, {
+          cost_usd: r.total_cost_usd ?? null,
+          input_tokens: r.usage?.input_tokens ?? null,
+          output_tokens: r.usage?.output_tokens ?? null,
+          num_turns: r.num_turns ?? null,
+          duration_ms: r.duration_ms ?? null,
+          ...(r.is_error ? { state: "error", error: r.subtype ?? "error" } : {}),
+        });
       }
     }
 

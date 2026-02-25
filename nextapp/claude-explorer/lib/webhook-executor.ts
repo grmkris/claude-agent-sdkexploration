@@ -7,6 +7,7 @@ import type { WebhookConfig } from "./types";
 const { CLAUDECODE: _CC, ...cleanEnv } = process.env;
 
 import { resolveSlugToPath } from "./claude-fs";
+import { upsertSession } from "./explorer-db";
 import {
   updateWebhookStatus,
   incrementWebhookTriggerCount,
@@ -14,6 +15,7 @@ import {
   updateWebhookEventStatus,
 } from "./explorer-store";
 import { emitActivity } from "./linear-agent";
+import { createSessionHooks } from "./session-hooks";
 import { getProvider } from "./webhook-providers";
 
 // Explorer MCP server config — gives webhook-spawned Claude sessions access
@@ -100,7 +102,7 @@ export function executeWebhook(
           allowDangerouslySkipPermissions: true,
           env: cleanEnv,
           mcpServers: getExplorerMcpConfig(),
-
+          hooks: createSessionHooks("webhook"),
           ...(cwd ? { cwd } : {}),
           ...(webhook.sessionId ? { resume: webhook.sessionId } : {}),
         },
@@ -114,6 +116,24 @@ export function executeWebhook(
           "session_id" in msg
         ) {
           capturedSessionId = msg.session_id as string;
+        }
+        if (capturedSessionId && msg.type === "result") {
+          const r = msg as {
+            total_cost_usd?: number;
+            usage?: { input_tokens?: number; output_tokens?: number };
+            num_turns?: number;
+            duration_ms?: number;
+            is_error?: boolean;
+            subtype?: string;
+          };
+          upsertSession(capturedSessionId, {
+            cost_usd: r.total_cost_usd ?? null,
+            input_tokens: r.usage?.input_tokens ?? null,
+            output_tokens: r.usage?.output_tokens ?? null,
+            num_turns: r.num_turns ?? null,
+            duration_ms: r.duration_ms ?? null,
+            ...(r.is_error ? { state: "error", error: r.subtype ?? "error" } : {}),
+          });
         }
       }
 

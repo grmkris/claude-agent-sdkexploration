@@ -8,6 +8,7 @@ import type { CronJob } from "./types";
 const { CLAUDECODE: _CC, ...cleanEnv } = process.env;
 
 import { resolveSlugToPath } from "./claude-fs";
+import { upsertSession } from "./explorer-db";
 import {
   getCrons,
   updateCronStatus,
@@ -15,6 +16,7 @@ import {
   updateCronEventStatus,
   tagOutboundEmailEvents,
 } from "./explorer-store";
+import { createSessionHooks } from "./session-hooks";
 
 let intervalId: ReturnType<typeof setInterval> | null = null;
 
@@ -73,6 +75,7 @@ export async function executeCron(cron: CronJob): Promise<void> {
         allowDangerouslySkipPermissions: true,
         env: cleanEnv,
         cwd,
+        hooks: createSessionHooks("cron"),
         ...(cron.sessionId ? { resume: cron.sessionId } : {}),
         mcpServers: {
           [process.env.INSTANCE_NAME ?? "claude-explorer"]: {
@@ -90,7 +93,7 @@ export async function executeCron(cron: CronJob): Promise<void> {
       },
     });
 
-    // Drain the iterator, capture session ID from first message that has it
+    // Drain the iterator, capture session ID and result metrics
     let capturedSessionId: string | undefined;
     for await (const msg of conversation) {
       if (
@@ -100,6 +103,30 @@ export async function executeCron(cron: CronJob): Promise<void> {
         "session_id" in msg
       ) {
         capturedSessionId = (msg as { session_id: string }).session_id;
+      }
+      if (
+        capturedSessionId &&
+        msg &&
+        typeof msg === "object" &&
+        "type" in msg &&
+        (msg as { type: string }).type === "result"
+      ) {
+        const r = msg as {
+          total_cost_usd?: number;
+          usage?: { input_tokens?: number; output_tokens?: number };
+          num_turns?: number;
+          duration_ms?: number;
+          is_error?: boolean;
+          subtype?: string;
+        };
+        upsertSession(capturedSessionId, {
+          cost_usd: r.total_cost_usd ?? null,
+          input_tokens: r.usage?.input_tokens ?? null,
+          output_tokens: r.usage?.output_tokens ?? null,
+          num_turns: r.num_turns ?? null,
+          duration_ms: r.duration_ms ?? null,
+          ...(r.is_error ? { state: "error", error: r.subtype ?? "error" } : {}),
+        });
       }
     }
 
