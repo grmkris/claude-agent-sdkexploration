@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+import { OpenInCursorButton } from "@/components/open-in-cursor-button";
 import { IntegrationWidgets } from "@/components/project-integrations";
 import { Button } from "@/components/ui/button";
 import { SidebarGroup, SidebarGroupContent } from "@/components/ui/sidebar";
@@ -343,6 +344,49 @@ function IntegrationsSection({ slug }: { slug: string }) {
   );
 }
 
+// ── Open in Cursor ────────────────────────────────────────────────────────────
+
+/**
+ * Shown when inside a project — fetches the project's filesystem path and
+ * renders an "Open in Cursor" deep-link using the configured SSH host.
+ */
+function ProjectCursorSection({ slug }: { slug: string }) {
+  const { data: projects } = useQuery(orpc.projects.list.queryOptions());
+  const { data: serverConfig } = useQuery(orpc.server.config.queryOptions());
+
+  const project = projects?.find((p) => p.slug === slug);
+  if (!project?.path) return null;
+
+  return (
+    <div className="px-2">
+      <OpenInCursorButton
+        path={project.path}
+        sshHost={serverConfig?.sshHost}
+        className="w-full justify-center"
+      />
+    </div>
+  );
+}
+
+/**
+ * Shown on the root/home view — opens the home directory in Cursor.
+ */
+function RootCursorSection() {
+  const { data: serverConfig } = useQuery(orpc.server.config.queryOptions());
+
+  if (!serverConfig?.homeDir) return null;
+
+  return (
+    <div className="px-2">
+      <OpenInCursorButton
+        path={serverConfig.homeDir}
+        sshHost={serverConfig.sshHost}
+        className="w-full justify-center"
+      />
+    </div>
+  );
+}
+
 // ── Main export ───────────────────────────────────────────────────────────────
 
 export function OverviewTab({ slug }: { slug: string | null }) {
@@ -358,6 +402,9 @@ export function OverviewTab({ slug }: { slug: string | null }) {
           </Button>
         </Link>
       </div>
+
+      {/* Open in Cursor — context-aware */}
+      {slug ? <ProjectCursorSection slug={slug} /> : <RootCursorSection />}
 
       {slug ? (
         <>
