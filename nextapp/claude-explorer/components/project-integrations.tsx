@@ -47,7 +47,11 @@ function timeAgo(ts: string): string {
 
 // --- Widget display for a single integration ---
 
-function IntegrationWidgets({ integrationId }: { integrationId: string }) {
+export function IntegrationWidgets({
+  integrationId,
+}: {
+  integrationId: string;
+}) {
   const { data, isLoading } = useQuery({
     ...orpc.integrations.data.queryOptions({ input: { id: integrationId } }),
     refetchInterval: 60_000,

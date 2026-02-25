@@ -2,6 +2,7 @@
 
 import { PatchDiff } from "@pierre/diffs/react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import Link from "next/link";
 import { use, useState, useCallback, useRef, useMemo } from "react";
 
 import { CopyButton } from "@/components/copy-button";
@@ -2321,6 +2322,11 @@ export default function ProjectPage({
             {gitDisplayHost}
           </a>
         )}
+        <div className="ml-auto">
+          <Link href={`/project/${slug}/chat`}>
+            <Button size="sm">New Conversation</Button>
+          </Link>
+        </div>
       </div>
       <ProjectStatsHeader slug={slug} />
       <ProjectSkills slug={slug} />
