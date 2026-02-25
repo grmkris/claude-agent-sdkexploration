@@ -4,7 +4,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "Claude Explorer",
     short_name: "Explorer",
-    description: "Browse and interact with Claude Code sessions",
+    description: "Browse and manage Claude Code agent sessions",
     start_url: "/",
     display: "standalone",
     background_color: "#09090b",
