@@ -38,7 +38,7 @@ export function AutomationsTab({ slug }: { slug: string | null }) {
             Crons
           </span>
           <Link
-            href="/crons"
+            href={`/project/${slug}/crons`}
             className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
           >
             manage
@@ -48,7 +48,10 @@ export function AutomationsTab({ slug }: { slug: string | null }) {
           {projectCrons.length === 0 ? (
             <p className="px-2 text-[11px] text-muted-foreground">
               No active crons.{" "}
-              <Link href="/crons" className="hover:text-foreground underline">
+              <Link
+                href={`/project/${slug}/crons`}
+                className="hover:text-foreground underline"
+              >
                 Add one
               </Link>
             </p>
@@ -79,7 +82,7 @@ export function AutomationsTab({ slug }: { slug: string | null }) {
             Webhooks
           </span>
           <Link
-            href="/webhooks"
+            href={`/project/${slug}/webhooks`}
             className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
           >
             manage
@@ -90,7 +93,7 @@ export function AutomationsTab({ slug }: { slug: string | null }) {
             <p className="px-2 text-[11px] text-muted-foreground">
               No active webhooks.{" "}
               <Link
-                href="/webhooks"
+                href={`/project/${slug}/webhooks`}
                 className="hover:text-foreground underline"
               >
                 Add one
@@ -118,7 +121,7 @@ export function AutomationsTab({ slug }: { slug: string | null }) {
             Email
           </span>
           <Link
-            href="/email"
+            href={`/project/${slug}/email`}
             className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
           >
             manage
@@ -126,7 +129,10 @@ export function AutomationsTab({ slug }: { slug: string | null }) {
         </div>
         <SidebarGroupContent>
           <p className="px-2 text-[11px] text-muted-foreground">
-            <Link href="/email" className="hover:text-foreground underline">
+            <Link
+              href={`/project/${slug}/email`}
+              className="hover:text-foreground underline"
+            >
               Configure email
             </Link>
           </p>
