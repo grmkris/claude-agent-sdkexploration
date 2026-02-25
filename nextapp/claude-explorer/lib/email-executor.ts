@@ -179,10 +179,30 @@ export function executeInboundEmail(
 
     try {
       // 1. Materialise email → ~/emails/{eventId}/ (keeps attachments on disk)
-      await materializeEmail(email, eventId);
+      const emailDir = await materializeEmail(email, eventId);
 
-      // 2. Build prompt with full email content embedded inline
-      const prompt = formatEmailPrompt(email, config);
+      // 2. Build pointer-style prompt — Claude reads the file directly.
+      //    The Read tool natively renders images and PDFs, so attachments are
+      //    visible pixel-by-pixel without any download step.
+      const domain = process.env.CHANNEL_EMAIL_DOMAIN ?? "your-domain.com";
+      const fromAddress = config.address || `agent@${domain}`;
+      const reSubject = email.subject.startsWith("Re:")
+        ? email.subject
+        : `Re: ${email.subject}`;
+      const prompt = `A new email has arrived and been saved to disk.
+
+Read the file at: ${emailDir}/email.md
+
+If the email has attachments, they are in ${emailDir}/attachments/ — use the Read tool to open image or PDF files and you will see them rendered visually.
+
+When ready to reply, use the email_send tool:
+  to: "${email.from}"
+  subject: "${reSubject}"
+  inReplyTo: "${email.messageId}"
+  fromAddress: "${fromAddress}"
+
+Workspace instructions:
+${config.prompt}`;
 
       const isRoot = config.projectSlug === "__root__";
       const cwd = isRoot
