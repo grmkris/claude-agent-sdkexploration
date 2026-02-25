@@ -1,13 +1,13 @@
 import { after } from "next/server";
 
-import { getBot } from "@/lib/chat/bot";
+import { ensureBotReady } from "@/lib/chat/bot";
 
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ platform: string }> }
 ) {
   const { platform } = await params;
-  const bot = getBot();
+  const bot = await ensureBotReady();
 
   const handler = bot.webhooks[platform as keyof typeof bot.webhooks];
   if (!handler) {

@@ -8,7 +8,7 @@ export class LinearProvider implements IntegrationProvider {
 
   async testConnection(token: string) {
     try {
-      const client = new LinearClient({ apiKey: token });
+      const client = new LinearClient({ accessToken: token });
       const viewer = await client.viewer;
       const teams = await client.teams();
       return {
@@ -29,21 +29,40 @@ export class LinearProvider implements IntegrationProvider {
   async fetchWidgets(
     integration: IntegrationConfig
   ): Promise<IntegrationWidget[]> {
-    const client = new LinearClient({ apiKey: integration.auth.token });
+    const client = new LinearClient({ accessToken: integration.auth.token });
     const teamId = integration.config?.teamId as string | undefined;
+    const userName = integration.config?.userName as string | undefined;
     const widgets: IntegrationWidget[] = [];
 
-    // My assigned open issues
+    // My assigned open issues (filtered by userName if using bot token)
     try {
-      const viewer = await client.viewer;
-      const assigned = await viewer.assignedIssues({
-        filter: {
-          state: { type: { in: ["backlog", "unstarted", "started"] } },
-          ...(teamId ? { team: { id: { eq: teamId } } } : {}),
-        },
-        first: 15,
-        orderBy: "updatedAt" as any,
-      });
+      let assigned;
+      if (userName) {
+        // Bot token: filter by user name instead of viewer (which is the bot)
+        const users = await client.users({ filter: { name: { eq: userName } } });
+        const user = users.nodes[0];
+        if (user) {
+          assigned = await user.assignedIssues({
+            filter: {
+              state: { type: { in: ["backlog", "unstarted", "started"] } },
+              ...(teamId ? { team: { id: { eq: teamId } } } : {}),
+            },
+            first: 15,
+            orderBy: "updatedAt" as any,
+          });
+        }
+      }
+      if (!assigned) {
+        const viewer = await client.viewer;
+        assigned = await viewer.assignedIssues({
+          filter: {
+            state: { type: { in: ["backlog", "unstarted", "started"] } },
+            ...(teamId ? { team: { id: { eq: teamId } } } : {}),
+          },
+          first: 15,
+          orderBy: "updatedAt" as any,
+        });
+      }
       const items = await Promise.all(
         assigned.nodes.map(async (i) => {
           const state = await i.state;

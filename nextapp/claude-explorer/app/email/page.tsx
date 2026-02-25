@@ -375,58 +375,60 @@ export default function EmailPage() {
             Recent Email Events
           </h2>
           <div className="flex flex-col gap-1.5">
-            {events.slice(0, 50).map((ev) => (
-              <div
-                key={ev.id}
-                className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded border px-2 py-1.5"
-              >
-                <span
-                  className={`h-2 w-2 shrink-0 rounded-full ${ev.status === "success" ? "bg-green-500" : ev.status === "error" ? "bg-red-500" : "bg-yellow-500 animate-pulse"}`}
-                />
-                <span className="shrink-0 text-[10px] text-muted-foreground">
-                  {getTimeAgo(ev.timestamp)}
-                </span>
-                <Badge variant="outline" className="shrink-0 text-[10px]">
-                  {ev.direction}
-                </Badge>
-                <span className="shrink-0 text-[10px] text-muted-foreground">
-                  {ev.from}
-                </span>
-                <span className="shrink-0 text-[10px] text-muted-foreground">
-                  &rarr; {ev.to}
-                </span>
-                <Badge
-                  variant={
-                    ev.status === "success"
-                      ? "secondary"
-                      : ev.status === "error"
-                        ? "destructive"
-                        : "outline"
-                  }
-                  className="text-[10px]"
+            {events.slice(0, 50).map((ev) => {
+              const href = ev.sessionId
+                ? ev.projectSlug === "__root__" ||
+                  ev.projectSlug === "__outbound__"
+                  ? `/chat/${ev.sessionId}`
+                  : `/project/${ev.projectSlug}/chat/${ev.sessionId}`
+                : null;
+              const Row = href ? Link : "div";
+              return (
+                <Row
+                  key={ev.id}
+                  {...(href ? { href } : {})}
+                  className={`flex flex-wrap items-center gap-x-2 gap-y-1 rounded border px-2 py-1.5${href ? " cursor-pointer hover:bg-muted/50" : ""}`}
                 >
-                  {ev.status}
-                </Badge>
-                {ev.subject && (
-                  <span className="hidden sm:block min-w-0 flex-1 truncate text-[10px] text-muted-foreground">
-                    {ev.subject}
+                  <span
+                    className={`h-2 w-2 shrink-0 rounded-full ${ev.status === "success" ? "bg-green-500" : ev.status === "error" ? "bg-red-500" : "bg-yellow-500 animate-pulse"}`}
+                  />
+                  <span className="shrink-0 text-[10px] text-muted-foreground">
+                    {getTimeAgo(ev.timestamp)}
                   </span>
-                )}
-                {ev.sessionId && (
-                  <Link
-                    href={
-                      ev.projectSlug === "__root__" ||
-                      ev.projectSlug === "__outbound__"
-                        ? `/chat/${ev.sessionId}`
-                        : `/project/${ev.projectSlug}/chat/${ev.sessionId}`
+                  <Badge variant="outline" className="shrink-0 text-[10px]">
+                    {ev.direction}
+                  </Badge>
+                  <span className="shrink-0 text-[10px] text-muted-foreground">
+                    {ev.from}
+                  </span>
+                  <span className="shrink-0 text-[10px] text-muted-foreground">
+                    &rarr; {ev.to}
+                  </span>
+                  <Badge
+                    variant={
+                      ev.status === "success"
+                        ? "secondary"
+                        : ev.status === "error"
+                          ? "destructive"
+                          : "outline"
                     }
-                    className="hidden sm:block shrink-0 text-[10px] text-blue-400 hover:underline"
+                    className="text-[10px]"
                   >
-                    session &rarr;
-                  </Link>
-                )}
-              </div>
-            ))}
+                    {ev.status}
+                  </Badge>
+                  {ev.subject && (
+                    <span className="hidden sm:block min-w-0 flex-1 truncate text-[10px] text-muted-foreground">
+                      {ev.subject}
+                    </span>
+                  )}
+                  {href && (
+                    <span className="hidden sm:block shrink-0 text-[10px] text-blue-400">
+                      session &rarr;
+                    </span>
+                  )}
+                </Row>
+              );
+            })}
           </div>
         </>
       )}

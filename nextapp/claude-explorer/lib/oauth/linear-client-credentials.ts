@@ -17,8 +17,10 @@ let cached: TokenCache | null = null;
 const REFRESH_BUFFER_MS = 24 * 60 * 60 * 1000;
 
 function getCredentials(): { clientId: string; clientSecret: string } | null {
-  const clientId = process.env.LINEAR_OAUTH_CLIENT_ID;
-  const clientSecret = process.env.LINEAR_OAUTH_CLIENT_SECRET;
+  const clientId =
+    process.env.LINEAR_CLIENT_ID ?? process.env.LINEAR_OAUTH_CLIENT_ID;
+  const clientSecret =
+    process.env.LINEAR_CLIENT_SECRET ?? process.env.LINEAR_OAUTH_CLIENT_SECRET;
   if (clientId && clientSecret) return { clientId, clientSecret };
   return null;
 }
@@ -76,7 +78,7 @@ export async function getLinearBotToken(): Promise<{
       grant_type: "client_credentials",
       client_id: creds.clientId,
       client_secret: creds.clientSecret,
-      scope: "read,write",
+      scope: "read,write,comments:create,issues:create",
     }),
   });
 
@@ -108,6 +110,14 @@ export function isLinearBotConfigured(): boolean {
 export async function isLinearBotConfiguredAsync(): Promise<boolean> {
   const creds = await getLinearOAuthCredentials();
   return !!creds;
+}
+
+/** Epoch ms when the current cached token was obtained (0 = no cache) */
+export function getLinearBotTokenTimestamp(): number {
+  if (!cached) return 0;
+  // expiresAt minus ~30 days gives us approximate fetch time
+  // But simpler: just use expiresAt as a stable identifier for "which token"
+  return cached.expiresAt;
 }
 
 /** Clear cached token (useful on credential change) */

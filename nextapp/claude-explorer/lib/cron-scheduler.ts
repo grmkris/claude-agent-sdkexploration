@@ -13,6 +13,7 @@ import {
   updateCronStatus,
   addCronEvent,
   updateCronEventStatus,
+  tagOutboundEmailEvents,
 } from "./explorer-store";
 
 let intervalId: ReturnType<typeof setInterval> | null = null;
@@ -107,6 +108,10 @@ export async function executeCron(cron: CronJob): Promise<void> {
     );
     await updateCronStatus(cron.id, "success", now);
     await updateCronEventStatus(eventId, "success", capturedSessionId);
+
+    if (capturedSessionId) {
+      await tagOutboundEmailEvents(now, capturedSessionId, cron.projectSlug);
+    }
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err);
     console.error(`[cron ${cron.id}] Failed: ${errMsg}`);
