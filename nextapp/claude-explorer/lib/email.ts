@@ -1,8 +1,7 @@
-import { readFile } from "node:fs/promises";
-
 import type { InboundWebhookPayload } from "inboundemail";
 
 import { Inbound } from "inboundemail";
+import { readFile } from "node:fs/promises";
 
 export type EmailAttachment = {
   filename: string;
@@ -85,7 +84,9 @@ export async function sendEmail(params: {
   }
 
   // Read attachment files from disk and base64-encode them
-  let attachments: Array<{ content: string; filename: string; content_type?: string }> | undefined;
+  let attachments:
+    | Array<{ content: string; filename: string; content_type?: string }>
+    | undefined;
   if (params.attachments && params.attachments.length > 0) {
     attachments = await Promise.all(
       params.attachments.map(async (att) => {
