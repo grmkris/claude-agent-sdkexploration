@@ -247,6 +247,58 @@ export async function getGitFileDiff(
   }
 }
 
+export async function gitPull(
+  projectPath: string
+): Promise<{ success: boolean; output: string }> {
+  try {
+    const output = await Bun.$`git -C ${projectPath} pull`.text();
+    return { success: true, output: output.trim() };
+  } catch (e: any) {
+    return { success: false, output: e?.stderr?.toString?.() ?? String(e) };
+  }
+}
+
+export async function gitStageAll(
+  projectPath: string
+): Promise<{ success: boolean; output: string }> {
+  try {
+    const output = await Bun.$`git -C ${projectPath} add .`.text();
+    return { success: true, output: output.trim() || "All changes staged" };
+  } catch (e: any) {
+    return { success: false, output: e?.stderr?.toString?.() ?? String(e) };
+  }
+}
+
+export async function gitCommit(
+  projectPath: string,
+  message: string
+): Promise<{ success: boolean; output: string }> {
+  try {
+    const output =
+      await Bun.$`git -C ${projectPath} commit -m ${message}`.text();
+    return { success: true, output: output.trim() };
+  } catch (e: any) {
+    return { success: false, output: e?.stderr?.toString?.() ?? String(e) };
+  }
+}
+
+export async function gitCommitAndPush(
+  projectPath: string,
+  message: string
+): Promise<{ success: boolean; output: string }> {
+  try {
+    const commitOutput =
+      await Bun.$`git -C ${projectPath} commit -m ${message}`.text();
+    const pushOutput = await Bun.$`git -C ${projectPath} push`.text();
+    return {
+      success: true,
+      output: `${commitOutput.trim()}\n${pushOutput.trim()}`,
+    };
+  } catch (e: any) {
+    return { success: false, output: e?.stderr?.toString?.() ?? String(e) };
+  }
+}
+
 // --- Project list using ~/.claude.json + 1 stat per project for lastActive ---
 
 export async function listProjects(): Promise<Project[]> {

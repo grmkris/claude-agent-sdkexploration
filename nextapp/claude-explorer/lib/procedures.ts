@@ -43,6 +43,10 @@ import {
   readCommandContent,
   getGitStatus,
   getGitFileDiff,
+  gitPull,
+  gitStageAll,
+  gitCommit,
+  gitCommitAndPush,
   findProjectPathForSession,
 } from "./claude-fs";
 import { sendEmail } from "./email";
@@ -705,6 +709,43 @@ const gitDiffProc = os
   .handler(async ({ input }) => {
     const projectPath = await resolveSlugToPath(input.slug);
     return getGitFileDiff(projectPath, input.path);
+  });
+
+const gitOpOutput = z.object({
+  success: z.boolean(),
+  output: z.string(),
+});
+
+const gitPullProc = os
+  .input(z.object({ slug: z.string() }))
+  .output(gitOpOutput)
+  .handler(async ({ input }) => {
+    const projectPath = await resolveSlugToPath(input.slug);
+    return gitPull(projectPath);
+  });
+
+const gitStageAllProc = os
+  .input(z.object({ slug: z.string() }))
+  .output(gitOpOutput)
+  .handler(async ({ input }) => {
+    const projectPath = await resolveSlugToPath(input.slug);
+    return gitStageAll(projectPath);
+  });
+
+const gitCommitProc = os
+  .input(z.object({ slug: z.string(), message: z.string() }))
+  .output(gitOpOutput)
+  .handler(async ({ input }) => {
+    const projectPath = await resolveSlugToPath(input.slug);
+    return gitCommit(projectPath, input.message);
+  });
+
+const gitCommitPushProc = os
+  .input(z.object({ slug: z.string(), message: z.string() }))
+  .output(gitOpOutput)
+  .handler(async ({ input }) => {
+    const projectPath = await resolveSlugToPath(input.slug);
+    return gitCommitAndPush(projectPath, input.message);
   });
 
 const SkillInfoSchema = z.object({
@@ -2177,6 +2218,10 @@ export const router = {
     create: createProjectProc,
     gitStatus: gitStatusProc,
     gitDiff: gitDiffProc,
+    gitPull: gitPullProc,
+    gitStageAll: gitStageAllProc,
+    gitCommit: gitCommitProc,
+    gitCommitPush: gitCommitPushProc,
   },
   user: { config: userConfigProc },
   mcpServers: {
