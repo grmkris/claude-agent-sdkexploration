@@ -382,13 +382,9 @@ export default function EmailPage() {
                   ? `/chat/${ev.sessionId}`
                   : `/project/${ev.projectSlug}/chat/${ev.sessionId}`
                 : null;
-              const Row = href ? Link : "div";
-              return (
-                <Row
-                  key={ev.id}
-                  {...(href ? { href } : {})}
-                  className={`flex flex-wrap items-center gap-x-2 gap-y-1 rounded border px-2 py-1.5${href ? " cursor-pointer hover:bg-muted/50" : ""}`}
-                >
+              const rowClass = `flex flex-wrap items-center gap-x-2 gap-y-1 rounded border px-2 py-1.5${href ? " cursor-pointer hover:bg-muted/50" : ""}`;
+              const children = (
+                <>
                   <span
                     className={`h-2 w-2 shrink-0 rounded-full ${ev.status === "success" ? "bg-green-500" : ev.status === "error" ? "bg-red-500" : "bg-yellow-500 animate-pulse"}`}
                   />
@@ -426,7 +422,16 @@ export default function EmailPage() {
                       session &rarr;
                     </span>
                   )}
-                </Row>
+                </>
+              );
+              return href ? (
+                <Link key={ev.id} href={href} className={rowClass}>
+                  {children}
+                </Link>
+              ) : (
+                <div key={ev.id} className={rowClass}>
+                  {children}
+                </div>
               );
             })}
           </div>
