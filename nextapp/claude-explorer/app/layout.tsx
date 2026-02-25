@@ -6,6 +6,7 @@ import { cookies } from "next/headers";
 import "./globals.css";
 import Script from "next/script";
 
+import { AgentTabBar } from "@/components/agent-tabs/agent-tab-bar";
 import { AppBreadcrumb } from "@/components/app-breadcrumb";
 import { ProjectSidebar } from "@/components/project-sidebar";
 import { RightSidebar } from "@/components/right-sidebar";
@@ -53,6 +54,8 @@ export default async function RootLayout({
   const cookieStore = await cookies();
   const rightSidebarOpen =
     cookieStore.get("right_sidebar_state")?.value === "true";
+  const tabBarVisible =
+    cookieStore.get("agent_tab_bar_state")?.value !== "false";
 
   return (
     <html lang="en" className="dark">
@@ -64,7 +67,7 @@ export default async function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <Providers>
+        <Providers tabBarVisible={tabBarVisible}>
           <TooltipProvider>
             <SidebarProvider>
               <RightSidebarProvider defaultOpen={rightSidebarOpen}>
@@ -78,6 +81,7 @@ export default async function RootLayout({
                     <div className="flex-1" />
                     <RightSidebarTrigger />
                   </header>
+                  <AgentTabBar />
                   <div className="flex flex-1 flex-col overflow-hidden">
                     {children}
                   </div>
