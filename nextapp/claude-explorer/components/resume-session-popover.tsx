@@ -1,7 +1,6 @@
 "use client";
 
 import { CopyButton } from "@/components/copy-button";
-import { Button } from "@/components/ui/button";
 import {
   Popover,
   PopoverContent,
@@ -70,15 +69,11 @@ export function ResumeSessionPopover({
 
   return (
     <Popover>
-      <PopoverTrigger asChild>
-        <Button
-          size="sm"
-          variant="ghost"
-          className="h-6 shrink-0 px-2 text-[10px]"
-          onClick={(e) => e.stopPropagation()}
-        >
-          resume
-        </Button>
+      <PopoverTrigger
+        className="h-6 shrink-0 cursor-pointer rounded px-2 text-[10px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+        onClick={(e) => e.stopPropagation()}
+      >
+        resume
       </PopoverTrigger>
       <PopoverContent align="end" className="w-80 p-3">
         <div className="flex flex-col gap-3">
