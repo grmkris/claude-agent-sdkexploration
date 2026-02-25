@@ -42,6 +42,14 @@ export function SessionList({ projectSlug }: { projectSlug: string }) {
       }),
   });
 
+  const archiveSession = useMutation({
+    mutationFn: (id: string) => client.sessions.archive({ sessionId: id }),
+    onSuccess: () =>
+      queryClient.invalidateQueries({
+        queryKey: orpc.sessions.list.queryOptions({ input: { slug: projectSlug } }).queryKey,
+      }),
+  });
+
   if (isLoading) {
     return (
       <div className="flex flex-col gap-2">
@@ -71,6 +79,7 @@ export function SessionList({ projectSlug }: { projectSlug: string }) {
             projectSlug={projectSlug}
             isFavorite={favorites?.sessions.includes(session.id)}
             onToggleFavorite={() => toggleSession.mutate(session.id)}
+            onArchive={() => archiveSession.mutate(session.id)}
             facet={f}
           />
         );

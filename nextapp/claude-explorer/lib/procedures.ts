@@ -263,6 +263,23 @@ const timelineSessionsProc = os
     return Promise.all(rows.map(sessionRowToRecent));
   });
 
+// --- Archive ---
+
+const archiveSessionProc = os
+  .input(
+    z.object({
+      sessionId: z.string(),
+      archived: z.boolean().optional(), // true = archive (default), false = unarchive
+    })
+  )
+  .output(z.object({ success: z.boolean() }))
+  .handler(async ({ input }) => {
+    upsertSession(input.sessionId, {
+      is_archived: (input.archived ?? true) ? 1 : 0,
+    });
+    return { success: true };
+  });
+
 // --- Favorites ---
 
 const getFavoritesProc = os
@@ -2181,6 +2198,7 @@ export const router = {
     messages: getMessagesProc,
     recent: recentSessionsProc,
     timeline: timelineSessionsProc,
+    archive: archiveSessionProc,
   },
   favorites: {
     get: getFavoritesProc,

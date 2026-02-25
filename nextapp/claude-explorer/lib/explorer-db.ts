@@ -4,6 +4,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 
 import { getSessionEventBus } from "./event-bus";
+import { sendPushNotification } from "./push-notifications";
 
 // --- Types ---
 
@@ -36,6 +37,7 @@ export interface SessionRow {
   num_turns: number | null;
   duration_ms: number | null;
   error: string | null;
+  is_archived: number; // 0 = visible, 1 = archived
 }
 
 export type SessionPatch = Partial<Omit<SessionRow, "session_id">>;
@@ -97,6 +99,18 @@ function getDB(): Database {
     // Column already exists
   }
 
+  // Migration: add is_archived column to existing DBs
+  try {
+    db.exec(
+      "ALTER TABLE sessions ADD COLUMN is_archived INTEGER NOT NULL DEFAULT 0"
+    );
+    db.exec(
+      "CREATE INDEX IF NOT EXISTS idx_sessions_archived ON sessions(is_archived)"
+    );
+  } catch {
+    // Column already exists
+  }
+
   return db;
 }
 
@@ -131,11 +145,12 @@ export function upsertSession(sessionId: string, patch: SessionPatch): void {
       num_turns: patch.num_turns ?? null,
       duration_ms: patch.duration_ms ?? null,
       error: patch.error ?? null,
+      is_archived: patch.is_archived ?? 0,
     };
 
     d.query(
-      `INSERT INTO sessions (session_id, project_path, state, current_tool, source, model, first_prompt, git_branch, started_at, updated_at, ended_at, cost_usd, input_tokens, output_tokens, num_turns, duration_ms, error)
-       VALUES ($session_id, $project_path, $state, $current_tool, $source, $model, $first_prompt, $git_branch, $started_at, $updated_at, $ended_at, $cost_usd, $input_tokens, $output_tokens, $num_turns, $duration_ms, $error)`
+      `INSERT INTO sessions (session_id, project_path, state, current_tool, source, model, first_prompt, git_branch, started_at, updated_at, ended_at, cost_usd, input_tokens, output_tokens, num_turns, duration_ms, error, is_archived)
+       VALUES ($session_id, $project_path, $state, $current_tool, $source, $model, $first_prompt, $git_branch, $started_at, $updated_at, $ended_at, $cost_usd, $input_tokens, $output_tokens, $num_turns, $duration_ms, $error, $is_archived)`
     ).run({
       $session_id: row.session_id,
       $project_path: row.project_path,
@@ -154,6 +169,7 @@ export function upsertSession(sessionId: string, patch: SessionPatch): void {
       $num_turns: row.num_turns,
       $duration_ms: row.duration_ms,
       $error: row.error,
+      $is_archived: row.is_archived,
     });
   } else {
     // UPDATE only provided fields
@@ -185,6 +201,34 @@ export function upsertSession(sessionId: string, patch: SessionPatch): void {
       currentTool: updated.current_tool,
       projectPath: updated.project_path,
     });
+
+    // Fire push notifications for terminal/notable states
+    const promptPreview = updated.first_prompt?.slice(0, 80) ?? "Session";
+    if (updated.state === "done") {
+      sendPushNotification({
+        title: "Agent session complete",
+        body: promptPreview,
+        url: `/sessions/${sessionId}`,
+        tag: `session-done-${sessionId}`,
+        event: "sessionCompleted",
+      }).catch(() => {});
+    } else if (updated.state === "error") {
+      sendPushNotification({
+        title: "Agent session failed",
+        body: promptPreview,
+        url: `/sessions/${sessionId}`,
+        tag: `session-error-${sessionId}`,
+        event: "sessionFailed",
+      }).catch(() => {});
+    } else if (updated.state === "waiting_for_permission") {
+      sendPushNotification({
+        title: "Agent needs permission",
+        body: promptPreview,
+        url: `/sessions/${sessionId}`,
+        tag: `session-permission-${sessionId}`,
+        event: "sessionNeedsPermission",
+      }).catch(() => {});
+    }
   }
 }
 
@@ -204,7 +248,7 @@ export function getActiveSessions(): SessionRow[] {
 
   return getDB()
     .query<SessionRow, []>(
-      "SELECT * FROM sessions WHERE state NOT IN ('done', 'stopped', 'error') ORDER BY updated_at DESC"
+      "SELECT * FROM sessions WHERE state NOT IN ('done', 'stopped', 'error') AND is_archived = 0 ORDER BY updated_at DESC"
     )
     .all();
 }
@@ -217,7 +261,7 @@ export function getProjectSessions(
   // so sessions started inside a subdirectory of the project are included.
   return getDB()
     .query<SessionRow, [string, string, number]>(
-      "SELECT * FROM sessions WHERE project_path = ? OR project_path LIKE ? ORDER BY updated_at DESC LIMIT ?"
+      "SELECT * FROM sessions WHERE (project_path = ? OR project_path LIKE ?) AND is_archived = 0 ORDER BY updated_at DESC LIMIT ?"
     )
     .all(projectPath, projectPath + "/%", limit);
 }
@@ -225,7 +269,7 @@ export function getProjectSessions(
 export function getAllRecentSessions(limit = 50): SessionRow[] {
   return getDB()
     .query<SessionRow, [number]>(
-      "SELECT * FROM sessions ORDER BY updated_at DESC LIMIT ?"
+      "SELECT * FROM sessions WHERE is_archived = 0 ORDER BY updated_at DESC LIMIT ?"
     )
     .all(limit);
 }
@@ -234,7 +278,7 @@ export function cleanOldSessions(maxAgeMs: number): void {
   const cutoff = new Date(Date.now() - maxAgeMs).toISOString();
   getDB()
     .query(
-      "DELETE FROM sessions WHERE state IN ('done', 'stopped', 'error') AND updated_at < ?"
+      "DELETE FROM sessions WHERE state IN ('done', 'stopped', 'error') AND is_archived = 0 AND updated_at < ?"
     )
     .run(cutoff);
 }
