@@ -103,6 +103,8 @@ export async function executeCron(cron: CronJob): Promise<void> {
         "session_id" in msg
       ) {
         capturedSessionId = (msg as { session_id: string }).session_id;
+        // Explicitly persist project_path — SDK hook input.cwd is unreliable.
+        upsertSession(capturedSessionId, { project_path: cwd });
       }
       if (
         capturedSessionId &&

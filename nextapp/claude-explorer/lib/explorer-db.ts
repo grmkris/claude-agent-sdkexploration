@@ -213,11 +213,13 @@ export function getProjectSessions(
   projectPath: string,
   limit = 20
 ): SessionRow[] {
+  // Match both exact path AND any subdirectory (project_path LIKE '/path/%')
+  // so sessions started inside a subdirectory of the project are included.
   return getDB()
-    .query<SessionRow, [string, number]>(
-      "SELECT * FROM sessions WHERE project_path = ? ORDER BY updated_at DESC LIMIT ?"
+    .query<SessionRow, [string, string, number]>(
+      "SELECT * FROM sessions WHERE project_path = ? OR project_path LIKE ? ORDER BY updated_at DESC LIMIT ?"
     )
-    .all(projectPath, limit);
+    .all(projectPath, projectPath + "/%", limit);
 }
 
 export function getAllRecentSessions(limit = 50): SessionRow[] {

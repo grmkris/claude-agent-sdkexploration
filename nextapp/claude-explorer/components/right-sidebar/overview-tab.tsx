@@ -245,14 +245,30 @@ function RootSessionSection() {
   );
 }
 
-// ── Recent conversations (always shown) ──────────────────────────────────────
+// ── Recent conversations ──────────────────────────────────────────────────────
+// When a project slug is provided we show only that project's sessions
+// (sessions.list).  On the root/global view we show all recent sessions
+// (sessions.recent).
 
-function RecentSection() {
+function RecentSection({ slug }: { slug: string | null }) {
   const pathname = usePathname();
-  const { data: sessions, isLoading } = useQuery({
+
+  // Project-scoped: use sessions.list so we only show this project's sessions.
+  const { data: projectSessions, isLoading: projectLoading } = useQuery({
+    ...orpc.sessions.list.queryOptions({ input: { slug: slug ?? "", limit: 30 } }),
+    refetchInterval: 30_000,
+    enabled: !!slug,
+  });
+
+  // Global view: use sessions.recent when not inside a project.
+  const { data: recentSessions, isLoading: recentLoading } = useQuery({
     ...orpc.sessions.recent.queryOptions({ input: { limit: 30 } }),
     refetchInterval: 30_000,
+    enabled: !slug,
   });
+
+  const sessions = slug ? projectSessions : recentSessions;
+  const isLoading = slug ? projectLoading : recentLoading;
 
   return (
     <SidebarGroup>
@@ -272,13 +288,14 @@ function RecentSection() {
         )}
         <div className="flex flex-col">
           {sessions?.map((session) => {
-            const href = session.projectSlug
-              ? `/project/${session.projectSlug}/chat/${session.id}`
-              : `/chat/${session.id}`;
+            // Project-scoped sessions: always route into the current project.
+            // Global sessions: use session.projectSlug (nullable → root route).
+            const href = slug
+              ? `/project/${slug}/chat/${session.id}`
+              : ("projectSlug" in session && session.projectSlug)
+                ? `/project/${session.projectSlug}/chat/${session.id}`
+                : `/chat/${session.id}`;
             const isActive = pathname.includes(session.id);
-            const projectName = session.projectPath
-              ? session.projectPath.split("/").at(-1)
-              : null;
 
             return (
               <Link
@@ -293,11 +310,6 @@ function RecentSection() {
                 <span className="truncate leading-tight">
                   {session.firstPrompt.slice(0, 60) || "Untitled conversation"}
                 </span>
-                {projectName && (
-                  <span className="truncate text-[10px] text-muted-foreground">
-                    {projectName}
-                  </span>
-                )}
               </Link>
             );
           })}
@@ -414,7 +426,7 @@ export function OverviewTab({ slug }: { slug: string | null }) {
           <RootSessionSection />
         </>
       )}
-      <RecentSection />
+      <RecentSection slug={slug} />
     </div>
   );
 }

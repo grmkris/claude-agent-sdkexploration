@@ -110,7 +110,11 @@ export function ProjectSidebar() {
                   </SidebarMenuItem>
                 ))}
               {sessions?.map((session) => {
-                const sessionUrl = `/project/${session.projectSlug}/chat/${session.id}`;
+                // Root workspace sessions (null slug) use the /chat route;
+                // project sessions use /project/{slug}/chat/{id}.
+                const sessionUrl = session.projectSlug
+                  ? `/project/${session.projectSlug}/chat/${session.id}`
+                  : `/chat/${session.id}`;
                 const isSelected = pathname === sessionUrl;
                 const projectLabel = session.projectPath
                   .split("/")

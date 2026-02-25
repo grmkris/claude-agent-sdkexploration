@@ -118,7 +118,14 @@ async function buildSlugMaps() {
 
   for (const dir of dirs) {
     if (!_slugToPath.has(dir)) {
-      _slugToPath.set(dir, dir);
+      // Reconstruct the full path from the directory name convention
+      // (leading dash stripped, remaining dashes → slashes).
+      // This is lossy for paths that contain literal hyphens, but it is
+      // still far better than storing the raw dir name as the path.
+      _slugToPath.set(
+        dir,
+        "/" + dir.replace(/^-/, "").replace(/-/g, "/")
+      );
     }
   }
 
@@ -145,6 +152,30 @@ async function getSlugForPath(path: string): Promise<string> {
 // Exported for tmux.ts — resolves a cwd to its project slug
 export async function resolveSlugForCwd(cwd: string): Promise<string> {
   return getSlugForPath(cwd);
+}
+
+/**
+ * Search all ~/.claude/projects/ directories for a session's .jsonl file.
+ * Returns the full project filesystem path (not the dir slug) when found,
+ * or null if the session cannot be located on disk.
+ *
+ * Used to backfill `project_path` for sessions recorded before Fix 1
+ * (where input.cwd was undefined and the field was left null in SQLite).
+ */
+export async function findProjectPathForSession(
+  sessionId: string
+): Promise<string | null> {
+  const dirs = await readdir(CLAUDE_PROJECTS_DIR).catch(() => [] as string[]);
+  for (const dir of dirs) {
+    try {
+      await stat(join(CLAUDE_PROJECTS_DIR, dir, `${sessionId}.jsonl`));
+      // Found — resolve dir name → full filesystem path via the slug maps.
+      return resolveSlugToPath(dir);
+    } catch {
+      // Not in this directory — continue searching.
+    }
+  }
+  return null;
 }
 
 // --- Git remote URL ---

@@ -76,6 +76,8 @@ export async function executeChatMessage(
         "session_id" in msg
       ) {
         capturedSessionId = msg.session_id as string;
+        // Explicitly persist project_path — SDK hook input.cwd is unreliable.
+        upsertSession(capturedSessionId, { project_path: process.cwd() });
       }
       if (msg.type === "assistant" && msg.message?.content) {
         for (const block of msg.message.content) {

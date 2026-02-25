@@ -61,6 +61,9 @@ export function createSessionHooks(
       const existing = getSession(input.session_id);
       upsertSession(input.session_id, {
         state: "thinking",
+        // Belt-and-suspenders: if SessionStart didn't fire (e.g. CLI sessions or
+        // SDK paths that skip it), capture project_path from cwd here instead.
+        ...(existing?.project_path ? {} : { project_path: input.cwd }),
         ...(existing?.first_prompt
           ? {}
           : { first_prompt: input.prompt.slice(0, 200) }),

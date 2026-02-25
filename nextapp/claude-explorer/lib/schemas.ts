@@ -51,7 +51,8 @@ export const ParsedMessageSchema = z.object({
 });
 
 export const RecentSessionSchema = SessionMetaSchema.extend({
-  projectSlug: z.string(),
+  // null means "root workspace" — navigate to /chat/{id} instead of /project/…
+  projectSlug: z.string().nullable(),
   projectPath: z.string(),
   sessionState: SessionStateSchema.optional(),
 });

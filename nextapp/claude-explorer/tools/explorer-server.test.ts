@@ -130,38 +130,46 @@ describe("MCP explorer-server over stdio", () => {
     await Bun.sleep(100);
   });
 
-  test("tools/list returns all tools", async () => {
+  test("tools/list returns only crons, webhooks, and email tools", async () => {
     const resp = (await sendJsonRpc("tools/list")) as any;
     const toolNames = resp.result.tools.map((t: any) => t.name).sort();
     expect(toolNames).toEqual([
-      "cron_create",
-      "cron_delete",
-      "cron_list",
-      "cron_toggle",
-      "message_list",
-      "message_read",
-      "message_send",
-      "webhook_create",
-      "webhook_delete",
-      "webhook_events",
-      "webhook_list",
-      "webhook_toggle",
+      "crons_create",
+      "crons_delete",
+      "crons_events",
+      "crons_list",
+      "crons_toggle",
+      "email_domain",
+      "email_events",
+      "email_getConfig",
+      "email_listConfigs",
+      "email_removeConfig",
+      "email_send",
+      "email_setConfig",
+      "webhooks_create",
+      "webhooks_createForIntegration",
+      "webhooks_delete",
+      "webhooks_eventCatalog",
+      "webhooks_events",
+      "webhooks_list",
+      "webhooks_setupInstructions",
+      "webhooks_toggle",
     ]);
   });
 
-  test("cron_list returns empty", async () => {
+  test("crons_list returns empty", async () => {
     const resp = (await sendJsonRpc("tools/call", {
-      name: "cron_list",
+      name: "crons_list",
       arguments: {},
     })) as any;
     const content = JSON.parse(resp.result.content[0].text);
     expect(content).toEqual([]);
   });
 
-  test("cron_create then cron_list shows it", async () => {
+  test("crons_create then crons_list shows it", async () => {
     // Create
     const createResp = (await sendJsonRpc("tools/call", {
-      name: "cron_create",
+      name: "crons_create",
       arguments: {
         expression: "*/10 * * * *",
         prompt: "mcp test cron",
@@ -174,7 +182,7 @@ describe("MCP explorer-server over stdio", () => {
 
     // List
     const listResp = (await sendJsonRpc("tools/call", {
-      name: "cron_list",
+      name: "crons_list",
       arguments: {},
     })) as any;
     const crons = JSON.parse(listResp.result.content[0].text);
@@ -183,7 +191,7 @@ describe("MCP explorer-server over stdio", () => {
 
     // Toggle
     const toggleResp = (await sendJsonRpc("tools/call", {
-      name: "cron_toggle",
+      name: "crons_toggle",
       arguments: { id: created.id },
     })) as any;
     const toggled = JSON.parse(toggleResp.result.content[0].text);
@@ -191,7 +199,7 @@ describe("MCP explorer-server over stdio", () => {
 
     // Delete
     const deleteResp = (await sendJsonRpc("tools/call", {
-      name: "cron_delete",
+      name: "crons_delete",
       arguments: { id: created.id },
     })) as any;
     const deleted = JSON.parse(deleteResp.result.content[0].text);
@@ -199,16 +207,16 @@ describe("MCP explorer-server over stdio", () => {
 
     // Verify empty
     const listResp2 = (await sendJsonRpc("tools/call", {
-      name: "cron_list",
+      name: "crons_list",
       arguments: {},
     })) as any;
     const crons2 = JSON.parse(listResp2.result.content[0].text);
     expect(crons2).toEqual([]);
   });
 
-  test("webhook_list returns empty", async () => {
+  test("webhooks_list returns empty", async () => {
     const resp = (await sendJsonRpc("tools/call", {
-      name: "webhook_list",
+      name: "webhooks_list",
       arguments: {},
     })) as any;
     const content = JSON.parse(resp.result.content[0].text);
@@ -218,7 +226,7 @@ describe("MCP explorer-server over stdio", () => {
   test("webhook CRUD lifecycle", async () => {
     // Create
     const createResp = (await sendJsonRpc("tools/call", {
-      name: "webhook_create",
+      name: "webhooks_create",
       arguments: {
         name: "MCP test webhook",
         provider: "generic",
@@ -236,7 +244,7 @@ describe("MCP explorer-server over stdio", () => {
 
     // List
     const listResp = (await sendJsonRpc("tools/call", {
-      name: "webhook_list",
+      name: "webhooks_list",
       arguments: {},
     })) as any;
     const webhooks = JSON.parse(listResp.result.content[0].text);
@@ -245,7 +253,7 @@ describe("MCP explorer-server over stdio", () => {
 
     // Toggle
     const toggleResp = (await sendJsonRpc("tools/call", {
-      name: "webhook_toggle",
+      name: "webhooks_toggle",
       arguments: { id: created.id },
     })) as any;
     const toggled = JSON.parse(toggleResp.result.content[0].text);
@@ -253,7 +261,7 @@ describe("MCP explorer-server over stdio", () => {
 
     // Delete
     const deleteResp = (await sendJsonRpc("tools/call", {
-      name: "webhook_delete",
+      name: "webhooks_delete",
       arguments: { id: created.id },
     })) as any;
     const deleted = JSON.parse(deleteResp.result.content[0].text);
@@ -261,51 +269,20 @@ describe("MCP explorer-server over stdio", () => {
 
     // Verify empty
     const listResp2 = (await sendJsonRpc("tools/call", {
-      name: "webhook_list",
+      name: "webhooks_list",
       arguments: {},
     })) as any;
     const webhooks2 = JSON.parse(listResp2.result.content[0].text);
     expect(webhooks2).toEqual([]);
   });
 
-  test("webhook_events returns empty", async () => {
+  test("webhooks_events returns empty", async () => {
     const resp = (await sendJsonRpc("tools/call", {
-      name: "webhook_events",
+      name: "webhooks_events",
       arguments: {},
     })) as any;
     const content = JSON.parse(resp.result.content[0].text);
     expect(content).toEqual([]);
   });
 
-  test("message_send and message_list", async () => {
-    // Send
-    const sendResp = (await sendJsonRpc("tools/call", {
-      name: "message_send",
-      arguments: {
-        fromProjectSlug: "proj-a",
-        fromSessionId: "s1",
-        toProjectSlug: "proj-b",
-        body: "hello from MCP test",
-      },
-    })) as any;
-    const msg = JSON.parse(sendResp.result.content[0].text);
-    expect(msg.body).toBe("hello from MCP test");
-    expect(msg.id).toBeTruthy();
-
-    // List
-    const listResp = (await sendJsonRpc("tools/call", {
-      name: "message_list",
-      arguments: { projectSlug: "proj-b" },
-    })) as any;
-    const msgs = JSON.parse(listResp.result.content[0].text);
-    expect(msgs).toHaveLength(1);
-
-    // Mark read
-    const readResp = (await sendJsonRpc("tools/call", {
-      name: "message_read",
-      arguments: { id: msg.id },
-    })) as any;
-    const marked = JSON.parse(readResp.result.content[0].text);
-    expect(marked.read).toBe(true);
-  });
 });

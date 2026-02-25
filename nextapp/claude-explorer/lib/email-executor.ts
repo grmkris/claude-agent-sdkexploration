@@ -257,6 +257,8 @@ ${config.prompt}`;
           "session_id" in msg
         ) {
           capturedSessionId = msg.session_id as string;
+          // Explicitly persist project_path — SDK hook input.cwd is unreliable.
+          if (cwd) upsertSession(capturedSessionId, { project_path: cwd });
         }
         if (capturedSessionId && msg.type === "result") {
           const r = msg as {

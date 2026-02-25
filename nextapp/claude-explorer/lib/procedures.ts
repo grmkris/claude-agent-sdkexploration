@@ -43,6 +43,7 @@ import {
   readCommandContent,
   getGitStatus,
   getGitFileDiff,
+  findProjectPathForSession,
 } from "./claude-fs";
 import { sendEmail } from "./email";
 import {
@@ -190,8 +191,26 @@ function sessionRowToMeta(row: SessionRow): import("./schemas").SessionMeta {
 async function sessionRowToRecent(
   row: SessionRow
 ): Promise<import("./schemas").RecentSession> {
-  const projectPath = row.project_path ?? USER_HOME;
-  const projectSlug = await resolveSlugForCwd(projectPath);
+  let projectPath = row.project_path;
+
+  // Backfill: if project_path was never captured (pre-fix sessions where the
+  // SDK hook's input.cwd was undefined), search the filesystem for the .jsonl.
+  if (!projectPath) {
+    const found = await findProjectPathForSession(row.session_id);
+    if (found) {
+      projectPath = found;
+      // Persist so subsequent queries don't need to search again.
+      upsertSession(row.session_id, { project_path: found });
+    } else {
+      // Truly unknown — fall back to root workspace.
+      projectPath = USER_HOME;
+    }
+  }
+
+  // Root workspace sessions navigate to /chat/{id}, not /project/…/chat/{id}.
+  const isRoot = projectPath === USER_HOME;
+  const projectSlug = isRoot ? null : await resolveSlugForCwd(projectPath);
+
   return {
     ...sessionRowToMeta(row),
     projectSlug,
@@ -463,6 +482,11 @@ const chatProc = os
         // Capture session_id from init message
         if ("type" in msg && msg.type === "system" && "session_id" in msg) {
           sessionId = (msg as { session_id: string }).session_id;
+          // Explicitly set project_path — the SessionStart hook's input.cwd is
+          // unreliable (undefined at runtime), so we capture it here directly.
+          upsertSession(sessionId, {
+            project_path: input.cwd ?? process.cwd(),
+          });
         }
         // Capture result metrics
         if ("type" in msg && msg.type === "result" && sessionId) {
@@ -1015,6 +1039,7 @@ const rootChatProc = os
         prompt: buildPromptArg(input.prompt, input.resume, input.images),
         options: {
           model: "claude-sonnet-4-6",
+          executable: "bun",
           permissionMode: "bypassPermissions",
           allowDangerouslySkipPermissions: true,
           env: cleanEnv,
@@ -1051,6 +1076,8 @@ const rootChatProc = os
       for await (const msg of conversation) {
         if ("type" in msg && msg.type === "system" && "session_id" in msg) {
           sessionId = (msg as { session_id: string }).session_id;
+          // Explicitly set project_path for root workspace sessions.
+          upsertSession(sessionId, { project_path: USER_HOME });
         }
         if ("type" in msg && msg.type === "result" && sessionId) {
           const r = msg as {
