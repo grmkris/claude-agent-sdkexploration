@@ -146,12 +146,12 @@ export function upsertSession(sessionId: string, patch: SessionPatch): void {
   } else {
     // UPDATE only provided fields
     const sets: string[] = ["updated_at = ?"];
-    const vals: unknown[] = [now];
+    const vals: (string | number | null)[] = [now];
 
     for (const [key, val] of Object.entries(patch)) {
       if (val !== undefined) {
         sets.push(`${key} = ?`);
-        vals.push(val);
+        vals.push(val as string | number | null);
       }
     }
 
