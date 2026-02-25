@@ -60,7 +60,7 @@ export function SessionStateBadge({
     return (
       <TooltipProvider>
         <Tooltip>
-          <TooltipTrigger asChild>
+          <TooltipTrigger>
             <span className="inline-flex items-center">{dot}</span>
           </TooltipTrigger>
           <TooltipContent side="right">
@@ -108,7 +108,7 @@ export function StateBadgeInline({
     return (
       <TooltipProvider>
         <Tooltip>
-          <TooltipTrigger asChild>
+          <TooltipTrigger>
             <span className="inline-flex items-center">{dot}</span>
           </TooltipTrigger>
           <TooltipContent side="right">{tooltipText}</TooltipContent>
