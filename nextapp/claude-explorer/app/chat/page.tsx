@@ -68,7 +68,12 @@ function RootNewChatContent() {
           {error}
         </div>
       )}
-      <ChatInput onSend={send} onStop={stop} isStreaming={isStreaming} />
+      <ChatInput
+        onSend={send}
+        onStop={stop}
+        isStreaming={isStreaming}
+        storageKey="__root__:new"
+      />
     </div>
   );
 }

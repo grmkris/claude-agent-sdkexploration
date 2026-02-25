@@ -5,8 +5,8 @@ import { traverseContractProcedures } from "@orpc/server";
 
 import type { router } from "../../lib/procedures";
 
-/** Streaming procedures — not compatible with MCP's single-response model */
-const EXCLUDE = new Set(["chat", "rootChat"]);
+/** Only expose these top-level router keys as MCP tools (keeps agent context small) */
+const INCLUDE_PREFIXES = new Set(["crons", "webhooks", "email"]);
 
 /** Tool descriptions keyed by flattened path (e.g. "crons_create") */
 const DESCRIPTIONS: Record<string, string> = {
@@ -31,74 +31,6 @@ const DESCRIPTIONS: Record<string, string> = {
   webhooks_setupInstructions:
     "Get setup instructions and dashboard URL for a webhook",
 
-  // Messages
-  messages_send: "Send a message to another Claude session or project",
-  messages_list: "List messages for a project/session",
-  messages_markRead: "Mark a message as read",
-  messages_unreadBySession:
-    "Get unread message counts by session for a project",
-
-  // Projects
-  projects_list:
-    "List all Claude Code projects with metadata (slug, path, last active, git remote, costs)",
-  projects_resolveSlug: "Resolve a project slug to its filesystem path",
-  projects_config:
-    "Get project configuration (MCP servers, CLAUDE.md, agents, skills)",
-  projects_files: "List files and directories in a project",
-  projects_readFile: "Read file content from a project",
-  projects_createDir: "Create a directory inside a project",
-  projects_create:
-    "Create a new project directory and optionally run an initial prompt",
-
-  // Sessions
-  sessions_list: "List sessions for a specific project",
-  sessions_messages: "Get messages from a specific session",
-  sessions_recent: "List recently active sessions across all projects",
-
-  // Favorites
-  favorites_get: "Get favorited projects and sessions",
-  favorites_toggleProject: "Toggle a project as favorite",
-  favorites_toggleSession: "Toggle a session as favorite",
-
-  // User
-  user_config: "Get user-level configuration (MCP servers, skills)",
-
-  // Tmux
-  tmux_panes: "List active tmux panes",
-
-  // Server
-  server_config: "Get server configuration (SSH host, home directory)",
-
-  // Analytics
-  analytics_globalStats: "Get global usage statistics",
-  analytics_activity: "Get daily activity data",
-  analytics_facets: "Get session facets for given session IDs",
-
-  // Integrations
-  integrations_list:
-    "List all configured integrations (Linear, GitHub, Railway)",
-  integrations_create: "Create a new integration connection",
-  integrations_delete: "Delete an integration by ID",
-  integrations_toggle: "Enable or disable an integration",
-  integrations_data: "Fetch dashboard widget data for an integration",
-  integrations_test: "Test an integration connection with a token",
-  integrations_suggest:
-    "Suggest integrations based on project MCP servers and git remote",
-
-  // API Keys
-  apiKeys_list: "List all stored API keys (tokens redacted)",
-  apiKeys_create: "Store a new API key in the vault",
-  apiKeys_update: "Update an API key label or token",
-  apiKeys_delete: "Delete an API key from the vault",
-  apiKeys_test: "Test an API key by connecting to its provider",
-  apiKeys_usage: "Get usage counts for API keys across integrations",
-
-  // Root workspace
-  root_primarySession: "Get the root workspace primary session ID",
-  root_setPrimary: "Set the root workspace primary session ID",
-  root_sessions: "List root workspace sessions",
-  root_messages: "Get messages from a root workspace session",
-
   // Email
   email_getConfig: "Get email configuration for a workspace",
   email_setConfig:
@@ -108,6 +40,7 @@ const DESCRIPTIONS: Record<string, string> = {
     "Send an email. Supports replies with threading via inReplyTo parameter.",
   email_events: "List recent email events (sent and received)",
   email_listConfigs: "List all configured email addresses across workspaces",
+  email_domain: "Get the email domain for this instance",
 };
 
 /**
@@ -134,8 +67,9 @@ export function registerAllTools(
     { router: orpcRouter, path: [] },
     ({ contract, path }) => {
       const toolName = path.join("_");
+      const prefix = path[0];
 
-      if (EXCLUDE.has(toolName)) return;
+      if (!prefix || !INCLUDE_PREFIXES.has(prefix)) return;
 
       const def = (contract as any)["~orpc"];
       const inputSchema = def.inputSchema ?? undefined;

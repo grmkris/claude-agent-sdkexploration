@@ -7,6 +7,7 @@ import { useState } from "react";
 import type { SessionMeta, TmuxPane } from "@/lib/types";
 
 import { StarIcon, StarFilledIcon } from "@/components/icons";
+import { SessionStateBadge } from "@/components/session-state-badge";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -16,7 +17,6 @@ import {
   CardContent,
 } from "@/components/ui/card";
 import { orpc } from "@/lib/orpc";
-import { SessionStateBadge } from "@/components/session-state-badge";
 import { generateTmuxCommand } from "@/lib/tmux-command";
 import { getTimeAgo } from "@/lib/utils";
 

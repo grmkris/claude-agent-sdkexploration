@@ -6,11 +6,12 @@ import {
   StopIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { useState, useRef, useCallback } from "react";
+import { useRef, useCallback } from "react";
 
 import type { AttachedImage } from "@/lib/types";
 
 import { Button } from "@/components/ui/button";
+import { useInputDraft } from "@/hooks/use-input-draft";
 import { cn } from "@/lib/utils";
 
 // ─── Image attachment constants ──────────────────────────────────────────────
@@ -52,13 +53,15 @@ export function ChatInput({
   onStop,
   disabled,
   isStreaming,
+  storageKey,
 }: {
   onSend: (prompt: string, images?: AttachedImage[]) => void;
   onStop?: () => void;
   disabled?: boolean;
   isStreaming?: boolean;
+  storageKey: string;
 }) {
-  const [value, setValue] = useState("");
+  const { value, setValue, clearDraft } = useInputDraft(storageKey);
   const [focused, setFocused] = useState(false);
   const [attachedImages, setAttachedImages] = useState<AttachedImage[]>([]);
   const [isDragOver, setIsDragOver] = useState(false);
@@ -82,7 +85,7 @@ export function ChatInput({
     if ((!trimmed && attachedImages.length === 0) || disabled || isStreaming)
       return;
     onSend(trimmed, attachedImages.length > 0 ? attachedImages : undefined);
-    setValue("");
+    clearDraft();
     setAttachedImages([]);
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";

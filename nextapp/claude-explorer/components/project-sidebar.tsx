@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+import { SessionStateBadge } from "@/components/session-state-badge";
 import {
   Sidebar,
   SidebarContent,
@@ -16,7 +17,6 @@ import {
   SidebarMenuSkeleton,
 } from "@/components/ui/sidebar";
 import { orpc } from "@/lib/orpc";
-import { SessionStateBadge } from "@/components/session-state-badge";
 
 export function ProjectSidebar() {
   const pathname = usePathname();

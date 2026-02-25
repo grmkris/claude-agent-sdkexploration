@@ -6,11 +6,11 @@ import { usePathname } from "next/navigation";
 
 import { OpenInCursorButton } from "@/components/open-in-cursor-button";
 import { IntegrationWidgets } from "@/components/project-integrations";
+import { SessionStateBadge } from "@/components/session-state-badge";
 import { Button } from "@/components/ui/button";
 import { SidebarGroup, SidebarGroupContent } from "@/components/ui/sidebar";
 import { orpc } from "@/lib/orpc";
 import { client } from "@/lib/orpc-client";
-import { SessionStateBadge } from "@/components/session-state-badge";
 
 // ── Project-scoped automations (shown when inside a project) ─────────────────
 

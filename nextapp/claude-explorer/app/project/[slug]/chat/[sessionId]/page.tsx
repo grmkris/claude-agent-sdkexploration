@@ -79,6 +79,7 @@ export default function SessionChatPage({
         onStop={stop}
         isStreaming={isStreaming}
         disabled={!resolved?.path}
+        storageKey={`${slug}:${sessionId}`}
       />
     </div>
   );

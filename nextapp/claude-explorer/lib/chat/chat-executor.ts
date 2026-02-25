@@ -99,7 +99,9 @@ export async function executeChatMessage(
           output_tokens: r.usage?.output_tokens ?? null,
           num_turns: r.num_turns ?? null,
           duration_ms: r.duration_ms ?? null,
-          ...(r.is_error ? { state: "error", error: r.subtype ?? "error" } : {}),
+          ...(r.is_error
+            ? { state: "error", error: r.subtype ?? "error" }
+            : {}),
         });
       }
     }

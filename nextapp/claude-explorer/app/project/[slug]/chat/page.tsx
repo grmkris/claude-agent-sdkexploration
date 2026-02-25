@@ -45,6 +45,7 @@ export default function NewChatPage({
         onStop={stop}
         isStreaming={isStreaming}
         disabled={!data?.path}
+        storageKey={`${slug}:new`}
       />
     </div>
   );

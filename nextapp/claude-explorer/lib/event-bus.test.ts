@@ -11,7 +11,8 @@ describe("event bus", () => {
 
   test("survives globalThis reset", () => {
     const original = getSessionEventBus();
-    (globalThis as { __explorerEventBus?: unknown }).__explorerEventBus = undefined;
+    (globalThis as { __explorerEventBus?: unknown }).__explorerEventBus =
+      undefined;
     const fresh = getSessionEventBus();
     expect(fresh).not.toBe(original);
     // New one still works
