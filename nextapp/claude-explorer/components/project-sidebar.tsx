@@ -86,6 +86,16 @@ export function ProjectSidebar() {
                   </SidebarMenuButton>
                 </Link>
               </SidebarMenuItem>
+              <SidebarMenuItem>
+                <Link href="/crons">
+                  <SidebarMenuButton
+                    isActive={pathname === "/crons"}
+                    tooltip="Cron Jobs"
+                  >
+                    <span>Crons</span>
+                  </SidebarMenuButton>
+                </Link>
+              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
