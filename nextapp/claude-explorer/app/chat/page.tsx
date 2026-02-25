@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef } from "react";
 
 import { ChatInput } from "@/components/chat-input";
@@ -16,6 +16,7 @@ const ONBOARD_PROMPT =
 function RootNewChatContent() {
   const queryClient = useQueryClient();
   const searchParams = useSearchParams();
+  const router = useRouter();
   const { messages, send, stop, isStreaming, sessionId, error, toolProgress } =
     useRootChatStream();
 
@@ -49,6 +50,17 @@ function RootNewChatContent() {
       })();
     }
   }, [sessionId]);
+
+  // Once the first stream completes, redirect to the canonical session URL.
+  // This keeps /chat always a blank slate, so starting a new conversation
+  // always forces a full component remount with fresh state.
+  const didRedirect = useRef(false);
+  useEffect(() => {
+    if (sessionId && !isStreaming && !didRedirect.current) {
+      didRedirect.current = true;
+      router.replace(`/chat/${sessionId}`);
+    }
+  }, [sessionId, isStreaming, router]);
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">

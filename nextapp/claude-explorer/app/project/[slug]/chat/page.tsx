@@ -1,7 +1,8 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { use } from "react";
+import { use, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 
 import { ChatInput } from "@/components/chat-input";
 import { ChatView } from "@/components/chat-view";
@@ -14,6 +15,7 @@ export default function NewChatPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = use(params);
+  const router = useRouter();
   const { data } = useQuery(
     orpc.projects.resolveSlug.queryOptions({ input: { slug } })
   );
@@ -21,6 +23,18 @@ export default function NewChatPage({
     useChatStream({
       cwd: data?.path,
     });
+
+  // Once the first stream completes, redirect to the canonical session URL.
+  // This keeps /project/[slug]/chat always a blank slate, so clicking
+  // "+ New" from a session page always hits a different URL and forces
+  // a full component remount with fresh useChatStream state.
+  const didRedirect = useRef(false);
+  useEffect(() => {
+    if (sessionId && !isStreaming && !didRedirect.current) {
+      didRedirect.current = true;
+      router.replace(`/project/${slug}/chat/${sessionId}`);
+    }
+  }, [sessionId, isStreaming, slug, router]);
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
