@@ -46,7 +46,9 @@ export function SessionList({ projectSlug }: { projectSlug: string }) {
     mutationFn: (id: string) => client.sessions.archive({ sessionId: id }),
     onSuccess: () =>
       queryClient.invalidateQueries({
-        queryKey: orpc.sessions.list.queryOptions({ input: { slug: projectSlug } }).queryKey,
+        queryKey: orpc.sessions.list.queryOptions({
+          input: { slug: projectSlug },
+        }).queryKey,
       }),
   });
 

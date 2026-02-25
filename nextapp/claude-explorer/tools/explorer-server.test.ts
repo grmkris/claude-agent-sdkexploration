@@ -284,5 +284,4 @@ describe("MCP explorer-server over stdio", () => {
     const content = JSON.parse(resp.result.content[0].text);
     expect(content).toEqual([]);
   });
-
 });

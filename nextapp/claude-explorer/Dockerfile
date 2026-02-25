@@ -95,7 +95,7 @@ RUN bun install --frozen-lockfile
 
 # Copy source + build
 COPY --chown=bun:bun . .
-RUN bun --bun next build --webpack
+RUN bun --bun next build
 
 # Lock /app — root owns it, bun can read/execute (755)
 USER root

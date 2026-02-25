@@ -122,10 +122,7 @@ async function buildSlugMaps() {
       // (leading dash stripped, remaining dashes → slashes).
       // This is lossy for paths that contain literal hyphens, but it is
       // still far better than storing the raw dir name as the path.
-      _slugToPath.set(
-        dir,
-        "/" + dir.replace(/^-/, "").replace(/-/g, "/")
-      );
+      _slugToPath.set(dir, "/" + dir.replace(/^-/, "").replace(/-/g, "/"));
     }
   }
 

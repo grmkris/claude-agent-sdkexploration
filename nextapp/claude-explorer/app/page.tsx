@@ -381,8 +381,7 @@ function UnifiedSessionsSection() {
     rootSessions?.filter((s) => !liveIds.has(s.id)) ?? [];
 
   const hasAnything =
-    (liveSessions && liveSessions.length > 0) ||
-    rootSessionsNotLive.length > 0;
+    (liveSessions && liveSessions.length > 0) || rootSessionsNotLive.length > 0;
 
   if (!isLoading && !hasAnything) {
     return (
@@ -469,9 +468,7 @@ function UnifiedSessionsSection() {
                     e.stopPropagation();
                     setPrimary.mutate(isPrimary ? null : s.session_id);
                   }}
-                  title={
-                    isPrimary ? "Unpin primary session" : "Pin as primary"
-                  }
+                  title={isPrimary ? "Unpin primary session" : "Pin as primary"}
                 >
                   {isPrimary ? "unpin" : "pin"}
                 </Button>
@@ -504,9 +501,7 @@ function UnifiedSessionsSection() {
                 size="sm"
                 variant="ghost"
                 className="h-5 shrink-0 px-1.5 text-[10px]"
-                onClick={() =>
-                  setPrimary.mutate(isPrimary ? null : session.id)
-                }
+                onClick={() => setPrimary.mutate(isPrimary ? null : session.id)}
                 title={isPrimary ? "Unpin primary session" : "Pin as primary"}
               >
                 {isPrimary ? "unpin" : "pin"}

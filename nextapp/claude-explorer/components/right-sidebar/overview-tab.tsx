@@ -255,7 +255,9 @@ function RecentSection({ slug }: { slug: string | null }) {
 
   // Project-scoped: use sessions.list so we only show this project's sessions.
   const { data: projectSessions, isLoading: projectLoading } = useQuery({
-    ...orpc.sessions.list.queryOptions({ input: { slug: slug ?? "", limit: 30 } }),
+    ...orpc.sessions.list.queryOptions({
+      input: { slug: slug ?? "", limit: 30 },
+    }),
     refetchInterval: 30_000,
     enabled: !!slug,
   });
@@ -292,7 +294,7 @@ function RecentSection({ slug }: { slug: string | null }) {
             // Global sessions: use session.projectSlug (nullable → root route).
             const href = slug
               ? `/project/${slug}/chat/${session.id}`
-              : ("projectSlug" in session && session.projectSlug)
+              : "projectSlug" in session && session.projectSlug
                 ? `/project/${session.projectSlug}/chat/${session.id}`
                 : `/chat/${session.id}`;
             const isActive = pathname.includes(session.id);

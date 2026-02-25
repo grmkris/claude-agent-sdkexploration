@@ -2,13 +2,13 @@
 
 import { useQuery } from "@tanstack/react-query";
 
-import { orpc } from "@/lib/orpc";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { orpc } from "@/lib/orpc";
 import { getTimeAgo } from "@/lib/utils";
 
 const stateConfig: Record<
@@ -122,7 +122,9 @@ export function StateBadgeInline({
       {dot}
       <span className="text-[10px] text-muted-foreground">{label}</span>
       {timeAgo && (
-        <span className="text-[10px] text-muted-foreground/60">· {timeAgo}</span>
+        <span className="text-[10px] text-muted-foreground/60">
+          · {timeAgo}
+        </span>
       )}
     </span>
   );

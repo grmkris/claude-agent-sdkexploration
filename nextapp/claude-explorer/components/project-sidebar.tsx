@@ -5,10 +5,12 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { ProjectContextSection } from "@/components/project-sidebar/project-context-section";
+import { PushNotificationManager } from "@/components/push-notification-manager";
 import { SessionStateBadge } from "@/components/session-state-badge";
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
@@ -113,7 +115,9 @@ export function ProjectSidebar() {
         {/* ── Sessions list ─────────────────────────────── */}
         {/* The "Sessions" label is already injected by ProjectContextSection when on a project page */}
         <SidebarGroup>
-          {!projectSlug && <SidebarGroupLabel>Recent sessions</SidebarGroupLabel>}
+          {!projectSlug && (
+            <SidebarGroupLabel>Recent sessions</SidebarGroupLabel>
+          )}
           <SidebarGroupContent>
             <SidebarMenu>
               {isLoading &&
@@ -183,6 +187,9 @@ export function ProjectSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
+      <SidebarFooter>
+        <PushNotificationManager />
+      </SidebarFooter>
     </Sidebar>
   );
 }

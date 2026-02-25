@@ -1,8 +1,8 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { use, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { use, useEffect, useRef } from "react";
 
 import { ChatInput } from "@/components/chat-input";
 import { ChatView } from "@/components/chat-view";
