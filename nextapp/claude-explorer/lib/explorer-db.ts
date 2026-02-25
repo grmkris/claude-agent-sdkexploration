@@ -26,6 +26,7 @@ export interface SessionRow {
   source: string | null;
   model: string | null;
   first_prompt: string | null;
+  git_branch: string | null;
   started_at: string;
   updated_at: string;
   ended_at: string | null;
@@ -72,6 +73,7 @@ function getDB(): Database {
       source         TEXT,
       model          TEXT,
       first_prompt   TEXT,
+      git_branch     TEXT,
       started_at     TEXT NOT NULL,
       updated_at     TEXT NOT NULL,
       ended_at       TEXT,
@@ -86,6 +88,13 @@ function getDB(): Database {
     CREATE INDEX IF NOT EXISTS idx_sessions_updated ON sessions(updated_at);
     CREATE INDEX IF NOT EXISTS idx_sessions_project ON sessions(project_path);
   `);
+
+  // Migration: add git_branch column to existing DBs
+  try {
+    db.exec("ALTER TABLE sessions ADD COLUMN git_branch TEXT");
+  } catch {
+    // Column already exists
+  }
 
   return db;
 }
@@ -111,6 +120,7 @@ export function upsertSession(sessionId: string, patch: SessionPatch): void {
       source: patch.source ?? null,
       model: patch.model ?? null,
       first_prompt: patch.first_prompt ?? null,
+      git_branch: patch.git_branch ?? null,
       started_at: patch.started_at ?? now,
       updated_at: now,
       ended_at: patch.ended_at ?? null,
@@ -123,8 +133,8 @@ export function upsertSession(sessionId: string, patch: SessionPatch): void {
     };
 
     d.query(
-      `INSERT INTO sessions (session_id, project_path, state, current_tool, source, model, first_prompt, started_at, updated_at, ended_at, cost_usd, input_tokens, output_tokens, num_turns, duration_ms, error)
-       VALUES ($session_id, $project_path, $state, $current_tool, $source, $model, $first_prompt, $started_at, $updated_at, $ended_at, $cost_usd, $input_tokens, $output_tokens, $num_turns, $duration_ms, $error)`
+      `INSERT INTO sessions (session_id, project_path, state, current_tool, source, model, first_prompt, git_branch, started_at, updated_at, ended_at, cost_usd, input_tokens, output_tokens, num_turns, duration_ms, error)
+       VALUES ($session_id, $project_path, $state, $current_tool, $source, $model, $first_prompt, $git_branch, $started_at, $updated_at, $ended_at, $cost_usd, $input_tokens, $output_tokens, $num_turns, $duration_ms, $error)`
     ).run({
       $session_id: row.session_id,
       $project_path: row.project_path,
@@ -133,6 +143,7 @@ export function upsertSession(sessionId: string, patch: SessionPatch): void {
       $source: row.source,
       $model: row.model,
       $first_prompt: row.first_prompt,
+      $git_branch: row.git_branch,
       $started_at: row.started_at,
       $updated_at: row.updated_at,
       $ended_at: row.ended_at,
@@ -164,6 +175,7 @@ export function upsertSession(sessionId: string, patch: SessionPatch): void {
   // Emit event
   const updated = getSession(sessionId);
   if (updated) {
+    console.log(`[explorer-db] emit session:state ${sessionId} state=${updated.state}${updated.current_tool ? ` tool=${updated.current_tool}` : ""}`);
     getSessionEventBus().emit("session:state", {
       sessionId,
       state: updated.state,

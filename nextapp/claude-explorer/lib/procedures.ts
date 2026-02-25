@@ -8,19 +8,19 @@ import { join, dirname } from "node:path";
 import { z } from "zod";
 
 import type { SDKMessage } from "./types";
+import type { SessionRow, SessionState as DbSessionState } from "./explorer-db";
 import {
   upsertSession,
   getSession as getDbSession,
   getActiveSessions as getDbActiveSessions,
   getProjectSessions as getDbProjectSessions,
+  getAllRecentSessions as getDbAllRecentSessions,
 } from "./explorer-db";
 import { createSessionHooks } from "./session-hooks";
 
 import {
   listProjects,
-  listSessions,
   getSessionMessages,
-  getRecentSessions,
   resolveSlugToPath,
   readProjectMcpConfig,
   readUserMcpServers,
@@ -35,8 +35,6 @@ import {
   readGlobalStats,
   readStatsCache,
   readSessionFacets,
-  listRootSessions,
-  listAllSessions,
   createDirectory,
   createProjectDirectory,
   invalidateSlugCache,
@@ -151,6 +149,56 @@ const USER_HOME = process.env.CLAUDE_CONFIG_DIR
 // Strip CLAUDECODE to allow the Agent SDK to spawn inside a Claude Code container
 const { CLAUDECODE: _CC, ...cleanEnv } = process.env;
 
+// --- DB → Legacy mappers ---
+
+type LegacySessionState = "active" | "idle" | "stale";
+
+function mapDbStateToLegacy(dbState: DbSessionState): LegacySessionState {
+  switch (dbState) {
+    case "thinking":
+    case "initializing":
+    case "tool_running":
+    case "subagent_running":
+    case "compacting":
+      return "active";
+    case "waiting_for_permission":
+    case "stopped":
+    case "done":
+      return "idle";
+    case "error":
+      return "stale";
+    default:
+      return "idle";
+  }
+}
+
+function sessionRowToMeta(row: SessionRow): import("./schemas").SessionMeta {
+  return {
+    id: row.session_id,
+    firstPrompt: row.first_prompt ?? "",
+    timestamp: row.started_at,
+    lastModified: row.updated_at,
+    model: row.model ?? "",
+    gitBranch: row.git_branch ?? "",
+    resumeCommand: row.project_path
+      ? `cd ${row.project_path} && claude --resume ${row.session_id}`
+      : `claude --resume ${row.session_id}`,
+    sessionState: mapDbStateToLegacy(row.state),
+  };
+}
+
+async function sessionRowToRecent(
+  row: SessionRow
+): Promise<import("./schemas").RecentSession> {
+  const projectPath = row.project_path ?? USER_HOME;
+  const projectSlug = await resolveSlugForCwd(projectPath);
+  return {
+    ...sessionRowToMeta(row),
+    projectSlug,
+    projectPath,
+  };
+}
+
 // --- Projects & Sessions ---
 
 const resolveSlugProc = os
@@ -167,7 +215,11 @@ const listProjectsProc = os
 const listSessionsProc = os
   .input(z.object({ slug: z.string(), limit: z.number().optional() }))
   .output(z.array(SessionMetaSchema))
-  .handler(async ({ input }) => listSessions(input.slug, input.limit));
+  .handler(async ({ input }) => {
+    const projectPath = await resolveSlugToPath(input.slug);
+    const rows = getDbProjectSessions(projectPath, input.limit ?? 30);
+    return rows.map(sessionRowToMeta);
+  });
 
 const getMessagesProc = os
   .input(z.object({ slug: z.string(), sessionId: z.string() }))
@@ -179,12 +231,18 @@ const getMessagesProc = os
 const recentSessionsProc = os
   .input(z.object({ limit: z.number().optional() }))
   .output(z.array(RecentSessionSchema))
-  .handler(async ({ input }) => getRecentSessions(input.limit));
+  .handler(async ({ input }) => {
+    const rows = getDbAllRecentSessions(input.limit ?? 20);
+    return Promise.all(rows.map(sessionRowToRecent));
+  });
 
 const timelineSessionsProc = os
   .input(z.object({ limit: z.number().optional() }))
   .output(z.array(RecentSessionSchema))
-  .handler(async ({ input }) => listAllSessions(input.limit));
+  .handler(async ({ input }) => {
+    const rows = getDbAllRecentSessions(input.limit ?? 50);
+    return Promise.all(rows.map(sessionRowToRecent));
+  });
 
 // --- Favorites ---
 
@@ -915,7 +973,10 @@ const rootSetPrimaryProc = os
 const rootSessionsProc = os
   .input(z.object({ limit: z.number().optional() }))
   .output(z.array(SessionMetaSchema))
-  .handler(async ({ input }) => listRootSessions(input.limit));
+  .handler(async ({ input }) => {
+    const rows = getDbProjectSessions(USER_HOME, input.limit ?? 20);
+    return rows.map(sessionRowToMeta);
+  });
 
 const rootSessionMessagesProc = os
   .input(z.object({ sessionId: z.string() }))

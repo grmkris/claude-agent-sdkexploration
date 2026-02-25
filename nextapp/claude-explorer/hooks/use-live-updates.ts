@@ -9,8 +9,9 @@ export function useLiveUpdates() {
   useEffect(() => {
     const es = new EventSource("/api/events");
 
-    es.onmessage = () => {
-      // Invalidate session-related queries on any state change
+    es.onmessage = (ev) => {
+      console.log("[live-updates] SSE event:", ev.data);
+      // Invalidate all session-related queries on any state change
       void queryClient.invalidateQueries({
         queryKey: ["activeSessions"],
       });
@@ -20,10 +21,23 @@ export function useLiveUpdates() {
       void queryClient.invalidateQueries({
         queryKey: ["projectSessions"],
       });
+      // Invalidate orpc-generated keys for session listing procedures
+      void queryClient.invalidateQueries({
+        predicate: (query) => {
+          const key = query.queryKey;
+          // Match orpc keys like ["sessions","list"], ["sessions","recent"],
+          // ["sessions","timeline"], ["root","sessions"]
+          if (Array.isArray(key) && key.length >= 2) {
+            if (key[0] === "sessions") return true;
+            if (key[0] === "root" && key[1] === "sessions") return true;
+          }
+          return false;
+        },
+      });
     };
 
-    es.onerror = () => {
-      // EventSource auto-reconnects
+    es.onerror = (err) => {
+      console.warn("[live-updates] SSE error/reconnect:", err);
     };
 
     return () => es.close();

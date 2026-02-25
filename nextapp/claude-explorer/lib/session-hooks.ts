@@ -5,6 +5,8 @@ import type {
   HookInput,
 } from "@anthropic-ai/claude-agent-sdk/sdk";
 
+import { execSync } from "node:child_process";
+
 import { upsertSession, getSession } from "./explorer-db";
 
 function hookCb(
@@ -12,6 +14,7 @@ function hookCb(
 ): HookCallback {
   return async (input) => {
     try {
+      console.log(`[session-hooks] ${input.hook_event_name} session=${input.session_id}${input.tool_name ? ` tool=${input.tool_name}` : ""}`);
       fn(input);
     } catch (e) {
       console.error("[session-hooks] error:", e);
@@ -30,10 +33,18 @@ export function createSessionHooks(
   return {
     SessionStart: wrap((input) => {
       if (input.hook_event_name !== "SessionStart") return;
+      let gitBranch: string | null = null;
+      try {
+        gitBranch = execSync("git rev-parse --abbrev-ref HEAD", {
+          cwd: input.cwd,
+          timeout: 2000,
+        }).toString().trim();
+      } catch { /* not a git repo */ }
       upsertSession(input.session_id, {
         state: "thinking",
         project_path: input.cwd,
         model: input.model ?? null,
+        git_branch: gitBranch,
         source,
         started_at: new Date().toISOString(),
       });
