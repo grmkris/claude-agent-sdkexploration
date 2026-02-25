@@ -1,9 +1,9 @@
+import type { HookInput } from "@anthropic-ai/claude-agent-sdk/sdk";
+
 import { test, expect, describe, beforeEach, afterAll } from "bun:test";
 import { unlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-
-import type { HookInput } from "@anthropic-ai/claude-agent-sdk/sdk";
 
 const tmpDb = join(tmpdir(), `session-hooks-test-${Date.now()}.sqlite`);
 process.env.EXPLORER_DB_PATH = tmpDb;

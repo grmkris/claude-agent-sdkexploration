@@ -9,12 +9,13 @@ import { execSync } from "node:child_process";
 
 import { upsertSession, getSession } from "./explorer-db";
 
-function hookCb(
-  fn: (input: HookInput) => void
-): HookCallback {
+function hookCb(fn: (input: HookInput) => void): HookCallback {
   return async (input) => {
     try {
-      console.log(`[session-hooks] ${input.hook_event_name} session=${input.session_id}${input.tool_name ? ` tool=${input.tool_name}` : ""}`);
+      const toolName = "tool_name" in input ? input.tool_name : undefined;
+      console.log(
+        `[session-hooks] ${input.hook_event_name} session=${input.session_id}${toolName ? ` tool=${toolName}` : ""}`
+      );
       fn(input);
     } catch (e) {
       console.error("[session-hooks] error:", e);
@@ -38,8 +39,12 @@ export function createSessionHooks(
         gitBranch = execSync("git rev-parse --abbrev-ref HEAD", {
           cwd: input.cwd,
           timeout: 2000,
-        }).toString().trim();
-      } catch { /* not a git repo */ }
+        })
+          .toString()
+          .trim();
+      } catch {
+        /* not a git repo */
+      }
       upsertSession(input.session_id, {
         state: "thinking",
         project_path: input.cwd,

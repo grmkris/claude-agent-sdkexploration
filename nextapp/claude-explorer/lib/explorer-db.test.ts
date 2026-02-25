@@ -205,7 +205,9 @@ describe("cleanOldSessions", () => {
     upsertSession("old-done", { state: "done" });
     // Manually backdate it
     const d = new Database(tmpDb);
-    const oldDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    const oldDate = new Date(
+      Date.now() - 30 * 24 * 60 * 60 * 1000
+    ).toISOString();
     d.query("UPDATE sessions SET updated_at = ? WHERE session_id = ?").run(
       oldDate,
       "old-done"
@@ -221,7 +223,9 @@ describe("cleanOldSessions", () => {
   test("preserves active sessions regardless of age", () => {
     upsertSession("old-active", { state: "thinking" });
     const d = new Database(tmpDb);
-    const oldDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    const oldDate = new Date(
+      Date.now() - 30 * 24 * 60 * 60 * 1000
+    ).toISOString();
     d.query("UPDATE sessions SET updated_at = ? WHERE session_id = ?").run(
       oldDate,
       "old-active"

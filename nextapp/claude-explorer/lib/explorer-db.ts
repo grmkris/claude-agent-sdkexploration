@@ -1,7 +1,7 @@
 import { Database } from "bun:sqlite";
+import { mkdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { mkdirSync } from "node:fs";
 
 import { getSessionEventBus } from "./event-bus";
 
@@ -56,7 +56,8 @@ export function _resetDB(): void {
 function getDB(): Database {
   if (db) return db;
 
-  const dbPath = process.env.EXPLORER_DB_PATH ?? join(homedir(), ".claude", "explorer.db");
+  const dbPath =
+    process.env.EXPLORER_DB_PATH ?? join(homedir(), ".claude", "explorer.db");
   const dir = dbPath.substring(0, dbPath.lastIndexOf("/"));
   mkdirSync(dir, { recursive: true });
 
@@ -175,7 +176,9 @@ export function upsertSession(sessionId: string, patch: SessionPatch): void {
   // Emit event
   const updated = getSession(sessionId);
   if (updated) {
-    console.log(`[explorer-db] emit session:state ${sessionId} state=${updated.state}${updated.current_tool ? ` tool=${updated.current_tool}` : ""}`);
+    console.log(
+      `[explorer-db] emit session:state ${sessionId} state=${updated.state}${updated.current_tool ? ` tool=${updated.current_tool}` : ""}`
+    );
     getSessionEventBus().emit("session:state", {
       sessionId,
       state: updated.state,

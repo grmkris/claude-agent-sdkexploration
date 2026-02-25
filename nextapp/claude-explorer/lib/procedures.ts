@@ -7,16 +7,8 @@ import { homedir } from "node:os";
 import { join, dirname } from "node:path";
 import { z } from "zod";
 
-import type { SDKMessage } from "./types";
 import type { SessionRow, SessionState as DbSessionState } from "./explorer-db";
-import {
-  upsertSession,
-  getSession as getDbSession,
-  getActiveSessions as getDbActiveSessions,
-  getProjectSessions as getDbProjectSessions,
-  getAllRecentSessions as getDbAllRecentSessions,
-} from "./explorer-db";
-import { createSessionHooks } from "./session-hooks";
+import type { SDKMessage } from "./types";
 
 import {
   listProjects,
@@ -53,6 +45,13 @@ import {
   getGitFileDiff,
 } from "./claude-fs";
 import { sendEmail } from "./email";
+import {
+  upsertSession,
+  getSession as getDbSession,
+  getActiveSessions as getDbActiveSessions,
+  getProjectSessions as getDbProjectSessions,
+  getAllRecentSessions as getDbAllRecentSessions,
+} from "./explorer-db";
 import {
   getFavorites,
   toggleFavoriteProject,
@@ -135,6 +134,7 @@ import {
   WorkspaceEmailConfigSchema,
   EmailEventSchema,
 } from "./schemas";
+import { createSessionHooks } from "./session-hooks";
 import { getTmuxPanes } from "./tmux";
 import {
   getCatalog,
@@ -480,7 +480,9 @@ const chatProc = os
             output_tokens: r.usage?.output_tokens ?? null,
             num_turns: r.num_turns ?? null,
             duration_ms: r.duration_ms ?? null,
-            ...(r.is_error ? { state: "error", error: r.subtype ?? "error" } : {}),
+            ...(r.is_error
+              ? { state: "error", error: r.subtype ?? "error" }
+              : {}),
           });
         }
         yield msg;
@@ -1065,7 +1067,9 @@ const rootChatProc = os
             output_tokens: r.usage?.output_tokens ?? null,
             num_turns: r.num_turns ?? null,
             duration_ms: r.duration_ms ?? null,
-            ...(r.is_error ? { state: "error", error: r.subtype ?? "error" } : {}),
+            ...(r.is_error
+              ? { state: "error", error: r.subtype ?? "error" }
+              : {}),
           });
         }
         yield msg;

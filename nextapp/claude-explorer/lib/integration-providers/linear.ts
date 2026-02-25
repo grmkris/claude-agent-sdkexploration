@@ -39,7 +39,9 @@ export class LinearProvider implements IntegrationProvider {
       let assigned;
       if (userName) {
         // Bot token: filter by user name instead of viewer (which is the bot)
-        const users = await client.users({ filter: { name: { eq: userName } } });
+        const users = await client.users({
+          filter: { name: { eq: userName } },
+        });
         const user = users.nodes[0];
         if (user) {
           assigned = await user.assignedIssues({
