@@ -34,6 +34,9 @@ export function SkillsMcpsTab({ slug }: { slug: string | null }) {
   const [expandedMcp, setExpandedMcp] = useState<string | null>(null);
   const [mcpResults, setMcpResults] = useState<Record<string, McpResult>>({});
   const [loadingMcp, setLoadingMcp] = useState<string | null>(null);
+  const [dismissedMcpErrors, setDismissedMcpErrors] = useState<Set<string>>(
+    new Set()
+  );
 
   const { data: userConfig, isLoading: userLoading } = useQuery(
     orpc.user.config.queryOptions()
@@ -108,6 +111,12 @@ export function SkillsMcpsTab({ slug }: { slug: string | null }) {
       setExpandedMcp(null);
       return;
     }
+    // Clear dismissed state so error shows again on re-inspect
+    setDismissedMcpErrors((prev) => {
+      const next = new Set(prev);
+      next.delete(key);
+      return next;
+    });
     setExpandedMcp(key);
     if (mcpResults[key] !== undefined) return;
     setLoadingMcp(key);
@@ -256,10 +265,37 @@ export function SkillsMcpsTab({ slug }: { slug: string | null }) {
                               <p className="px-2 py-1.5 text-[11px] text-muted-foreground">
                                 Connecting to MCP server…
                               </p>
-                            ) : result?.error ? (
-                              <p className="px-2 py-1.5 text-[11px] text-red-400">
-                                {result.error}
-                              </p>
+                            ) : result?.error &&
+                              !dismissedMcpErrors.has(key) ? (
+                              <div className="flex items-start gap-1 px-2 py-1.5">
+                                <p className="flex-1 text-[11px] text-red-400 overflow-auto max-h-24">
+                                  {result.error}
+                                </p>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setDismissedMcpErrors(
+                                      (prev) => new Set([...prev, key])
+                                    );
+                                    setExpandedMcp(null);
+                                  }}
+                                  title="Dismiss error"
+                                  className="shrink-0 rounded p-0.5 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                                >
+                                  <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth={2}
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    className="h-3 w-3"
+                                  >
+                                    <path d="M18 6 6 18M6 6l12 12" />
+                                  </svg>
+                                </button>
+                              </div>
                             ) : result?.tools.length === 0 ? (
                               <p className="px-2 py-1.5 text-[11px] text-muted-foreground">
                                 No tools exposed
