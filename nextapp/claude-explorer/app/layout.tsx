@@ -54,6 +54,10 @@ export default async function RootLayout({
   const cookieStore = await cookies();
   const tabBarVisible =
     cookieStore.get("agent_tab_bar_state")?.value !== "false";
+  const leftSidebarOpen =
+    cookieStore.get("sidebar_state")?.value !== "false";
+  const rightSidebarOpen =
+    cookieStore.get("right_sidebar_state")?.value === "true";
 
   return (
     <html lang="en" className="dark">
@@ -67,8 +71,8 @@ export default async function RootLayout({
       >
         <Providers tabBarVisible={tabBarVisible}>
           <TooltipProvider>
-            <SidebarProvider>
-              <RightSidebarProvider defaultOpen={false}>
+            <SidebarProvider defaultOpen={leftSidebarOpen}>
+              <RightSidebarProvider defaultOpen={rightSidebarOpen}>
                 <ProjectSidebar />
                 <SidebarInset>
                   <header className="flex h-10 shrink-0 items-center gap-2 border-b px-3">
