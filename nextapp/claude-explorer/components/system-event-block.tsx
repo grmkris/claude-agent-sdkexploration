@@ -7,10 +7,32 @@ import type {
   ToolUseSummaryBlock as ToolUseSummaryBlockType,
 } from "@/lib/types";
 
+function linkify(text: string) {
+  const urlRegex = /(https?:\/\/[^\s]+)/g;
+  const parts = text.split(urlRegex);
+  return parts.map((part, i) =>
+    urlRegex.test(part) ? (
+      <a
+        key={i}
+        href={part}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="underline text-blue-400 hover:text-blue-300"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {part}
+      </a>
+    ) : (
+      part
+    )
+  );
+}
+
 export function SystemEventBlock({ block }: { block: SystemEventBlockType }) {
   const [showDetail, setShowDetail] = useState(false);
 
   const icon = eventIcon(block.subtype);
+  const isAuth = block.subtype === "auth_status";
 
   return (
     <div className="flex justify-center py-0.5">
@@ -20,7 +42,7 @@ export function SystemEventBlock({ block }: { block: SystemEventBlockType }) {
         style={{ cursor: block.detail ? "pointer" : "default" }}
       >
         <span>
-          {icon} {block.message}
+          {icon} {isAuth ? linkify(block.message) : block.message}
         </span>
         {showDetail && block.detail && (
           <div className="mt-0.5 font-mono text-[9px] text-muted-foreground/70">
@@ -63,6 +85,8 @@ function eventIcon(subtype: string): string {
     case "task_started":
     case "task_notification":
       return "*";
+    case "auth_status":
+      return "!";
     default:
       return "-";
   }
