@@ -111,6 +111,66 @@ function getDB(): Database {
     // Column already exists
   }
 
+  // Migration: fix project paths that were corrupted by the lossy slug→path
+  // conversion in buildSlugMaps (replacing ALL hyphens with slashes in orphan
+  // directory names, which mangled hyphenated project names like
+  // "claude-agent-sdkexploration" → "claude/agent/sdkexploration").
+  // We detect any stored path whose on-disk directory does NOT exist but whose
+  // sanitised form matches a sibling path that DOES exist, then correct it.
+  try {
+    const { homedir } = require("node:os");
+    const { join: pathJoin, dirname: pathDirname } = require("node:path");
+    const home = process.env.CLAUDE_CONFIG_DIR
+      ? pathDirname(process.env.CLAUDE_CONFIG_DIR)
+      : homedir();
+    const fs = require("node:fs");
+    const claudeConfigPath = pathJoin(
+      process.env.CLAUDE_CONFIG_DIR ?? pathJoin(home, ".claude"),
+      ".claude.json"
+    );
+    let configProjects: string[] = [];
+    try {
+      const raw = JSON.parse(fs.readFileSync(claudeConfigPath, "utf-8"));
+      configProjects = Object.keys(raw.projects ?? {});
+    } catch {
+      // Config unreadable — skip migration
+    }
+
+    if (configProjects.length > 0) {
+      // For each distinct project_path in the DB, check if it looks like a
+      // corrupted path (doesn't exist on disk) and if a registered config
+      // path sanitises to the same slug.
+      const rows = db
+        .query<{ project_path: string }, []>(
+          "SELECT DISTINCT project_path FROM sessions WHERE project_path IS NOT NULL"
+        )
+        .all();
+
+      for (const { project_path } of rows) {
+        // Skip paths that exist on disk — they are not corrupted.
+        if (fs.existsSync(project_path)) continue;
+
+        // Check if a registered config path has the same canonical slug
+        // (i.e. sanitises to the same string as this path sanitises to).
+        const corruptedSlug = project_path.replace(/[^a-zA-Z0-9-]/g, "-");
+        const correctPath = configProjects.find(
+          (p) => p.replace(/[^a-zA-Z0-9-]/g, "-") === corruptedSlug
+        );
+        if (correctPath && correctPath !== project_path) {
+          db.exec(
+            `UPDATE sessions SET project_path = '${correctPath.replace(/'/g, "''")}' WHERE project_path = '${project_path.replace(/'/g, "''")}'`
+          );
+          console.log(
+            `[explorer-db] Corrected corrupted project_path: "${project_path}" → "${correctPath}"`
+          );
+        }
+      }
+    }
+  } catch (err) {
+    // Non-fatal — corrupted paths will remain but the app still functions.
+    console.warn("[explorer-db] Skipped corrupted-path migration:", err);
+  }
+
   return db;
 }
 

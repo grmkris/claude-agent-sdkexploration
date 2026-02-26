@@ -1,7 +1,6 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { OpenInCursorButton } from "@/components/open-in-cursor-button";
@@ -9,7 +8,6 @@ import { IntegrationWidgets } from "@/components/project-integrations";
 import { WorktreeInfoSection } from "@/components/right-sidebar/worktree-info-section";
 import { TmuxLauncher } from "@/components/tmux-launcher";
 import { TmuxSessionsPanel } from "@/components/tmux-sessions-panel";
-import { Button } from "@/components/ui/button";
 import { SidebarGroup, SidebarGroupContent } from "@/components/ui/sidebar";
 import { orpc } from "@/lib/orpc";
 import { cn } from "@/lib/utils";
@@ -125,8 +123,6 @@ function TmuxLauncherSection({ slug }: { slug: string }) {
 // ── Main export ──────────────────────────────────────────────────────────────
 
 export function OverviewTab({ slug }: { slug: string | null }) {
-  const router = useRouter();
-
   if (!slug) {
     return (
       <div className="px-2 py-4 text-center text-xs text-muted-foreground">
@@ -137,21 +133,6 @@ export function OverviewTab({ slug }: { slug: string | null }) {
 
   return (
     <div className="flex flex-col gap-2 py-2">
-      {/* New conversation — always navigates with a fresh ?_new=<timestamp> so
-          Next.js treats it as a new URL even when already on /project/[slug]/chat,
-          and the chat page uses that param as a React key to force a full remount. */}
-      <div className="px-2">
-        <Button
-          size="sm"
-          className="w-full"
-          onClick={() =>
-            router.push(`/project/${slug}/chat?_new=${Date.now()}`)
-          }
-        >
-          New Conversation
-        </Button>
-      </div>
-
       {/* Open in Cursor */}
       <ProjectCursorSection slug={slug} />
 

@@ -6,7 +6,7 @@ import type { WebhookConfig } from "./types";
 // Strip CLAUDECODE to allow the Agent SDK to spawn inside a Claude Code container
 const { CLAUDECODE: _CC, ...cleanEnv } = process.env;
 
-import { resolveSlugToPath } from "./claude-fs";
+import { USER_HOME, resolveSlugToPath } from "./claude-fs";
 import { upsertSession } from "./explorer-db";
 import {
   updateWebhookStatus,
@@ -116,8 +116,12 @@ export function executeWebhook(
           "session_id" in msg
         ) {
           capturedSessionId = msg.session_id as string;
-          // Explicitly persist project_path — SDK hook input.cwd is unreliable.
-          if (cwd) upsertSession(capturedSessionId, { project_path: cwd });
+          // Always persist project_path so the session appears correctly in
+          // the sessions list. Fall back to USER_HOME (root workspace) when
+          // no projectSlug is configured — this correctly shows "root" in UI.
+          upsertSession(capturedSessionId, {
+            project_path: cwd ?? USER_HOME,
+          });
         }
         if (capturedSessionId && msg.type === "result") {
           const r = msg as {

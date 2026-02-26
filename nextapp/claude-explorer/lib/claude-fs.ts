@@ -91,11 +91,6 @@ export async function readClaudeConfig(): Promise<ClaudeConfig> {
 
 // --- Slug ↔ path resolution via .claude.json + actual disk directories ---
 
-// Strip all non-alphanumeric chars for comparison
-function normalize(s: string): string {
-  return s.replace(/[^a-z0-9]/gi, "").toLowerCase();
-}
-
 let _slugToPath: Map<string, string> | null = null;
 let _pathToSlug: Map<string, string> | null = null;
 
@@ -109,20 +104,43 @@ async function buildSlugMaps() {
 
   const dirs = await readdir(CLAUDE_PROJECTS_DIR).catch(() => [] as string[]);
 
+  // First pass: map every registered config path to its canonical slug.
+  // The slug is derived by the same sanitisation the Claude CLI uses when
+  // creating the on-disk directory (replace non-alphanumeric with "-").
+  // We prefer the actual disk directory name when it exists so that slug
+  // round-trips are exact, but the sanitised form is identical either way.
   for (const configPath of Object.keys(config.projects)) {
-    const norm = normalize(configPath);
-    const matchingDir = dirs.find((d) => normalize(d) === norm);
-    const slug = matchingDir ?? configPath.replace(/[^a-zA-Z0-9-]/g, "-");
+    const expectedDirName = configPath.replace(/[^a-zA-Z0-9-]/g, "-");
+    // Verify the directory actually exists on disk (preferred) but fall back
+    // to the expected name so newly-registered projects work immediately.
+    const matchingDir = dirs.find((d) => d === expectedDirName);
+    const slug = matchingDir ?? expectedDirName;
     _slugToPath.set(slug, configPath);
     _pathToSlug.set(configPath, slug);
   }
 
+  // Second pass: handle on-disk directories that have no entry in config yet
+  // (projects used before being registered, or deleted from .claude.json).
   for (const dir of dirs) {
-    if (!_slugToPath.has(dir)) {
-      // Reconstruct the full path from the directory name convention
-      // (leading dash stripped, remaining dashes → slashes).
-      // This is lossy for paths that contain literal hyphens, but it is
-      // still far better than storing the raw dir name as the path.
+    if (_slugToPath.has(dir)) continue;
+
+    // Try a reverse-lookup: if this dir's name matches the canonical slug of
+    // any registered config path, use that path (avoids lossy conversion).
+    const matchedConfigPath = Object.keys(config.projects).find(
+      (p) => p.replace(/[^a-zA-Z0-9-]/g, "-") === dir
+    );
+    if (matchedConfigPath) {
+      // Shouldn't normally reach here (first pass covers this), but guard
+      // against edge cases like concurrent config writes.
+      _slugToPath.set(dir, matchedConfigPath);
+      if (!_pathToSlug.has(matchedConfigPath))
+        _pathToSlug.set(matchedConfigPath, dir);
+    } else {
+      // Truly orphan directory — reconstruct path best-effort.
+      // NOTE: This conversion is lossy for project names that contain
+      // hyphens (e.g. "agent-sdk-test" ↔ "agent/sdk/test"). There is no
+      // lossless way to reverse the Claude CLI's sanitisation without the
+      // original path. Register the project in ~/.claude.json to fix this.
       _slugToPath.set(dir, "/" + dir.replace(/^-/, "").replace(/-/g, "/"));
     }
   }
@@ -144,7 +162,26 @@ export async function resolveSlugToPath(slug: string): Promise<string> {
 
 async function getSlugForPath(path: string): Promise<string> {
   const { pathToSlug } = await buildSlugMaps();
-  return pathToSlug.get(path) ?? path.replace(/[^a-zA-Z0-9-]/g, "-");
+
+  // 1. Exact match — covers the vast majority of cases.
+  if (pathToSlug.has(path)) return pathToSlug.get(path)!;
+
+  // 2. Longest-prefix match — handles sessions started from a sub-directory
+  //    of a registered project (e.g. /home/bun/projects/foo/src → slug for
+  //    /home/bun/projects/foo).
+  let best: { projectPath: string; slug: string } | null = null;
+  for (const [projectPath, slug] of pathToSlug) {
+    if (
+      path.startsWith(projectPath + "/") &&
+      (!best || projectPath.length > best.projectPath.length)
+    ) {
+      best = { projectPath, slug };
+    }
+  }
+  if (best) return best.slug;
+
+  // 3. Fallback: sanitise the raw path (same algorithm as the Claude CLI).
+  return path.replace(/[^a-zA-Z0-9-]/g, "-");
 }
 
 // Exported for tmux.ts — resolves a cwd to its project slug
@@ -404,7 +441,9 @@ export async function listProjects(): Promise<Project[]> {
     return b.lastActive.localeCompare(a.lastActive);
   });
 
-  return projects;
+  // Exclude the home directory — it is the "root workspace", not a real
+  // project, and showing it as a project card causes confusion.
+  return projects.filter((p) => p.path !== USER_HOME);
 }
 
 // --- Project config reading ---

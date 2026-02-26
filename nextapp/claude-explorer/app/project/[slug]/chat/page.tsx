@@ -1,20 +1,20 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { useRouter } from "next/navigation";
-import { use, useEffect, useRef } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, use, useEffect, useRef } from "react";
 
 import { ChatInput } from "@/components/chat-input";
 import { ChatView } from "@/components/chat-view";
 import { useChatStream } from "@/hooks/use-chat-stream";
 import { orpc } from "@/lib/orpc";
 
-export default function NewChatPage({
-  params,
-}: {
-  params: Promise<{ slug: string }>;
-}) {
-  const { slug } = use(params);
+// ── Inner chat component ───────────────────────────────────────────────────────
+// Keyed externally on `_new` so the whole component — including useChatStream —
+// is torn down and remounted fresh every time "New Conversation" is clicked,
+// even when the URL path hasn't changed.
+
+function NewChatContent({ slug }: { slug: string }) {
   const router = useRouter();
   const { data } = useQuery(
     orpc.projects.resolveSlug.queryOptions({ input: { slug } })
@@ -62,5 +62,31 @@ export default function NewChatPage({
         storageKey={`${slug}:new`}
       />
     </div>
+  );
+}
+
+// ── Search-param reader ────────────────────────────────────────────────────────
+// Reads `?_new=<timestamp>` and passes it as a React key to NewChatContent so
+// every "New Conversation" click produces a distinct key → full remount.
+// Must live inside a <Suspense> boundary because useSearchParams() suspends.
+
+function NewChatPageInner({ slug }: { slug: string }) {
+  const searchParams = useSearchParams();
+  const newKey = searchParams.get("_new") ?? "initial";
+  return <NewChatContent key={newKey} slug={slug} />;
+}
+
+// ── Page export ────────────────────────────────────────────────────────────────
+
+export default function NewChatPage({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}) {
+  const { slug } = use(params);
+  return (
+    <Suspense>
+      <NewChatPageInner slug={slug} />
+    </Suspense>
   );
 }

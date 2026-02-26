@@ -1,8 +1,9 @@
 "use client";
 
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 
 import { SessionsPanel } from "@/components/sessions-panel";
+import { Button } from "@/components/ui/button";
 import { useRightSidebar } from "@/components/ui/right-sidebar-context";
 import {
   Sheet,
@@ -29,13 +30,28 @@ function extractSlug(pathname: string): string | null {
 
 function RightSidebarInner() {
   const pathname = usePathname();
+  const router = useRouter();
   const activeSlug = extractSlug(pathname);
   const label = activeSlug ? "This project" : "All projects";
 
   return (
     <div className="bg-sidebar flex size-full flex-col">
       <SidebarHeader className="border-b px-3 py-2">
-        <span className="text-sm font-semibold">Sessions</span>
+        <div className="flex items-center justify-between">
+          <span className="text-sm font-semibold">Sessions</span>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-6 gap-1 px-2 text-xs"
+            onClick={() =>
+              activeSlug
+                ? router.push(`/project/${activeSlug}/chat?_new=${Date.now()}`)
+                : router.push("/chat")
+            }
+          >
+            New Conversation
+          </Button>
+        </div>
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>

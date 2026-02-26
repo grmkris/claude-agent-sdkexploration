@@ -40,6 +40,7 @@ export const SessionMetaSchema = z.object({
   lastModified: z.string(),
   resumeCommand: z.string(),
   sessionState: SessionStateSchema.optional(),
+  source: z.string().nullable().optional(),
 });
 
 export const ParsedMessageSchema = z.object({

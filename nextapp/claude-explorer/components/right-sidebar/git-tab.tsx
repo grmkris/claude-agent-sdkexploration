@@ -63,7 +63,6 @@ export function GitTab({ slug }: { slug: string | null }) {
   const [expandedFile, setExpandedFile] = useState<string | null>(null);
   const [diffs, setDiffs] = useState<Record<string, string>>({});
   const [loadingDiff, setLoadingDiff] = useState<string | null>(null);
-  const [commitMsg, setCommitMsg] = useState("");
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
@@ -108,42 +107,6 @@ export function GitTab({ slug }: { slug: string | null }) {
     onError: (e) => setError(String(e)),
   });
 
-  const commitMutation = useMutation({
-    mutationFn: () =>
-      client.projects.gitCommit({ slug: slug!, message: commitMsg }),
-    onSuccess: (data) => {
-      if (!data.success) setError(data.output);
-      else {
-        setError(null);
-        setCommitMsg("");
-      }
-      invalidateGit();
-    },
-    onError: (e) => setError(String(e)),
-  });
-
-  const commitPushMutation = useMutation({
-    mutationFn: () =>
-      client.projects.gitCommitPush({ slug: slug!, message: commitMsg }),
-    onSuccess: (data) => {
-      if (!data.success) setError(data.output);
-      else {
-        setError(null);
-        setCommitMsg("");
-      }
-      invalidateGit();
-    },
-    onError: (e) => setError(String(e)),
-  });
-
-  const generateMsgMutation = useMutation({
-    mutationFn: () => client.projects.gitGenerateCommitMsg({ slug: slug! }),
-    onSuccess: (data) => {
-      if (data.message) setCommitMsg(data.message);
-    },
-    onError: (e) => setError(String(e)),
-  });
-
   const handleFileClick = async (filePath: string) => {
     if (expandedFile === filePath) {
       setExpandedFile(null);
@@ -168,11 +131,7 @@ export function GitTab({ slug }: { slug: string | null }) {
     }
   };
 
-  const isBusy =
-    pullMutation.isPending ||
-    stageAllMutation.isPending ||
-    commitMutation.isPending ||
-    commitPushMutation.isPending;
+  const isBusy = pullMutation.isPending || stageAllMutation.isPending;
 
   if (!slug) {
     return (
@@ -202,106 +161,84 @@ export function GitTab({ slug }: { slug: string | null }) {
     ["UU", "AA", "DD"].includes(c.status)
   );
 
+  const hasChanges = gitStatus.changes.length > 0;
+
   return (
     <div className="flex flex-col">
-      {/* Branch + summary */}
-      <div className="flex items-center gap-2 border-b px-3 py-2">
+      {/* Combined action bar: branch · changes · Pull · Stage All · Commit · Commit+Push */}
+      <div className="flex flex-wrap items-center gap-1.5 border-b px-3 py-2">
         <span className="text-xs font-medium text-foreground">
           {gitStatus.branch}
         </span>
-        {gitStatus.changes.length > 0 ? (
-          <span className="ml-auto text-[10px] text-yellow-400">
+        {hasChanges ? (
+          <span className="text-[10px] text-yellow-400">
             {gitStatus.changes.length} change
             {gitStatus.changes.length !== 1 ? "s" : ""}
           </span>
         ) : (
-          <span className="ml-auto text-[10px] text-green-400">clean</span>
+          <span className="text-[10px] text-green-400">clean</span>
         )}
-      </div>
 
-      {/* Action bar */}
-      <div className="flex items-center gap-1.5 border-b px-3 py-2">
-        <button
-          type="button"
-          disabled={isBusy}
-          onClick={() => pullMutation.mutate()}
-          className="rounded bg-muted px-2 py-0.5 text-[10px] font-medium text-foreground transition-colors hover:bg-muted/80 disabled:opacity-50"
-        >
-          {pullMutation.isPending ? "Pulling…" : "Pull"}
-        </button>
-        <button
-          type="button"
-          disabled={isBusy || gitStatus.changes.length === 0}
-          onClick={() => stageAllMutation.mutate()}
-          className="rounded bg-muted px-2 py-0.5 text-[10px] font-medium text-foreground transition-colors hover:bg-muted/80 disabled:opacity-50"
-        >
-          {stageAllMutation.isPending ? "Staging…" : "Stage All"}
-        </button>
-        {hasConflicts && (
+        <div className="ml-auto flex items-center gap-1">
           <button
             type="button"
-            onClick={() =>
-              router.push(
-                `/project/${slug}/chat?prompt=${encodeURIComponent("Resolve the merge conflicts in this project. Check git status, read the conflicted files, fix them, and stage the resolved files.")}`
-              )
-            }
-            className="ml-auto rounded bg-red-500/20 px-2 py-0.5 text-[10px] font-medium text-red-400 transition-colors hover:bg-red-500/30"
+            disabled={isBusy}
+            onClick={() => pullMutation.mutate()}
+            className="rounded bg-muted px-2 py-0.5 text-[10px] font-medium text-foreground transition-colors hover:bg-muted/80 disabled:opacity-50"
           >
-            Resolve conflicts
+            {pullMutation.isPending ? "Pulling…" : "Pull"}
           </button>
-        )}
-      </div>
-
-      {/* Commit section — compact */}
-      {gitStatus.changes.length > 0 && (
-        <div className="border-b px-3 py-2">
-          <div className="flex items-center gap-1">
-            <input
-              value={commitMsg}
-              onChange={(e) => setCommitMsg(e.target.value)}
-              placeholder="Commit message…"
-              className="min-w-0 flex-1 rounded border border-border bg-muted/30 px-2 py-1 text-[11px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey && commitMsg.trim()) {
-                  e.preventDefault();
-                  commitMutation.mutate();
+          <button
+            type="button"
+            disabled={isBusy || !hasChanges}
+            onClick={() => stageAllMutation.mutate()}
+            className="rounded bg-muted px-2 py-0.5 text-[10px] font-medium text-foreground transition-colors hover:bg-muted/80 disabled:opacity-50"
+          >
+            {stageAllMutation.isPending ? "Staging…" : "Stage All"}
+          </button>
+          {hasChanges && !hasConflicts && (
+            <>
+              <button
+                type="button"
+                disabled={isBusy}
+                onClick={() =>
+                  router.push(
+                    `/project/${slug}/chat?prompt=${encodeURIComponent("Stage all changes and commit with a good conventional commit message.")}`
+                  )
                 }
-              }}
-            />
+                className="rounded bg-primary px-2 py-0.5 text-[10px] font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+              >
+                ✦ Commit
+              </button>
+              <button
+                type="button"
+                disabled={isBusy}
+                onClick={() =>
+                  router.push(
+                    `/project/${slug}/chat?prompt=${encodeURIComponent("Stage all changes, commit with a good conventional commit message, then push to remote.")}`
+                  )
+                }
+                className="rounded bg-primary px-2 py-0.5 text-[10px] font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+              >
+                ✦ Commit + Push
+              </button>
+            </>
+          )}
+          {hasConflicts && (
             <button
               type="button"
-              disabled={generateMsgMutation.isPending || isBusy}
-              onClick={() => generateMsgMutation.mutate()}
-              className="shrink-0 rounded border border-border px-1.5 py-1 text-[10px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
-              title="Generate commit message with AI"
+              onClick={() =>
+                router.push(
+                  `/project/${slug}/chat?prompt=${encodeURIComponent("Resolve the merge conflicts in this project. Check git status, read the conflicted files, fix them, and stage the resolved files.")}`
+                )
+              }
+              className="rounded bg-red-500/20 px-2 py-0.5 text-[10px] font-medium text-red-400 transition-colors hover:bg-red-500/30"
             >
-              {generateMsgMutation.isPending ? (
-                <span className="inline-block h-3 w-3 animate-spin rounded-full border border-current border-t-transparent" />
-              ) : (
-                "✦"
-              )}
+              Resolve conflicts
             </button>
-          </div>
-          <div className="mt-1.5 flex items-center gap-1.5">
-            <button
-              type="button"
-              disabled={isBusy || !commitMsg.trim()}
-              onClick={() => commitMutation.mutate()}
-              className="rounded bg-primary px-2 py-0.5 text-[10px] font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
-            >
-              {commitMutation.isPending ? "Committing…" : "Commit"}
-            </button>
-            <button
-              type="button"
-              disabled={isBusy || !commitMsg.trim()}
-              onClick={() => commitPushMutation.mutate()}
-              className="rounded bg-primary px-2 py-0.5 text-[10px] font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
-            >
-              {commitPushMutation.isPending ? "Pushing…" : "Commit + Push"}
-            </button>
-          </div>
+          )}
         </div>
-      )}
+      </div>
 
       {/* Error feedback */}
       {error && (
