@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+import { SessionActionsMenu } from "@/components/session-actions-menu";
 import { SessionStateBadge } from "@/components/session-state-badge";
 import {
   SidebarGroupContent,
@@ -15,29 +16,10 @@ import {
 import { orpc } from "@/lib/orpc";
 import { getTimeAgo } from "@/lib/utils";
 
-function ArchiveIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-    >
-      <rect width="20" height="5" x="2" y="3" rx="1" />
-      <path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8" />
-      <path d="M10 12h4" />
-    </svg>
-  );
-}
-
 /**
  * Reusable sessions list panel. Used in:
  * - Left sidebar (root view): shows all sessions
- * - Right sidebar (project view): shows all sessions across projects
+ * - Right sidebar (project view): shows sessions for current project
  */
 export function SessionsPanel({
   filterSlug,
@@ -106,19 +88,17 @@ export function SessionsPanel({
                     </div>
                   </SidebarMenuButton>
                 </Link>
-                <div className="ml-auto flex shrink-0 items-center gap-1 pr-1">
+                <div className="ml-auto flex shrink-0 items-center gap-1 pr-1 opacity-0 group-hover:opacity-100 transition-opacity">
                   <SessionStateBadge sessionId={session.id} compact />
-                  <button
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      archiveMutation.mutate({ sessionId: session.id });
+                  <SessionActionsMenu
+                    session={{
+                      sessionId: session.id,
+                      resumeCommand: session.resumeCommand,
                     }}
-                    title="Archive conversation"
-                    className="opacity-0 group-hover:opacity-100 rounded p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground transition-opacity"
-                  >
-                    <ArchiveIcon className="h-3.5 w-3.5" />
-                  </button>
+                    onArchive={() =>
+                      archiveMutation.mutate({ sessionId: session.id })
+                    }
+                  />
                 </div>
               </div>
             </SidebarMenuItem>

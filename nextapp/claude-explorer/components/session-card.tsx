@@ -1,12 +1,11 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
-import { useState } from "react";
 
 import type { SessionMeta, TmuxPane } from "@/lib/types";
 
 import { StarIcon, StarFilledIcon } from "@/components/icons";
+import { SessionActionsMenu } from "@/components/session-actions-menu";
 import { SessionStateBadge } from "@/components/session-state-badge";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -16,8 +15,6 @@ import {
   CardDescription,
   CardContent,
 } from "@/components/ui/card";
-import { orpc } from "@/lib/orpc";
-import { generateTmuxCommand } from "@/lib/tmux-command";
 import { getTimeAgo } from "@/lib/utils";
 
 export interface SessionFacetData {
@@ -50,48 +47,10 @@ export function SessionCard({
   unreadCount?: number;
   facet?: SessionFacetData;
 }) {
-  const [copied, setCopied] = useState(false);
-  const [copiedTmux, setCopiedTmux] = useState(false);
-
-  const { data: serverConfig } = useQuery(orpc.server.config.queryOptions());
-
-  const copyCommand = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    void navigator.clipboard.writeText(session.resumeCommand);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
-  };
-
-  const copyTmuxCommand = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    // Extract project path from resumeCommand: "cd PATH && claude --resume ID"
-    const projectPath =
-      session.resumeCommand.split(" && ")[0]?.replace("cd ", "") ?? "";
-    const cmd = generateTmuxCommand({
-      sessionName: `claude-${session.id.slice(0, 8)}`,
-      projectPath,
-      panelCount: 1,
-      layout: "even-horizontal",
-      resumeSessionIds: [session.id],
-      sshTarget: serverConfig?.sshHost ?? undefined,
-    });
-    void navigator.clipboard.writeText(cmd);
-    setCopiedTmux(true);
-    setTimeout(() => setCopiedTmux(false), 1500);
-  };
-
   const handleStar = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     onToggleFavorite?.();
-  };
-
-  const handleArchive = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    onArchive?.();
   };
 
   const timeAgo = getTimeAgo(session.lastModified || session.timestamp);
@@ -148,37 +107,6 @@ export function SessionCard({
                   {unreadCount}
                 </span>
               ) : null}
-              <button
-                onClick={copyTmuxCommand}
-                className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
-                title="Open in tmux (copy command)"
-              >
-                {copiedTmux ? (
-                  <CheckIcon className="h-3.5 w-3.5" />
-                ) : (
-                  <TerminalIcon className="h-3.5 w-3.5" />
-                )}
-              </button>
-              <button
-                onClick={copyCommand}
-                className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
-                title="Copy resume command"
-              >
-                {copied ? (
-                  <CheckIcon className="h-3.5 w-3.5" />
-                ) : (
-                  <ClipboardIcon className="h-3.5 w-3.5" />
-                )}
-              </button>
-              {onArchive && (
-                <button
-                  onClick={handleArchive}
-                  className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
-                  title="Archive conversation"
-                >
-                  <ArchiveBoxIcon className="h-3.5 w-3.5" />
-                </button>
-              )}
               {onToggleFavorite && (
                 <button
                   onClick={handleStar}
@@ -194,6 +122,14 @@ export function SessionCard({
                   )}
                 </button>
               )}
+              <SessionActionsMenu
+                session={{
+                  sessionId: session.id,
+                  resumeCommand: session.resumeCommand,
+                }}
+                onArchive={onArchive}
+                triggerClassName="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
+              />
             </div>
           </div>
         </CardHeader>
@@ -218,76 +154,3 @@ export function SessionCard({
   );
 }
 
-// Inline SVG icons
-
-function ClipboardIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-    >
-      <rect width="8" height="4" x="8" y="2" rx="1" ry="1" />
-      <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
-    </svg>
-  );
-}
-
-function CheckIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-    >
-      <path d="M20 6 9 17l-5-5" />
-    </svg>
-  );
-}
-
-function ArchiveBoxIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-    >
-      <rect width="20" height="5" x="2" y="3" rx="1" />
-      <path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8" />
-      <path d="M10 12h4" />
-    </svg>
-  );
-}
-
-function TerminalIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-    >
-      <polyline points="4 17 10 11 4 5" />
-      <line x1="12" x2="20" y1="19" y2="19" />
-    </svg>
-  );
-}
