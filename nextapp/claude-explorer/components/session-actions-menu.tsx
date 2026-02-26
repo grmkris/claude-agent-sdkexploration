@@ -106,6 +106,8 @@ export function SessionActionsMenu({
     "rounded p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors";
 
   return (
+    // Stop click from bubbling to parent <Link> or card wrappers
+    <div onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}>
     <DropdownMenu>
       <DropdownMenuTrigger
         className={children ? undefined : defaultTriggerClass}
@@ -146,5 +148,6 @@ export function SessionActionsMenu({
         )}
       </DropdownMenuContent>
     </DropdownMenu>
+    </div>
   );
 }
