@@ -1,0 +1,119 @@
+[
+  {
+    "id": 1,
+    "name": "sidebar-nav-items",
+    "title": "Sidebar Navigation Items",
+    "start": 10.94,
+    "end": 30.86,
+    "summary": "Add emails, webhooks, cron jobs to left sidebar. Currently has analytics, keys — wants the full list displayed.",
+    "screenshot_timestamps": [15, 25]
+  },
+  {
+    "id": 2,
+    "name": "sessions-panel-collapse",
+    "title": "Sessions Panel - Collapse by Default",
+    "start": 32.84,
+    "end": 45.02,
+    "summary": "Sessions panel on the right looks good but should be collapsed by default.",
+    "screenshot_timestamps": [38]
+  },
+  {
+    "id": 3,
+    "name": "middle-content-no-scroll",
+    "title": "Middle Content Area - No Horizontal Scroll",
+    "start": 47.90,
+    "end": 57.52,
+    "summary": "Middle area currently scrolls left/right. Should be bounded inside its container — no horizontal overflow.",
+    "screenshot_timestamps": [50]
+  },
+  {
+    "id": 4,
+    "name": "project-name-display",
+    "title": "Display Project Name Instead of Placeholder",
+    "start": 60.46,
+    "end": 98.08,
+    "summary": "Replace 'Home' placeholder with actual project name. Auto-create CLAUDE.md in project directory. Initial prompt should allow specifying MCPs and skills to include.",
+    "screenshot_timestamps": [65, 90]
+  },
+  {
+    "id": 5,
+    "name": "project-creation-templates",
+    "title": "Project Creation - MCPs, Skills & Templates",
+    "start": 101.52,
+    "end": 118.36,
+    "summary": "When creating a project, allow specifying which MCPs and skills to include. Possibly offer templates for common setups.",
+    "screenshot_timestamps": [105, 115]
+  },
+  {
+    "id": 6,
+    "name": "session-thread-actions",
+    "title": "Session Thread Actions - Copy/Resume/Tmux",
+    "start": 127.78,
+    "end": 210.30,
+    "summary": "Session threads need a popover with actions: copy command, resume session, open in tmux. Multiple combinations of actions (CC tmux, etc). Popover should appear on hover/click.",
+    "screenshot_timestamps": [135, 160, 190]
+  },
+  {
+    "id": 7,
+    "name": "sidebar-recent-activities",
+    "title": "Sidebar - Recent Activities & Work Trees",
+    "start": 233.94,
+    "end": 268.20,
+    "summary": "Left sidebar could show recent activities. Research: if multiple git worktrees exist, can we map which session was used in which worktree?",
+    "screenshot_timestamps": [240, 260]
+  },
+  {
+    "id": 8,
+    "name": "tmux-sessions-integration",
+    "title": "Tmux Sessions Integration",
+    "start": 275.84,
+    "end": 314.26,
+    "summary": "Display tmux sessions in the UI. Add a button to select a session and open it. Construct the tmux attach command automatically.",
+    "screenshot_timestamps": [285, 305]
+  },
+  {
+    "id": 9,
+    "name": "skills-mcp-status",
+    "title": "Skills & MCP Status Display",
+    "start": 324.80,
+    "end": 349.70,
+    "summary": "Skills section currently not working. MCP errors should be closeable. Tools display needs fixing. MCP listing works but needs polish.",
+    "screenshot_timestamps": [330, 345]
+  },
+  {
+    "id": 10,
+    "name": "file-tree-improvements",
+    "title": "File Tree - Open Files & Rich View",
+    "start": 357.44,
+    "end": 371.46,
+    "summary": "File tree should allow opening a file to see its contents. Want a richer view with icons based on file type.",
+    "screenshot_timestamps": [362, 370]
+  },
+  {
+    "id": 11,
+    "name": "tab-interface",
+    "title": "Tab Interface - Multiple Open Tabs",
+    "start": 387.84,
+    "end": 402.56,
+    "summary": "Add a tab interface to have multiple open tabs. Tabs should persist when navigating between projects.",
+    "screenshot_timestamps": [392, 400]
+  },
+  {
+    "id": 12,
+    "name": "project-scoped-sessions",
+    "title": "Project-Scoped Sessions",
+    "start": 407.12,
+    "end": 417.52,
+    "summary": "When inside a project, only show sessions for that project — not all sessions from the whole system.",
+    "screenshot_timestamps": [412]
+  },
+  {
+    "id": 13,
+    "name": "railway-linear-integration",
+    "title": "Railway & Linear Integration",
+    "start": 426.98,
+    "end": 500.68,
+    "summary": "Show Railway deployment info and Linear tickets in project view. Connect Linear project, see deployments and failures. Start a Claude session from a Linear ticket ('work on this ticket') or investigate a failed Railway deployment.",
+    "screenshot_timestamps": [435, 460, 490]
+  }
+]
