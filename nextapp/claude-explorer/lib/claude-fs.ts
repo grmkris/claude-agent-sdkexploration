@@ -299,6 +299,14 @@ export async function gitCommitAndPush(
   }
 }
 
+export async function gitFullDiff(projectPath: string): Promise<string> {
+  try {
+    return await Bun.$`git -C ${projectPath} diff HEAD`.text();
+  } catch {
+    return "";
+  }
+}
+
 // --- Project list using ~/.claude.json + 1 stat per project for lastActive ---
 
 export async function listProjects(): Promise<Project[]> {

@@ -1,6 +1,7 @@
 import type { SDKUserMessage } from "@anthropic-ai/claude-agent-sdk/sdk";
 
 import { query } from "@anthropic-ai/claude-agent-sdk";
+import Anthropic from "@anthropic-ai/sdk";
 import { os, eventIterator } from "@orpc/server";
 import { stat } from "node:fs/promises";
 import { homedir } from "node:os";
@@ -47,6 +48,7 @@ import {
   gitStageAll,
   gitCommit,
   gitCommitAndPush,
+  gitFullDiff,
   findProjectPathForSession,
 } from "./claude-fs";
 import { sendEmail } from "./email";
@@ -746,6 +748,25 @@ const gitCommitPushProc = os
   .handler(async ({ input }) => {
     const projectPath = await resolveSlugToPath(input.slug);
     return gitCommitAndPush(projectPath, input.message);
+  });
+
+const gitGenerateCommitMsgProc = os
+  .input(z.object({ slug: z.string() }))
+  .output(z.object({ message: z.string() }))
+  .handler(async ({ input }) => {
+    const projectPath = await resolveSlugToPath(input.slug);
+    const diff = await gitFullDiff(projectPath);
+    if (!diff.trim()) return { message: "" };
+    const anthropic = new Anthropic();
+    const resp = await anthropic.messages.create({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 256,
+      system:
+        "Generate a concise git commit message for this diff. First line max 72 chars, use conventional commit style (feat:, fix:, chore:, etc). No quotes around the message. If there's a body, separate with blank line.",
+      messages: [{ role: "user", content: diff.slice(0, 30_000) }],
+    });
+    const text = resp.content[0].type === "text" ? resp.content[0].text : "";
+    return { message: text.trim() };
   });
 
 const SkillInfoSchema = z.object({
@@ -2222,6 +2243,7 @@ export const router = {
     gitStageAll: gitStageAllProc,
     gitCommit: gitCommitProc,
     gitCommitPush: gitCommitPushProc,
+    gitGenerateCommitMsg: gitGenerateCommitMsgProc,
   },
   user: { config: userConfigProc },
   mcpServers: {

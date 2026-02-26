@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { orpc } from "@/lib/orpc";
@@ -20,6 +21,10 @@ function statusBadge(status: string) {
   if (status.includes("D"))
     return (
       <span className="shrink-0 text-[10px] font-bold text-red-400">D</span>
+    );
+  if (status === "UU" || status === "AA" || status === "DD")
+    return (
+      <span className="shrink-0 text-[10px] font-bold text-red-400">C</span>
     );
   return (
     <span className="shrink-0 text-[10px] font-bold text-yellow-400">M</span>
@@ -60,6 +65,7 @@ export function GitTab({ slug }: { slug: string | null }) {
   const [loadingDiff, setLoadingDiff] = useState<string | null>(null);
   const [commitMsg, setCommitMsg] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
 
   const queryClient = useQueryClient();
 
@@ -130,6 +136,14 @@ export function GitTab({ slug }: { slug: string | null }) {
     onError: (e) => setError(String(e)),
   });
 
+  const generateMsgMutation = useMutation({
+    mutationFn: () => client.projects.gitGenerateCommitMsg({ slug: slug! }),
+    onSuccess: (data) => {
+      if (data.message) setCommitMsg(data.message);
+    },
+    onError: (e) => setError(String(e)),
+  });
+
   const handleFileClick = async (filePath: string) => {
     if (expandedFile === filePath) {
       setExpandedFile(null);
@@ -184,6 +198,10 @@ export function GitTab({ slug }: { slug: string | null }) {
     );
   }
 
+  const hasConflicts = gitStatus.changes.some((c) =>
+    ["UU", "AA", "DD"].includes(c.status)
+  );
+
   return (
     <div className="flex flex-col">
       {/* Branch + summary */}
@@ -219,18 +237,51 @@ export function GitTab({ slug }: { slug: string | null }) {
         >
           {stageAllMutation.isPending ? "Staging…" : "Stage All"}
         </button>
+        {hasConflicts && (
+          <button
+            type="button"
+            onClick={() =>
+              router.push(
+                `/project/${slug}/chat?prompt=${encodeURIComponent("Resolve the merge conflicts in this project. Check git status, read the conflicted files, fix them, and stage the resolved files.")}`
+              )
+            }
+            className="ml-auto rounded bg-red-500/20 px-2 py-0.5 text-[10px] font-medium text-red-400 transition-colors hover:bg-red-500/30"
+          >
+            Resolve conflicts
+          </button>
+        )}
       </div>
 
-      {/* Commit section */}
+      {/* Commit section — compact */}
       {gitStatus.changes.length > 0 && (
         <div className="border-b px-3 py-2">
-          <textarea
-            value={commitMsg}
-            onChange={(e) => setCommitMsg(e.target.value)}
-            placeholder="Commit message…"
-            rows={2}
-            className="w-full resize-none rounded border border-border bg-muted/30 px-2 py-1 text-[11px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-          />
+          <div className="flex items-center gap-1">
+            <input
+              value={commitMsg}
+              onChange={(e) => setCommitMsg(e.target.value)}
+              placeholder="Commit message…"
+              className="min-w-0 flex-1 rounded border border-border bg-muted/30 px-2 py-1 text-[11px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey && commitMsg.trim()) {
+                  e.preventDefault();
+                  commitMutation.mutate();
+                }
+              }}
+            />
+            <button
+              type="button"
+              disabled={generateMsgMutation.isPending || isBusy}
+              onClick={() => generateMsgMutation.mutate()}
+              className="shrink-0 rounded border border-border px-1.5 py-1 text-[10px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
+              title="Generate commit message with AI"
+            >
+              {generateMsgMutation.isPending ? (
+                <span className="inline-block h-3 w-3 animate-spin rounded-full border border-current border-t-transparent" />
+              ) : (
+                "✦"
+              )}
+            </button>
+          </div>
           <div className="mt-1.5 flex items-center gap-1.5">
             <button
               type="button"
