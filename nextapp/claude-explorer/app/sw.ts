@@ -1,17 +1,17 @@
 /// <reference lib="webworker" />
-import type { PrecacheEntry, SerwistGlobalConfig } from "serwist";
-
-import { defaultCache } from "@serwist/next/worker";
-import { Serwist } from "serwist";
 
 declare const self: ServiceWorkerGlobalScope;
 
-// Injected by @serwist/next at build time
-declare global {
-  interface ServiceWorkerGlobalScope extends SerwistGlobalConfig {
-    __SW_MANIFEST: (PrecacheEntry | string)[];
-  }
-}
+// Skip waiting and take control immediately
+self.addEventListener("install", () => {
+  self.skipWaiting();
+});
+
+self.addEventListener("activate", (event: ExtendableEvent) => {
+  event.waitUntil(self.clients.claim());
+});
+
+// --- Push Notifications ---
 
 interface PushData {
   title?: string;
@@ -19,18 +19,6 @@ interface PushData {
   url?: string;
   tag?: string;
 }
-
-const sw = new Serwist({
-  precacheEntries: self.__SW_MANIFEST,
-  skipWaiting: true,
-  clientsClaim: true,
-  navigationPreload: true,
-  runtimeCaching: defaultCache,
-});
-
-sw.addEventListeners();
-
-// --- Push Notifications ---
 
 self.addEventListener("push", (event: PushEvent) => {
   const data: PushData = event.data?.json() ?? {};
@@ -57,13 +45,11 @@ self.addEventListener("notificationclick", (event: NotificationEvent) => {
     self.clients
       .matchAll({ type: "window", includeUncontrolled: true })
       .then((clientList) => {
-        // Focus existing tab if open
         for (const client of clientList) {
           if (client.url === url && "focus" in client) {
             return (client as WindowClient).focus();
           }
         }
-        // Otherwise open a new tab
         return self.clients.openWindow(url);
       })
   );
