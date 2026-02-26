@@ -262,9 +262,14 @@ const recentSessionsProc = os
   });
 
 const timelineSessionsProc = os
-  .input(z.object({ limit: z.number().optional() }))
+  .input(z.object({ limit: z.number().optional(), slug: z.string().optional() }))
   .output(z.array(RecentSessionSchema))
   .handler(async ({ input }) => {
+    if (input.slug) {
+      const projectPath = await resolveSlugToPath(input.slug);
+      const rows = getDbProjectSessions(projectPath, input.limit ?? 50);
+      return Promise.all(rows.map(sessionRowToRecent));
+    }
     const rows = getDbAllRecentSessions(input.limit ?? 50);
     return Promise.all(rows.map(sessionRowToRecent));
   });

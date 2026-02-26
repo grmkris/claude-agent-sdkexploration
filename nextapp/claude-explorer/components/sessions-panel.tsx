@@ -49,8 +49,10 @@ export function SessionsPanel({
   const pathname = usePathname();
   const queryClient = useQueryClient();
 
+  const queryInput = { limit: 50, ...(filterSlug ? { slug: filterSlug } : {}) };
+
   const { data: sessions, isLoading } = useQuery({
-    ...orpc.sessions.timeline.queryOptions({ input: { limit: 50 } }),
+    ...orpc.sessions.timeline.queryOptions({ input: queryInput }),
     refetchInterval: 15000,
   });
 
@@ -58,14 +60,10 @@ export function SessionsPanel({
     ...orpc.sessions.archive.mutationOptions(),
     onSuccess: () => {
       void queryClient.invalidateQueries(
-        orpc.sessions.timeline.queryOptions({ input: { limit: 50 } })
+        orpc.sessions.timeline.queryOptions({ input: queryInput })
       );
     },
   });
-
-  const filteredSessions = filterSlug
-    ? (sessions?.filter((s) => s.projectSlug === filterSlug) ?? [])
-    : sessions;
 
   return (
     <SidebarGroupContent>
@@ -77,7 +75,7 @@ export function SessionsPanel({
             </SidebarMenuItem>
           ))}
 
-        {filteredSessions?.map((session) => {
+        {sessions?.map((session) => {
           const sessionUrl = session.projectSlug
             ? `/project/${session.projectSlug}/chat/${session.id}`
             : `/chat/${session.id}`;
@@ -127,7 +125,7 @@ export function SessionsPanel({
           );
         })}
 
-        {!isLoading && (!filteredSessions || filteredSessions.length === 0) && (
+        {!isLoading && (!sessions || sessions.length === 0) && (
           <div className="px-2 py-4 text-center text-xs text-muted-foreground">
             No sessions yet
           </div>

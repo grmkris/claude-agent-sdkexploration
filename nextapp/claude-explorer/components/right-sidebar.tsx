@@ -1,5 +1,7 @@
 "use client";
 
+import { usePathname } from "next/navigation";
+
 import { SessionsPanel } from "@/components/sessions-panel";
 import { useRightSidebar } from "@/components/ui/right-sidebar-context";
 import {
@@ -19,7 +21,17 @@ import {
 const RIGHT_SIDEBAR_WIDTH = "17rem";
 const RIGHT_SIDEBAR_WIDTH_MOBILE = "18rem";
 
+/** Extract project slug from paths like /project/[slug] or /project/[slug]/… */
+function extractSlug(pathname: string): string | null {
+  const match = pathname.match(/^\/project\/([^/]+)/);
+  return match ? match[1] : null;
+}
+
 function RightSidebarInner() {
+  const pathname = usePathname();
+  const activeSlug = extractSlug(pathname);
+  const label = activeSlug ? "This project" : "All projects";
+
   return (
     <div className="bg-sidebar flex size-full flex-col">
       <SidebarHeader className="border-b px-3 py-2">
@@ -27,8 +39,11 @@ function RightSidebarInner() {
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>All projects</SidebarGroupLabel>
-          <SessionsPanel showProjectLabel />
+          <SidebarGroupLabel>{label}</SidebarGroupLabel>
+          <SessionsPanel
+            filterSlug={activeSlug ?? undefined}
+            showProjectLabel={!activeSlug}
+          />
         </SidebarGroup>
       </SidebarContent>
     </div>
