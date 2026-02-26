@@ -15,6 +15,7 @@ import type {
   WorkspaceEmailConfig,
   EmailEvent,
   OAuthApp,
+  NotificationSettings,
 } from "./types";
 
 const CLAUDE_DIR = process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), ".claude");
@@ -609,4 +610,55 @@ export async function removeOAuthApp(provider: string): Promise<boolean> {
   (store as any).oauthApps = apps;
   await writeStore(store);
   return true;
+}
+
+// --- Notification Settings ---
+
+const DEFAULT_NOTIFICATION_SETTINGS: NotificationSettings = {
+  sessionCompleted: true,
+  sessionFailed: true,
+  sessionNeedsPermission: true,
+  deploymentCompleted: false,
+  deploymentFailed: true,
+  githubPush: false,
+  githubPR: false,
+  cronCompleted: false,
+  cronFailed: true,
+  emailReceived: true,
+  webhookTriggered: false,
+};
+
+export async function getNotificationSettings(): Promise<NotificationSettings> {
+  const store = await readStore();
+  return {
+    ...DEFAULT_NOTIFICATION_SETTINGS,
+    ...((store as any).notificationSettings ?? {}),
+  };
+}
+
+export async function updateNotificationSettings(
+  patch: Partial<NotificationSettings>
+): Promise<NotificationSettings> {
+  const store = await readStore();
+  const current = {
+    ...DEFAULT_NOTIFICATION_SETTINGS,
+    ...((store as any).notificationSettings ?? {}),
+  };
+  const updated = { ...current, ...patch };
+  (store as any).notificationSettings = updated;
+  await writeStore(store);
+  return updated;
+}
+
+export async function addPushSubscription(sub: {
+  endpoint: string;
+  keys: { p256dh: string; auth: string };
+}): Promise<void> {
+  const { saveSubscription } = await import("./push-subscriptions-db");
+  saveSubscription(sub);
+}
+
+export async function removePushSubscription(endpoint: string): Promise<void> {
+  const { removeSubscription } = await import("./push-subscriptions-db");
+  removeSubscription(endpoint);
 }

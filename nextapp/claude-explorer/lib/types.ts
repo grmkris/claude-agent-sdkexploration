@@ -124,6 +124,28 @@ export type {
   OAuthApp,
 } from "./schemas";
 
+export type PushSubscription = {
+  id: string;
+  endpoint: string;
+  keys: { p256dh: string; auth: string };
+  userAgent?: string;
+  createdAt: string;
+};
+
+export type NotificationSettings = {
+  sessionCompleted: boolean;
+  sessionFailed: boolean;
+  sessionNeedsPermission: boolean;
+  deploymentCompleted: boolean;
+  deploymentFailed: boolean;
+  githubPush: boolean;
+  githubPR: boolean;
+  cronCompleted: boolean;
+  cronFailed: boolean;
+  emailReceived: boolean;
+  webhookTriggered: boolean;
+};
+
 export type RawUserMessage = {
   type: "user";
   uuid: string;
