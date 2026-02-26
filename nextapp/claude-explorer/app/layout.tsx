@@ -1,8 +1,6 @@
 import type { Metadata, Viewport } from "next";
 
 import { Geist, Geist_Mono } from "next/font/google";
-import { cookies } from "next/headers";
-
 import "./globals.css";
 import Script from "next/script";
 
@@ -45,15 +43,11 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
-export default async function RootLayout({
+export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const cookieStore = await cookies();
-  const rightSidebarOpen =
-    cookieStore.get("right_sidebar_state")?.value === "true";
-
   return (
     <html lang="en" className="dark">
       <Script
@@ -67,7 +61,7 @@ export default async function RootLayout({
         <Providers>
           <TooltipProvider>
             <SidebarProvider>
-              <RightSidebarProvider defaultOpen={rightSidebarOpen}>
+              <RightSidebarProvider defaultOpen={false}>
                 <ProjectSidebar />
                 <SidebarInset>
                   <header className="flex h-10 shrink-0 items-center gap-2 border-b px-3">
