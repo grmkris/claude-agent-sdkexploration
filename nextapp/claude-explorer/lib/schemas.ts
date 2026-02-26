@@ -301,3 +301,20 @@ export type DailyActivity = z.infer<typeof DailyActivitySchema>;
 export type SkillUsageEntry = z.infer<typeof SkillUsageEntrySchema>;
 export type GlobalStats = z.infer<typeof GlobalStatsSchema>;
 export type SessionFacet = z.infer<typeof SessionFacetSchema>;
+
+export const GitWorktreeSchema = z.object({
+  path: z.string(),
+  head: z.string(),
+  branch: z.string(),
+  isMain: z.boolean(),
+  isCurrent: z.boolean(),
+});
+export type GitWorktree = z.infer<typeof GitWorktreeSchema>;
+
+export const TmuxSessionSchema = z.object({
+  name: z.string(),
+  windows: z.number(),
+  created: z.date(),
+  attached: z.boolean(),
+});
+export type TmuxSession = z.infer<typeof TmuxSessionSchema>;

@@ -5,6 +5,9 @@ import Link from "next/link";
 
 import { OpenInCursorButton } from "@/components/open-in-cursor-button";
 import { IntegrationWidgets } from "@/components/project-integrations";
+import { RecentActivitiesSection } from "@/components/right-sidebar/recent-activities-section";
+import { WorktreeInfoSection } from "@/components/right-sidebar/worktree-info-section";
+import { TmuxSessionsPanel } from "@/components/tmux-sessions-panel";
 import { Button } from "@/components/ui/button";
 import { SidebarGroup, SidebarGroupContent } from "@/components/ui/sidebar";
 import { orpc } from "@/lib/orpc";
@@ -63,6 +66,25 @@ function ProjectCursorSection({ slug }: { slug: string }) {
   );
 }
 
+// ── Tmux sessions scoped to this project ─────────────────────────────────────
+
+function ProjectTmuxSection({ slug }: { slug: string }) {
+  const { data: projects } = useQuery(orpc.projects.list.queryOptions());
+  const project = projects?.find((p) => p.slug === slug);
+
+  // TmuxSessionsPanel returns null when there's nothing to show
+  return (
+    <SidebarGroup>
+      <div className="px-2 pb-1 text-[11px] font-medium text-sidebar-foreground/70">
+        Tmux Sessions
+      </div>
+      <SidebarGroupContent>
+        <TmuxSessionsPanel filterProjectPath={project?.path} />
+      </SidebarGroupContent>
+    </SidebarGroup>
+  );
+}
+
 // ── Main export ──────────────────────────────────────────────────────────────
 
 export function OverviewTab({ slug }: { slug: string | null }) {
@@ -87,6 +109,15 @@ export function OverviewTab({ slug }: { slug: string | null }) {
 
       {/* Open in Cursor */}
       <ProjectCursorSection slug={slug} />
+
+      {/* Recent sessions for this project */}
+      <RecentActivitiesSection slug={slug} />
+
+      {/* Git worktrees (only visible when 2+ worktrees exist) */}
+      <WorktreeInfoSection slug={slug} />
+
+      {/* Tmux sessions scoped to this project */}
+      <ProjectTmuxSection slug={slug} />
 
       {/* Integrations */}
       <IntegrationsSection slug={slug} />

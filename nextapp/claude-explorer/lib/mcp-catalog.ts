@@ -1,3 +1,53 @@
+export interface ProjectTemplate {
+  id: string;
+  name: string;
+  description: string;
+  emoji: string;
+  mcpIds: string[];
+  skillIds: string[];
+  initialPrompt?: string;
+}
+
+export const PROJECT_TEMPLATES: ProjectTemplate[] = [
+  {
+    id: "blank",
+    name: "Blank",
+    description: "Start from scratch",
+    emoji: "📄",
+    mcpIds: [],
+    skillIds: [],
+  },
+  {
+    id: "nextjs",
+    name: "Next.js",
+    description: "Web app with shadcn/ui",
+    emoji: "⚡",
+    mcpIds: ["shadcn", "context7"],
+    skillIds: ["vercel-labs/agent-skills/vercel-react-best-practices"],
+    initialPrompt:
+      "Set up a Next.js 15 project with TypeScript, Tailwind CSS, and shadcn/ui components.",
+  },
+  {
+    id: "api-service",
+    name: "API Service",
+    description: "Backend service",
+    emoji: "🔌",
+    mcpIds: ["filesystem"],
+    skillIds: [],
+    initialPrompt: "Create a REST API service with TypeScript.",
+  },
+  {
+    id: "ai-agent",
+    name: "AI Agent",
+    description: "Agent with web access",
+    emoji: "🤖",
+    mcpIds: ["context7", "browserbase"],
+    skillIds: [],
+    initialPrompt:
+      "Build an AI agent that can search the web and remember information.",
+  },
+];
+
 export type McpCategory =
   | "devops"
   | "pm"

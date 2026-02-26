@@ -7,6 +7,8 @@ import { useState } from "react";
 
 import type { TmuxPane } from "@/lib/types";
 
+import { PROJECT_TEMPLATES } from "@/lib/mcp-catalog";
+
 import { CopyButton } from "@/components/copy-button";
 import { StarIcon, StarFilledIcon } from "@/components/icons";
 import { ResumeSessionPopover } from "@/components/resume-session-popover";
@@ -87,44 +89,68 @@ function NewProjectForm({ onCreated }: { onCreated: (slug: string) => void }) {
   const defaultParent = serverConfig
     ? `${serverConfig.homeDir}/projects`
     : "/home/bun/projects";
-  const [parentDir, setParentDir] = useState("");
   const [name, setName] = useState("");
   const [initialPrompt, setInitialPrompt] = useState("");
+  const [selectedTemplate, setSelectedTemplate] = useState("blank");
+  const [selectedMcps, setSelectedMcps] = useState<string[]>([]);
 
-  const effectiveParent = parentDir || defaultParent;
-  const isValidParent = effectiveParent.startsWith("/");
+  function applyTemplate(templateId: string) {
+    setSelectedTemplate(templateId);
+    const tpl = PROJECT_TEMPLATES.find((t) => t.id === templateId);
+    if (tpl) {
+      setSelectedMcps(tpl.mcpIds);
+      if (tpl.initialPrompt && !initialPrompt) {
+        setInitialPrompt(tpl.initialPrompt);
+      }
+    }
+  }
 
   const createProject = useMutation({
     mutationFn: () =>
       client.projects.create({
-        parentDir: effectiveParent,
+        parentDir: defaultParent,
         name,
         ...(initialPrompt ? { initialPrompt } : {}),
+        ...(selectedMcps.length ? { mcps: selectedMcps } : {}),
       }),
     onSuccess: (result) => onCreated(result.slug),
   });
 
   return (
     <div className="flex flex-col gap-2 rounded border p-3">
-      <div>
-        <Input
-          placeholder={defaultParent}
-          value={parentDir}
-          onChange={(e) => setParentDir(e.target.value)}
-          className="text-xs"
-        />
-        {parentDir && !isValidParent && (
-          <span className="text-[10px] text-destructive">
-            Must be an absolute path (starts with /)
-          </span>
-        )}
+      {/* Template selector */}
+      <div className="flex gap-1.5 overflow-x-auto pb-0.5">
+        {PROJECT_TEMPLATES.map((tpl) => (
+          <button
+            key={tpl.id}
+            onClick={() => applyTemplate(tpl.id)}
+            className={`flex shrink-0 flex-col items-start gap-0.5 rounded border px-2.5 py-1.5 text-left transition-colors ${
+              selectedTemplate === tpl.id
+                ? "border-primary bg-primary/10 text-foreground"
+                : "border-border text-muted-foreground hover:border-primary/50 hover:text-foreground"
+            }`}
+          >
+            <span className="text-base leading-none">{tpl.emoji}</span>
+            <span className="text-[11px] font-medium leading-tight">
+              {tpl.name}
+            </span>
+            <span className="text-[10px] leading-tight opacity-70">
+              {tpl.description}
+            </span>
+          </button>
+        ))}
       </div>
+
       <Input
         placeholder="Project name"
         value={name}
         onChange={(e) => setName(e.target.value)}
         className="text-xs"
+        autoFocus
       />
+      <p className="text-[10px] text-muted-foreground">
+        Will be created in: {defaultParent}
+      </p>
       <textarea
         placeholder="Initial prompt (optional) — starts a Claude session to register the project"
         value={initialPrompt}
@@ -132,11 +158,14 @@ function NewProjectForm({ onCreated }: { onCreated: (slug: string) => void }) {
         rows={2}
         className="rounded border bg-background px-3 py-2 text-xs placeholder:text-muted-foreground"
       />
+      {selectedMcps.length > 0 && (
+        <p className="text-[10px] text-muted-foreground">
+          MCPs to install: {selectedMcps.join(", ")}
+        </p>
+      )}
       <Button
         size="sm"
-        disabled={
-          !effectiveParent || !name || !isValidParent || createProject.isPending
-        }
+        disabled={!name || createProject.isPending}
         onClick={() => createProject.mutate()}
       >
         {createProject.isPending ? "Creating..." : "Create"}

@@ -42,6 +42,8 @@ import {
   removeProjectCommand,
   readSkillContent,
   readCommandContent,
+  readProjectEnv,
+  writeProjectEnv,
   getGitStatus,
   getGitFileDiff,
   gitPull,
@@ -50,6 +52,7 @@ import {
   gitCommitAndPush,
   gitFullDiff,
   findProjectPathForSession,
+  getGitWorktrees,
 } from "./claude-fs";
 import { sendEmail } from "./email";
 import {
@@ -117,7 +120,7 @@ import {
   listAssignedIssues,
   createSessionOnIssue,
 } from "./linear-agent";
-import { SUGGESTED_SKILLS, type SkillsShSkill } from "./mcp-catalog";
+import { SUGGESTED_SKILLS, MCP_CATALOG, type SkillsShSkill } from "./mcp-catalog";
 import {
   ProjectSchema,
   SessionMetaSchema,
@@ -140,9 +143,11 @@ import {
   ServerConfigSchema,
   WorkspaceEmailConfigSchema,
   EmailEventSchema,
+  GitWorktreeSchema,
+  TmuxSessionSchema,
 } from "./schemas";
 import { createSessionHooks } from "./session-hooks";
-import { getTmuxPanes } from "./tmux";
+import { getTmuxPanes, getTmuxSessions } from "./tmux";
 import {
   getCatalog,
   autoCreateLinearWebhook,
@@ -399,6 +404,20 @@ const tmuxPanesProc = os
   .output(z.array(TmuxPaneSchema))
   .handler(async () => getTmuxPanes());
 
+const tmuxSessionsProc = os
+  .output(z.array(TmuxSessionSchema))
+  .handler(async () => getTmuxSessions());
+
+// --- Git Worktrees ---
+
+const gitWorktreesProc = os
+  .input(z.object({ slug: z.string() }))
+  .output(z.array(GitWorktreeSchema))
+  .handler(async ({ input }) => {
+    const projectPath = await resolveSlugToPath(input.slug);
+    return getGitWorktrees(projectPath);
+  });
+
 // --- Server Config ---
 
 const serverConfigProc = os.output(ServerConfigSchema).handler(async () => ({
@@ -474,6 +493,16 @@ const chatProc = os
     signal?.addEventListener("abort", () => ac.abort(), { once: true });
 
     try {
+      // Merge per-project env vars (if cwd resolves to a registered project)
+      let projectEnv: Record<string, string> = {};
+      if (input.cwd) {
+        try {
+          projectEnv = await readProjectEnv(input.cwd);
+        } catch {
+          // best-effort — ignore if project has no env config
+        }
+      }
+
       const conversation = query({
         prompt: buildPromptArg(input.prompt, input.resume, input.images),
         options: {
@@ -481,7 +510,7 @@ const chatProc = os
           executable: "bun",
           permissionMode: "bypassPermissions",
           allowDangerouslySkipPermissions: true,
-          env: cleanEnv,
+          env: { ...cleanEnv, ...projectEnv },
           abortController: ac,
           stderr: (data: string) => {
             console.error("[chat] stderr:", data);
@@ -627,6 +656,8 @@ const createProjectProc = os
       parentDir: z.string(),
       name: z.string(),
       initialPrompt: z.string().optional(),
+      mcps: z.array(z.string()).optional(),
+      skills: z.array(z.string()).optional(),
     })
   )
   .output(z.object({ slug: z.string(), path: z.string() }))
@@ -641,6 +672,34 @@ const createProjectProc = os
       input.name
     );
     invalidateSlugCache();
+
+    // Install selected MCPs
+    if (input.mcps?.length) {
+      for (const mcpId of input.mcps) {
+        const entry = MCP_CATALOG.find((m) => m.id === mcpId);
+        if (entry?.command && entry.args) {
+          try {
+            await runClaudeCli(
+              ["mcp", "add", mcpId, "--", entry.command, ...entry.args],
+              projectPath
+            );
+          } catch {
+            // Non-fatal — continue with other MCPs
+          }
+        }
+      }
+    }
+
+    // Install selected skills
+    if (input.skills?.length) {
+      for (const skillId of input.skills) {
+        try {
+          await runClaudeCli(["skills", "add", skillId], projectPath);
+        } catch {
+          // Non-fatal
+        }
+      }
+    }
 
     if (input.initialPrompt) {
       try {
@@ -814,6 +873,7 @@ const projectConfigProc = os
         })
       ),
       skills: z.array(SkillInfoSchema),
+      env: z.record(z.string(), z.string()),
     })
   )
   .handler(async ({ input }) => {
@@ -827,6 +887,7 @@ const projectConfigProc = os
       userSkills,
       userCommands,
       projectCommands,
+      env,
     ] = await Promise.all([
       readProjectMcpConfig(projectPath),
       readLocalMcpServers(projectPath),
@@ -836,6 +897,7 @@ const projectConfigProc = os
       readUserSkills(),
       readUserCommands(),
       readProjectCommands(projectPath),
+      readProjectEnv(projectPath),
     ]);
     const skills = [...projectCommands, ...userSkills, ...userCommands];
     return {
@@ -845,6 +907,7 @@ const projectConfigProc = os
       claudeMd,
       agents,
       skills,
+      env,
     };
   });
 
@@ -2039,6 +2102,25 @@ const inspectToolsProc = os
     }
   });
 
+// --- Project Environment Variables ---
+
+const getProjectEnvProc = os
+  .input(z.object({ slug: z.string() }))
+  .output(z.record(z.string(), z.string()))
+  .handler(async ({ input }) => {
+    const projectPath = await resolveSlugToPath(input.slug);
+    return readProjectEnv(projectPath);
+  });
+
+const setProjectEnvProc = os
+  .input(z.object({ slug: z.string(), env: z.record(z.string(), z.string()) }))
+  .output(z.object({ success: z.boolean() }))
+  .handler(async ({ input }) => {
+    const projectPath = await resolveSlugToPath(input.slug);
+    await writeProjectEnv(projectPath, input.env);
+    return { success: true };
+  });
+
 // --- Skills & Commands management ---
 
 const addSkillProc = os
@@ -2249,6 +2331,9 @@ export const router = {
     gitCommit: gitCommitProc,
     gitCommitPush: gitCommitPushProc,
     gitGenerateCommitMsg: gitGenerateCommitMsgProc,
+    gitWorktrees: gitWorktreesProc,
+    getEnv: getProjectEnvProc,
+    setEnv: setProjectEnvProc,
   },
   user: { config: userConfigProc },
   mcpServers: {
@@ -2319,6 +2404,7 @@ export const router = {
   },
   tmux: {
     panes: tmuxPanesProc,
+    sessions: tmuxSessionsProc,
   },
   server: { config: serverConfigProc },
   analytics: {

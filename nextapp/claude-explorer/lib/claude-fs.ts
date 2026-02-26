@@ -59,6 +59,7 @@ interface ClaudeConfigProject {
   >;
   hasTrustDialogAccepted?: boolean;
   mcpServers?: Record<string, unknown>;
+  env?: Record<string, string>;
 }
 
 interface ClaudeConfig {
@@ -307,6 +308,62 @@ export async function gitFullDiff(projectPath: string): Promise<string> {
   }
 }
 
+export type GitWorktree = {
+  path: string;
+  head: string;
+  branch: string;
+  isMain: boolean;
+  isCurrent: boolean;
+};
+
+export async function getGitWorktrees(
+  projectPath: string
+): Promise<GitWorktree[]> {
+  try {
+    const output =
+      await Bun.$`git -C ${projectPath} worktree list --porcelain`
+        .quiet()
+        .text();
+    const blocks = output.trim().split(/\n\n+/);
+    const worktrees: GitWorktree[] = [];
+
+    for (const block of blocks) {
+      if (!block.trim()) continue;
+      const lines = block.trim().split("\n");
+      let path = "";
+      let head = "";
+      let branch = "";
+
+      for (const line of lines) {
+        if (line.startsWith("worktree ")) path = line.slice(9).trim();
+        else if (line.startsWith("HEAD ")) head = line.slice(5).trim();
+        else if (line.startsWith("branch ")) {
+          const ref = line.slice(7).trim();
+          branch = ref.replace(/^refs\/heads\//, "");
+        } else if (line === "detached") {
+          branch = "(detached)";
+        }
+      }
+
+      if (path) {
+        worktrees.push({
+          path,
+          head: head.slice(0, 8),
+          branch: branch || "(unknown)",
+          isMain: worktrees.length === 0,
+          isCurrent: path === projectPath,
+        });
+      }
+    }
+
+    // Only return when there are 2+ worktrees (single worktree is uninteresting)
+    if (worktrees.length < 2) return [];
+    return worktrees;
+  } catch {
+    return [];
+  }
+}
+
 // --- Project list using ~/.claude.json + 1 stat per project for lastActive ---
 
 export async function listProjects(): Promise<Project[]> {
@@ -375,6 +432,42 @@ export async function readLocalMcpServers(
 ): Promise<Record<string, unknown>> {
   const config = await readClaudeConfig();
   return config.projects[projectPath]?.mcpServers ?? {};
+}
+
+export async function readProjectEnv(
+  projectPath: string
+): Promise<Record<string, string>> {
+  const config = await readClaudeConfig();
+  return config.projects[projectPath]?.env ?? {};
+}
+
+export async function writeProjectEnv(
+  projectPath: string,
+  env: Record<string, string>
+): Promise<void> {
+  // Read the raw file so we don't clobber unrecognised fields
+  let raw: Record<string, unknown> = {};
+  try {
+    raw = JSON.parse(await readFile(CLAUDE_CONFIG_PATH, "utf-8")) as Record<
+      string,
+      unknown
+    >;
+  } catch {
+    // file may not exist yet — start fresh
+  }
+
+  const projects = (raw.projects ?? {}) as Record<
+    string,
+    Record<string, unknown>
+  >;
+  projects[projectPath] = { ...(projects[projectPath] ?? {}), env };
+  raw.projects = projects;
+
+  await mkdir(CLAUDE_DIR, { recursive: true });
+  await writeFile(CLAUDE_CONFIG_PATH, JSON.stringify(raw, null, 2), "utf-8");
+
+  // Bust the in-memory cache so subsequent reads reflect the change
+  configCache = null;
 }
 
 export async function readProjectClaudeMd(

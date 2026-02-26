@@ -24,6 +24,7 @@ const GLOBAL_NAV = [
   { href: "/email", label: "Email", tooltip: "Email Config" },
   { href: "/webhooks", label: "Webhooks", tooltip: "Webhooks" },
   { href: "/crons", label: "Crons", tooltip: "Cron Jobs" },
+  { href: "/tmux", label: "Tmux", tooltip: "Tmux Sessions" },
 ] as const;
 
 /** Extract project slug from paths like /project/[slug] or /project/[slug]/chat/[id] */
