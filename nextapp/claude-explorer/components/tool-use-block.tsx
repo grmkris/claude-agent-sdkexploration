@@ -1,6 +1,6 @@
 "use client";
 
-import { getToolRenderer } from "./tool-renderers";
+import { getToolRenderer, parseMcpToolName } from "./tool-renderers";
 
 export function ToolUseBlock({
   name,
@@ -20,6 +20,7 @@ export function ToolUseBlock({
   projectSlug?: string;
 }) {
   const Renderer = getToolRenderer(name);
+  const { server } = parseMcpToolName(name);
   return (
     <Renderer
       name={name}
@@ -29,6 +30,7 @@ export function ToolUseBlock({
       elapsed={elapsed}
       isRunning={isRunning}
       projectSlug={projectSlug}
+      mcpServer={server}
     />
   );
 }

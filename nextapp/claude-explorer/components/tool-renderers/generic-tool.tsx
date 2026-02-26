@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 
 import type { ToolRendererProps } from ".";
 
+import { parseMcpToolName } from ".";
 import { StatusIndicator } from "./bash-tool";
 
 export function GenericTool({
@@ -21,15 +22,20 @@ export function GenericTool({
   is_error,
   elapsed,
   isRunning,
+  mcpServer,
 }: ToolRendererProps) {
   const [open, setOpen] = useState(false);
+  const displayName = parseMcpToolName(name).tool;
 
   return (
     <Collapsible open={open} onOpenChange={setOpen} className="my-1.5">
       <CollapsibleTrigger className="flex w-full items-center gap-2 text-xs cursor-pointer hover:opacity-80">
         <span className="text-[10px]">{open ? "▼" : "▶"}</span>
         <Badge variant="outline" className="text-[10px] font-mono">
-          {name}
+          {mcpServer && (
+            <span className="text-muted-foreground">{mcpServer}/</span>
+          )}
+          {displayName}
         </Badge>
         <StatusIndicator
           isRunning={isRunning}

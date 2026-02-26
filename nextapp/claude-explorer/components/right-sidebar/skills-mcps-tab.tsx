@@ -35,11 +35,19 @@ export function SkillsMcpsTab({ slug }: { slug: string | null }) {
   const [mcpResults, setMcpResults] = useState<Record<string, McpResult>>({});
   const [loadingMcp, setLoadingMcp] = useState<string | null>(null);
 
-  const { data: userConfig, isLoading: userLoading } = useQuery(
-    orpc.user.config.queryOptions()
-  );
+  const {
+    data: userConfig,
+    isLoading: userLoading,
+    isError: userError,
+    refetch: userRefetch,
+  } = useQuery(orpc.user.config.queryOptions());
 
-  const { data: projectConfig, isLoading: projectLoading } = useQuery({
+  const {
+    data: projectConfig,
+    isLoading: projectLoading,
+    isError: projectError,
+    refetch: projectRefetch,
+  } = useQuery({
     ...orpc.projects.config.queryOptions({ input: { slug: slug ?? "" } }),
     enabled: !!slug,
   });
@@ -109,7 +117,7 @@ export function SkillsMcpsTab({ slug }: { slug: string | null }) {
       return;
     }
     setExpandedMcp(key);
-    if (mcpResults[key] !== undefined) return;
+    if (mcpResults[key]?.tools.length > 0) return;
     setLoadingMcp(key);
     try {
       const result = await client.mcpServers.inspectTools({
@@ -147,8 +155,28 @@ export function SkillsMcpsTab({ slug }: { slug: string | null }) {
     );
   }
 
+  const configError = userError || projectError;
+
   return (
     <div className="flex flex-col">
+      {/* Config error banner */}
+      {configError && (
+        <div className="mx-2 mb-2 flex items-center gap-2 rounded bg-red-500/10 px-2 py-1.5 text-[11px] text-red-400">
+          <span className="flex-1">
+            Failed to load {userError ? "user" : "project"} config
+          </span>
+          <button
+            className="shrink-0 rounded px-1.5 py-0.5 hover:bg-red-500/20"
+            onClick={() => {
+              void userRefetch();
+              void projectRefetch();
+            }}
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
       {/* Skills */}
       <Collapsible defaultOpen>
         <SidebarGroup className="pb-1">
@@ -159,7 +187,9 @@ export function SkillsMcpsTab({ slug }: { slug: string | null }) {
             <SidebarGroupContent>
               {allSkills.length === 0 ? (
                 <p className="px-2 py-1 text-xs text-muted-foreground">
-                  No skills installed
+                  {configError
+                    ? "Could not load skills"
+                    : "No skills installed"}
                 </p>
               ) : (
                 <SidebarMenu>
@@ -203,7 +233,9 @@ export function SkillsMcpsTab({ slug }: { slug: string | null }) {
         <SidebarGroup className="pt-0">
           <SidebarGroupContent>
             <p className="px-2 py-1 text-xs text-muted-foreground">
-              No MCP servers configured
+              {configError
+                ? "Could not load MCP servers"
+                : "No MCP servers configured"}
             </p>
           </SidebarGroupContent>
         </SidebarGroup>
@@ -230,19 +262,28 @@ export function SkillsMcpsTab({ slug }: { slug: string | null }) {
                           onClick={() => handleMcpToggle(name, group.scope)}
                           isActive={isExpanded}
                         >
+                          {/* Status dot */}
+                          <span
+                            className={cn(
+                              "inline-block h-1.5 w-1.5 shrink-0 rounded-full",
+                              isConnecting
+                                ? "animate-pulse bg-yellow-500"
+                                : result?.error
+                                  ? "bg-red-500"
+                                  : result?.tools.length
+                                    ? "bg-green-500"
+                                    : "bg-muted-foreground/30"
+                            )}
+                          />
                           <span className="truncate">{name}</span>
-                          {result && !isConnecting && (
-                            <span
-                              className={cn(
-                                "ml-auto shrink-0 text-[10px]",
-                                result.error ? "text-red-400" : "text-green-400"
-                              )}
-                            >
-                              {result.error
-                                ? "✗ error"
-                                : `✓ ${result.tools.length} tools`}
-                            </span>
-                          )}
+                          {/* Collapsed tool count */}
+                          {!isExpanded &&
+                            !isConnecting &&
+                            result?.tools.length > 0 && (
+                              <span className="ml-auto shrink-0 text-[10px] text-muted-foreground">
+                                {result.tools.length} tools
+                              </span>
+                            )}
                           {isConnecting && (
                             <span className="ml-auto shrink-0 text-[10px] text-muted-foreground">
                               connecting…
@@ -257,9 +298,39 @@ export function SkillsMcpsTab({ slug }: { slug: string | null }) {
                                 Connecting to MCP server…
                               </p>
                             ) : result?.error ? (
-                              <p className="px-2 py-1.5 text-[11px] text-red-400">
-                                {result.error}
-                              </p>
+                              <div className="flex items-start gap-1.5 px-2 py-1.5">
+                                <p className="max-h-20 flex-1 overflow-auto text-[11px] text-red-400">
+                                  {result.error}
+                                </p>
+                                <button
+                                  className="shrink-0 text-[10px] text-muted-foreground hover:text-foreground"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setMcpResults((prev) => {
+                                      const next = { ...prev };
+                                      delete next[key];
+                                      return next;
+                                    });
+                                    void handleMcpToggle(name, group.scope);
+                                  }}
+                                >
+                                  Retry
+                                </button>
+                                <button
+                                  className="shrink-0 text-[10px] text-muted-foreground hover:text-foreground"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setMcpResults((prev) => {
+                                      const next = { ...prev };
+                                      delete next[key];
+                                      return next;
+                                    });
+                                    setExpandedMcp(null);
+                                  }}
+                                >
+                                  ✕
+                                </button>
+                              </div>
                             ) : result?.tools.length === 0 ? (
                               <p className="px-2 py-1.5 text-[11px] text-muted-foreground">
                                 No tools exposed

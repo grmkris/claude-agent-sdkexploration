@@ -8,6 +8,7 @@ export type ToolRendererProps = {
   elapsed?: number;
   isRunning?: boolean;
   projectSlug?: string;
+  mcpServer?: string;
 };
 
 /** Safely stringify an unknown value from tool input */
@@ -37,17 +38,21 @@ const toolMap: Record<string, ComponentType<ToolRendererProps>> = {
   Task: TaskTool,
 };
 
-/** Strip MCP server prefix: "mcp__server__toolName" → "toolName" */
-function stripMcpPrefix(name: string): string {
+/** Parse MCP tool name: "mcp__server__toolName" → { server: "server", tool: "toolName" } */
+export function parseMcpToolName(name: string): {
+  server?: string;
+  tool: string;
+} {
   if (name.startsWith("mcp__")) {
     const parts = name.split("__");
-    return parts[parts.length - 1];
+    if (parts.length >= 3)
+      return { server: parts[1], tool: parts.slice(2).join("__") };
   }
-  return name;
+  return { tool: name };
 }
 
 export function getToolRenderer(
   name: string
 ): ComponentType<ToolRendererProps> {
-  return toolMap[name] ?? toolMap[stripMcpPrefix(name)] ?? GenericTool;
+  return toolMap[name] ?? toolMap[parseMcpToolName(name).tool] ?? GenericTool;
 }
