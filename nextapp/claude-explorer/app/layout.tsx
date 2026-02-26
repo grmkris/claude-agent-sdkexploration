@@ -1,10 +1,12 @@
 import type { Metadata, Viewport } from "next";
 
 import { Geist, Geist_Mono } from "next/font/google";
+import { cookies } from "next/headers";
 
 import "./globals.css";
 import Script from "next/script";
 
+import { AgentTabBar } from "@/components/agent-tabs/agent-tab-bar";
 import { AppBreadcrumb } from "@/components/app-breadcrumb";
 import { ProjectSidebar } from "@/components/project-sidebar";
 import { RightSidebar } from "@/components/right-sidebar";
@@ -44,11 +46,15 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const cookieStore = await cookies();
+  const tabBarVisible =
+    cookieStore.get("agent_tab_bar_state")?.value !== "false";
+
   return (
     <html lang="en" className="dark">
       <Script
@@ -59,7 +65,7 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <Providers>
+        <Providers tabBarVisible={tabBarVisible}>
           <TooltipProvider>
             <SidebarProvider>
               <RightSidebarProvider defaultOpen={false}>
@@ -73,6 +79,7 @@ export default function RootLayout({
                     <div className="flex-1" />
                     <RightSidebarTrigger />
                   </header>
+                  <AgentTabBar />
                   <div className="flex flex-1 flex-col overflow-hidden">
                     {children}
                   </div>

@@ -3,6 +3,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState } from "react";
 
+import { AgentTabProvider } from "@/components/agent-tabs/tab-context";
 import { useLiveUpdates } from "@/hooks/use-live-updates";
 
 function LiveUpdatesProvider({ children }: { children: React.ReactNode }) {
@@ -10,7 +11,13 @@ function LiveUpdatesProvider({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-export function Providers({ children }: { children: React.ReactNode }) {
+export function Providers({
+  children,
+  tabBarVisible,
+}: {
+  children: React.ReactNode;
+  tabBarVisible?: boolean;
+}) {
   const [queryClient] = useState(
     () =>
       new QueryClient({
@@ -24,7 +31,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
   );
   return (
     <QueryClientProvider client={queryClient}>
-      <LiveUpdatesProvider>{children}</LiveUpdatesProvider>
+      <LiveUpdatesProvider>
+        <AgentTabProvider defaultVisible={tabBarVisible}>
+          {children}
+        </AgentTabProvider>
+      </LiveUpdatesProvider>
     </QueryClientProvider>
   );
 }
