@@ -45,7 +45,7 @@ export function ProjectExplorerPanel({ slug }: { slug: string }) {
   const { data: projects } = useQuery(orpc.projects.list.queryOptions());
   const project = projects?.find((p) => p.slug === slug);
   const projectName = project
-    ? project.path.split("/").at(-1) ?? slug
+    ? (project.path.split("/").at(-1) ?? slug)
     : slug.replace(/-/g, " ");
 
   const { data: gitStatus } = useQuery({

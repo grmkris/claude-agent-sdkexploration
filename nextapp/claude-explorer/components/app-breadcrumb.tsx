@@ -22,6 +22,10 @@ export function AppBreadcrumb() {
       ? project.path.split("/").at(-1)
       : slug.replace(/-/g, " ");
 
+    // Detect file viewer: /project/[slug]/file/[...path]
+    const fileMatch = pathname.match(/^\/project\/[^/]+\/file\/(.+)$/);
+    const filePath = fileMatch?.[1] ?? null;
+
     return (
       <div className="flex items-center gap-1.5 text-xs">
         <Link
@@ -33,10 +37,22 @@ export function AppBreadcrumb() {
         <span className="text-muted-foreground/50">/</span>
         <Link
           href={`/project/${slug}`}
-          className="text-foreground font-medium hover:text-foreground/80 transition-colors"
+          className={
+            filePath
+              ? "text-muted-foreground hover:text-foreground transition-colors"
+              : "text-foreground font-medium hover:text-foreground/80 transition-colors"
+          }
         >
           {name}
         </Link>
+        {filePath && (
+          <>
+            <span className="text-muted-foreground/50">/</span>
+            <span className="font-mono text-foreground font-medium">
+              {filePath}
+            </span>
+          </>
+        )}
       </div>
     );
   }

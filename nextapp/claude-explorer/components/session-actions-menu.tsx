@@ -37,7 +37,16 @@ function EllipsisIcon({ className }: { className?: string }) {
 
 function CheckIcon({ className }: { className?: string }) {
   return (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2.5}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+    >
       <path d="M20 6 9 17l-5-5" />
     </svg>
   );
@@ -71,7 +80,7 @@ export function SessionActionsMenu({
   const projectPath =
     session.projectPath !== undefined
       ? session.projectPath
-      : session.resumeCommand.split(" && ")[0]?.replace("cd ", "") ?? null;
+      : (session.resumeCommand.split(" && ")[0]?.replace("cd ", "") ?? null);
 
   const safePath = projectPath?.includes(" ")
     ? `"${projectPath}"`
@@ -107,47 +116,49 @@ export function SessionActionsMenu({
 
   return (
     // Stop click from bubbling to parent <Link> or card wrappers
-    <div onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}>
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        className={children ? undefined : defaultTriggerClass}
-        title={children ? undefined : "Session actions"}
-      >
-        {children ?? <EllipsisIcon className="h-3.5 w-3.5" />}
-      </DropdownMenuTrigger>
-      <DropdownMenuContent side="bottom" align="end">
-        <DropdownMenuItem onSelect={handleCopyResume}>
-          {copiedResume ? (
-            <CheckIcon className="h-3.5 w-3.5 text-green-400" />
-          ) : (
-            <span className="h-3.5 w-3.5 text-center text-[11px]">⌘</span>
-          )}
-          Copy resume command
-        </DropdownMenuItem>
-        {tmuxCmd && (
-          <DropdownMenuItem onSelect={handleCopyTmux}>
-            {copiedTmux ? (
+    <div
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      }}
+    >
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          className={children ? undefined : defaultTriggerClass}
+          title={children ? undefined : "Session actions"}
+        >
+          {children ?? <EllipsisIcon className="h-3.5 w-3.5" />}
+        </DropdownMenuTrigger>
+        <DropdownMenuContent side="bottom" align="end">
+          <DropdownMenuItem onSelect={handleCopyResume}>
+            {copiedResume ? (
               <CheckIcon className="h-3.5 w-3.5 text-green-400" />
             ) : (
-              <span className="h-3.5 w-3.5 text-center text-[11px]">▶</span>
+              <span className="h-3.5 w-3.5 text-center text-[11px]">⌘</span>
             )}
-            Copy tmux command
+            Copy resume command
           </DropdownMenuItem>
-        )}
-        {onArchive && (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              onSelect={onArchive}
-              variant="destructive"
-            >
-              <span className="h-3.5 w-3.5 text-center text-[11px]">☰</span>
-              Archive session
+          {tmuxCmd && (
+            <DropdownMenuItem onSelect={handleCopyTmux}>
+              {copiedTmux ? (
+                <CheckIcon className="h-3.5 w-3.5 text-green-400" />
+              ) : (
+                <span className="h-3.5 w-3.5 text-center text-[11px]">▶</span>
+              )}
+              Copy tmux command
             </DropdownMenuItem>
-          </>
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
+          )}
+          {onArchive && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={onArchive} variant="destructive">
+                <span className="h-3.5 w-3.5 text-center text-[11px]">☰</span>
+                Archive session
+              </DropdownMenuItem>
+            </>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   );
 }

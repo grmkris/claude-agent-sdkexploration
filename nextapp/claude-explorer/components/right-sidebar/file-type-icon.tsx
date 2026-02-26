@@ -1,3 +1,5 @@
+import type { IconSvgElement } from "@hugeicons/react";
+
 import {
   CssFile01Icon,
   File01Icon,
@@ -12,7 +14,6 @@ import {
   ComputerTerminalIcon,
   Configuration01Icon,
 } from "@hugeicons/core-free-icons";
-import type { IconSvgElement } from "@hugeicons/react";
 
 export type FileIconDef = {
   icon: IconSvgElement;
@@ -20,11 +21,35 @@ export type FileIconDef = {
 };
 
 const BINARY_EXTENSIONS = new Set([
-  "png", "jpg", "jpeg", "gif", "webp", "ico", "bmp", "tiff",
-  "pdf", "zip", "tar", "gz", "bz2", "7z",
-  "woff", "woff2", "ttf", "eot", "otf",
-  "exe", "dll", "so", "dylib",
-  "mp3", "mp4", "wav", "ogg", "avi", "mov",
+  "png",
+  "jpg",
+  "jpeg",
+  "gif",
+  "webp",
+  "ico",
+  "bmp",
+  "tiff",
+  "pdf",
+  "zip",
+  "tar",
+  "gz",
+  "bz2",
+  "7z",
+  "woff",
+  "woff2",
+  "ttf",
+  "eot",
+  "otf",
+  "exe",
+  "dll",
+  "so",
+  "dylib",
+  "mp3",
+  "mp4",
+  "wav",
+  "ogg",
+  "avi",
+  "mov",
 ]);
 
 export function isBinaryFile(name: string): boolean {
@@ -57,7 +82,11 @@ export function getFileIcon(
   ) {
     return { icon: Package01Icon, colorClass: "text-green-400/80" };
   }
-  if (base === ".gitignore" || base === ".gitmodules" || base === ".gitattributes") {
+  if (
+    base === ".gitignore" ||
+    base === ".gitmodules" ||
+    base === ".gitattributes"
+  ) {
     return { icon: GitBranchIcon, colorClass: "text-orange-400/80" };
   }
   if (base === "dockerfile" || base.startsWith("docker-compose")) {

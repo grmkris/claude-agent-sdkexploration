@@ -2,9 +2,10 @@
 
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import { useQuery } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 
-import { getFileIcon, isBinaryFile } from "@/components/right-sidebar/file-type-icon";
+import { getFileIcon } from "@/components/right-sidebar/file-type-icon";
 import { orpc } from "@/lib/orpc";
 import { cn } from "@/lib/utils";
 
@@ -26,7 +27,6 @@ function FileNode({
   expandedPaths,
   onToggle,
   onFileClick,
-  selectedFile,
   depth,
   filter,
 }: {
@@ -38,12 +38,10 @@ function FileNode({
   expandedPaths: ExpandedPaths;
   onToggle: (path: string) => void;
   onFileClick: (path: string) => void;
-  selectedFile: string | null;
   depth: number;
   filter: string;
 }) {
   const isExpanded = expandedPaths.has(path);
-  const isSelected = !isDirectory && selectedFile === path;
   const { icon, colorClass }: { icon: IconSvgElement; colorClass: string } =
     getFileIcon(name, isDirectory, isExpanded);
 
@@ -73,8 +71,8 @@ function FileNode({
         type="button"
         className={cn(
           "group flex w-full items-center gap-1.5 py-1 pr-2 text-left text-xs transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-          isSelected && "bg-sidebar-accent text-sidebar-accent-foreground",
-          !isDirectory && !isSelected && "text-muted-foreground hover:text-sidebar-accent-foreground"
+          !isDirectory &&
+            "text-muted-foreground hover:text-sidebar-accent-foreground"
         )}
         style={{ paddingLeft: `${8 + depth * 12}px` }}
         onClick={handleClick}
@@ -106,7 +104,6 @@ function FileNode({
               expandedPaths={expandedPaths}
               onToggle={onToggle}
               onFileClick={onFileClick}
-              selectedFile={selectedFile}
               depth={depth + 1}
               filter={filter}
             />
@@ -125,76 +122,9 @@ function FileNode({
   );
 }
 
-function FilePreview({
-  slug,
-  path,
-  onClose,
-}: {
-  slug: string;
-  path: string;
-  onClose: () => void;
-}) {
-  const fileName = path.split("/").at(-1) ?? path;
-  const binary = isBinaryFile(fileName);
-
-  const { data, isLoading, error } = useQuery({
-    ...orpc.projects.readFile.queryOptions({ input: { slug, path } }),
-    enabled: !binary,
-    staleTime: 30_000,
-  });
-
-  const lines = data?.content.split("\n").slice(0, 60) ?? [];
-  const truncated = data && data.content.split("\n").length > 60;
-
-  return (
-    <div className="border-t border-sidebar-border bg-sidebar-accent/20 flex flex-col">
-      {/* Header */}
-      <div className="flex items-center justify-between px-2 py-1 border-b border-sidebar-border/50">
-        <code className="text-[10px] font-mono text-muted-foreground truncate flex-1">
-          {fileName}
-        </code>
-        <button
-          onClick={onClose}
-          className="ml-1 shrink-0 rounded p-0.5 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-          title="Close preview"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3">
-            <path d="M18 6 6 18M6 6l12 12" />
-          </svg>
-        </button>
-      </div>
-
-      {/* Content */}
-      <div className="max-h-52 overflow-auto">
-        {binary && (
-          <p className="px-3 py-3 text-[11px] text-muted-foreground italic">
-            Binary file — preview not available
-          </p>
-        )}
-        {!binary && isLoading && (
-          <p className="px-3 py-3 text-[11px] text-muted-foreground animate-pulse">
-            Loading…
-          </p>
-        )}
-        {!binary && error && (
-          <p className="px-3 py-3 text-[11px] text-destructive">
-            {error.message || "Failed to load"}
-          </p>
-        )}
-        {!binary && data && (
-          <pre className="px-3 py-2 text-[10px] font-mono leading-relaxed text-foreground/75 whitespace-pre-wrap break-all">
-            {lines.join("\n")}
-            {truncated && "\n…(first 60 lines)"}
-          </pre>
-        )}
-      </div>
-    </div>
-  );
-}
-
 export function FileTreeTab({ slug }: { slug: string | null }) {
+  const router = useRouter();
   const [expandedPaths, setExpandedPaths] = useState<ExpandedPaths>(new Set());
-  const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [filter, setFilter] = useState("");
 
   const { data: rootEntries, isLoading } = useQuery({
@@ -214,9 +144,14 @@ export function FileTreeTab({ slug }: { slug: string | null }) {
     });
   }, []);
 
-  const handleFileClick = useCallback((path: string) => {
-    setSelectedFile((prev) => (prev === path ? null : path));
-  }, []);
+  const handleFileClick = useCallback(
+    (path: string) => {
+      if (slug) {
+        router.push(`/project/${slug}/file/${path}`);
+      }
+    },
+    [slug, router]
+  );
 
   if (!slug) {
     return (
@@ -274,7 +209,6 @@ export function FileTreeTab({ slug }: { slug: string | null }) {
             expandedPaths={expandedPaths}
             onToggle={handleToggle}
             onFileClick={handleFileClick}
-            selectedFile={selectedFile}
             depth={0}
             filter={filter}
           />
@@ -285,15 +219,6 @@ export function FileTreeTab({ slug }: { slug: string | null }) {
           </div>
         )}
       </div>
-
-      {/* Inline file preview */}
-      {selectedFile && slug && (
-        <FilePreview
-          slug={slug}
-          path={selectedFile}
-          onClose={() => setSelectedFile(null)}
-        />
-      )}
     </div>
   );
 }

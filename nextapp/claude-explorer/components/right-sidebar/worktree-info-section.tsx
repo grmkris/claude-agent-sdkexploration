@@ -22,7 +22,10 @@ export function WorktreeInfoSection({ slug }: { slug: string }) {
       <SidebarGroupContent>
         <div className="flex flex-col gap-0.5 px-2">
           {worktrees.map((wt) => (
-            <div key={wt.path} className="flex items-center gap-2 py-0.5 text-xs">
+            <div
+              key={wt.path}
+              className="flex items-center gap-2 py-0.5 text-xs"
+            >
               <span
                 className={cn(
                   "h-1.5 w-1.5 shrink-0 rounded-full",

@@ -7,10 +7,8 @@ import { useState } from "react";
 
 import type { TmuxPane } from "@/lib/types";
 
-import { PROJECT_TEMPLATES } from "@/lib/mcp-catalog";
-
 import { CopyButton } from "@/components/copy-button";
-import { StarIcon, StarFilledIcon } from "@/components/icons";
+import { PlusIcon, StarIcon, StarFilledIcon } from "@/components/icons";
 import { ResumeSessionPopover } from "@/components/resume-session-popover";
 import { StateBadgeInline } from "@/components/session-state-badge";
 import { Button } from "@/components/ui/button";
@@ -23,6 +21,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PROJECT_TEMPLATES } from "@/lib/mcp-catalog";
 import { orpc } from "@/lib/orpc";
 import { client } from "@/lib/orpc-client";
 import { getTimeAgo } from "@/lib/utils";
@@ -382,8 +381,9 @@ function UnifiedSessionsSection() {
     ...orpc.liveState.active.queryOptions(),
     refetchInterval: 10000,
   });
-  const { data: rootSessions, isLoading } = useQuery({
-    ...orpc.root.sessions.queryOptions({ input: {} }),
+  // Fetch ALL recent sessions across every project (not just root)
+  const { data: recentSessions, isLoading } = useQuery({
+    ...orpc.sessions.recent.queryOptions({ input: { limit: 50 } }),
     refetchInterval: 15000,
   });
   const { data: primary } = useQuery(orpc.root.primarySession.queryOptions());
@@ -402,22 +402,33 @@ function UnifiedSessionsSection() {
   const homeDir = serverConfig?.homeDir;
   const primarySessionId = primary?.sessionId;
 
-  // Build a set of live session IDs so we can deduplicate with root sessions
+  // Build a set of live session IDs so we can deduplicate with recent sessions
   const liveIds = new Set(liveSessions?.map((s) => s.session_id) ?? []);
 
-  // Root workspace sessions that aren't already shown in the live list
-  const rootSessionsNotLive =
-    rootSessions?.filter((s) => !liveIds.has(s.id)) ?? [];
+  // All recent sessions that aren't already shown in the live list
+  const recentNotLive = recentSessions?.filter((s) => !liveIds.has(s.id)) ?? [];
 
   const hasAnything =
-    (liveSessions && liveSessions.length > 0) || rootSessionsNotLive.length > 0;
+    (liveSessions && liveSessions.length > 0) || recentNotLive.length > 0;
 
   if (!isLoading && !hasAnything) {
     return (
       <section className="px-4 pb-4">
-        <h2 className="mb-2 text-sm font-medium text-muted-foreground">
-          Sessions
-        </h2>
+        <div className="mb-2 flex items-center justify-between">
+          <h2 className="text-sm font-medium text-muted-foreground">
+            Recent Conversations
+          </h2>
+          <Link href="/chat">
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-6 gap-1 px-2 text-xs"
+            >
+              <PlusIcon className="h-3 w-3" />
+              New Convo
+            </Button>
+          </Link>
+        </div>
         <div className="rounded border border-dashed p-4">
           <p className="mb-1 text-sm font-medium">Welcome to Claude Explorer</p>
           <p className="mb-3 text-xs text-muted-foreground">
@@ -435,13 +446,19 @@ function UnifiedSessionsSection() {
 
   return (
     <section className="px-4 pb-4">
-      <div className="mb-2 flex items-center gap-2">
-        <h2 className="text-sm font-medium text-muted-foreground">Sessions</h2>
-        <Link
-          href="/chat"
-          className="text-[10px] text-muted-foreground hover:text-foreground"
-        >
-          + New
+      <div className="mb-2 flex items-center justify-between">
+        <h2 className="text-sm font-medium text-muted-foreground">
+          Recent Conversations
+        </h2>
+        <Link href="/chat">
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-6 gap-1 px-2 text-xs"
+          >
+            <PlusIcon className="h-3 w-3" />
+            New Convo
+          </Button>
         </Link>
       </div>
 
@@ -506,23 +523,43 @@ function UnifiedSessionsSection() {
           );
         })}
 
-        {/* Root workspace sessions that are not currently live */}
-        {rootSessionsNotLive.map((session) => {
+        {/* All recent sessions (all projects) that are not currently live */}
+        {recentNotLive.map((session) => {
           const isPrimary = session.id === primarySessionId;
+          const sessionHref = session.projectSlug
+            ? `/project/${session.projectSlug}/chat/${session.id}`
+            : `/chat/${session.id}`;
+          const projectLabel = session.projectSlug
+            ? (session.projectPath.split("/").pop() ?? session.projectSlug)
+            : "root";
+
           return (
             <div
               key={session.id}
-              className="flex items-center gap-2 rounded border px-3 py-1.5"
+              className="flex items-center gap-2 rounded border px-3 py-1.5 transition-colors hover:bg-accent/50"
             >
+              {session.sessionState && (
+                <StateBadgeInline state={session.sessionState} compact />
+              )}
               <Link
-                href={`/chat/${session.id}`}
+                href={sessionHref}
                 className="min-w-0 flex-1 truncate text-xs hover:underline"
               >
                 {session.firstPrompt}
               </Link>
-              <span className="shrink-0 text-[10px] text-muted-foreground">
-                root
-              </span>
+              {session.projectSlug ? (
+                <Link
+                  href={`/project/${session.projectSlug}`}
+                  className="shrink-0 rounded bg-accent px-1.5 py-0.5 text-[10px] text-muted-foreground hover:text-foreground"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {projectLabel}
+                </Link>
+              ) : (
+                <span className="shrink-0 text-[10px] text-muted-foreground">
+                  root
+                </span>
+              )}
               <span className="shrink-0 text-[10px] text-muted-foreground">
                 {getTimeAgo(session.lastModified)}
               </span>

@@ -632,7 +632,7 @@ export async function getNotificationSettings(): Promise<NotificationSettings> {
   const store = await readStore();
   return {
     ...DEFAULT_NOTIFICATION_SETTINGS,
-    ...((store as any).notificationSettings ?? {}),
+    ...(store as any).notificationSettings,
   };
 }
 
@@ -642,7 +642,7 @@ export async function updateNotificationSettings(
   const store = await readStore();
   const current = {
     ...DEFAULT_NOTIFICATION_SETTINGS,
-    ...((store as any).notificationSettings ?? {}),
+    ...(store as any).notificationSettings,
   };
   const updated = { ...current, ...patch };
   (store as any).notificationSettings = updated;

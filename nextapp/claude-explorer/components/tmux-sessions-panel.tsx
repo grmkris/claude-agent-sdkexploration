@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 
-import { generateAttachCommand } from "@/lib/tmux-command";
 import { orpc } from "@/lib/orpc";
+import { generateAttachCommand } from "@/lib/tmux-command";
 import { cn } from "@/lib/utils";
 
 function CopyIcon({ className }: { className?: string }) {

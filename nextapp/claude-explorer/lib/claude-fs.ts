@@ -320,10 +320,9 @@ export async function getGitWorktrees(
   projectPath: string
 ): Promise<GitWorktree[]> {
   try {
-    const output =
-      await Bun.$`git -C ${projectPath} worktree list --porcelain`
-        .quiet()
-        .text();
+    const output = await Bun.$`git -C ${projectPath} worktree list --porcelain`
+      .quiet()
+      .text();
     const blocks = output.trim().split(/\n\n+/);
     const worktrees: GitWorktree[] = [];
 
@@ -460,7 +459,7 @@ export async function writeProjectEnv(
     string,
     Record<string, unknown>
   >;
-  projects[projectPath] = { ...(projects[projectPath] ?? {}), env };
+  projects[projectPath] = { ...projects[projectPath], env };
   raw.projects = projects;
 
   await mkdir(CLAUDE_DIR, { recursive: true });

@@ -120,7 +120,11 @@ import {
   listAssignedIssues,
   createSessionOnIssue,
 } from "./linear-agent";
-import { SUGGESTED_SKILLS, MCP_CATALOG, type SkillsShSkill } from "./mcp-catalog";
+import {
+  SUGGESTED_SKILLS,
+  MCP_CATALOG,
+  type SkillsShSkill,
+} from "./mcp-catalog";
 import {
   ProjectSchema,
   SessionMetaSchema,
@@ -267,7 +271,9 @@ const recentSessionsProc = os
   });
 
 const timelineSessionsProc = os
-  .input(z.object({ limit: z.number().optional(), slug: z.string().optional() }))
+  .input(
+    z.object({ limit: z.number().optional(), slug: z.string().optional() })
+  )
   .output(z.array(RecentSessionSchema))
   .handler(async ({ input }) => {
     if (input.slug) {
