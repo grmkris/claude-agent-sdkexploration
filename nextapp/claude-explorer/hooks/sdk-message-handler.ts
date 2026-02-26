@@ -303,6 +303,25 @@ export function handleSDKMessage(
       break;
     }
 
+    case "auth_status": {
+      const authMsg = msg as {
+        isAuthenticating: boolean;
+        output: string[];
+        error?: string;
+      };
+      const message = authMsg.error
+        ? `Auth error: ${authMsg.error}`
+        : authMsg.output.join("\n");
+      appendSystemMessage(setMessages, [
+        {
+          type: "system_event" as const,
+          subtype: "auth_status",
+          message,
+        } satisfies SystemEventBlock,
+      ]);
+      break;
+    }
+
     case "tool_use_summary": {
       const sumMsg = msg as {
         tool_name?: string;
