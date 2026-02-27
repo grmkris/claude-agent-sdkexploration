@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 
 import type { ToolProgressEntry } from "@/hooks/use-chat-stream";
 import type { ContentBlock, ThinkingBlock, UserImageBlock } from "@/lib/types";
@@ -56,7 +56,7 @@ function ToolGroup({
       <CollapsibleTrigger className="my-1.5 flex w-full items-center gap-2 rounded border border-border/50 bg-background/30 px-2.5 py-1.5 text-xs cursor-pointer hover:bg-background/50">
         <span className="text-[10px]">{open ? "▼" : "▶"}</span>
         <span className="font-medium text-foreground">
-          {blocks.length} tools: {namesSummary}
+          {blocks.length} {blocks.length === 1 ? "tool" : "tools"}: {namesSummary}
         </span>
         <span className="ml-auto text-[10px] text-muted-foreground">
           {anyRunning ? (
@@ -209,28 +209,9 @@ export function MessageBubble({
 
   const isLastAssistantStreaming = isStreaming && hasText;
 
-  // Collapsible tool state
-  const anyRunning = content.some(
-    (b) =>
-      b.type === "tool_use" && toolProgress?.has((b as ToolUseContentBlock).id)
-  );
-  const collapsibleToolCount = content.filter(
-    (b) =>
-      b.type === "tool_use" &&
-      (b as ToolUseContentBlock).name !== "AskUserQuestion" &&
-      (b as ToolUseContentBlock).name !== "ExitPlanMode"
-  ).length;
-  // Start expanded while running, collapsed when done
-  const [toolsCollapsed, setToolsCollapsed] = useState(!anyRunning);
-
-  // Auto-collapse when all tools finish
-  useEffect(() => {
-    if (!anyRunning) setToolsCollapsed(true);
-  }, [anyRunning]);
-
   // Build render segments.
   // AskUserQuestion and ExitPlanMode blocks are always standalone (never grouped).
-  // Other consecutive tool_use blocks are grouped when ≥ 3.
+  // All other consecutive tool_use blocks are grouped together (even a single one).
   type Segment =
     | { kind: "block"; block: ContentBlock; index: number }
     | { kind: "tool_group"; blocks: ToolUseContentBlock[] };
@@ -240,13 +221,7 @@ export function MessageBubble({
 
   const flushToolRun = () => {
     if (currentToolRun.length === 0) return;
-    if (currentToolRun.length >= 3) {
-      segments.push({ kind: "tool_group", blocks: currentToolRun });
-    } else {
-      for (const b of currentToolRun) {
-        segments.push({ kind: "block", block: b, index: -1 });
-      }
-    }
+    segments.push({ kind: "tool_group", blocks: currentToolRun });
     currentToolRun = [];
   };
 
@@ -277,26 +252,8 @@ export function MessageBubble({
   return (
     <div className="flex w-full justify-start">
       <div className="max-w-[90%] pl-1 text-sm">
-        {/* Toggle pill — only shown when there are collapsible tool blocks */}
-        {collapsibleToolCount > 0 && (
-          <button
-            onClick={() => setToolsCollapsed((v) => !v)}
-            className="mb-1 flex items-center gap-1.5 rounded-full border border-border/40 bg-background/20 px-2 py-0.5 text-[10px] text-muted-foreground hover:bg-background/40 hover:text-foreground transition-colors cursor-pointer"
-          >
-            <span>{toolsCollapsed ? "▶" : "▼"}</span>
-            <span>
-              {collapsibleToolCount} tool call
-              {collapsibleToolCount !== 1 ? "s" : ""}
-            </span>
-            {anyRunning && (
-              <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-chart-1" />
-            )}
-          </button>
-        )}
-
         {segments.map((seg, si) => {
           if (seg.kind === "tool_group") {
-            if (toolsCollapsed) return null;
             return (
               <ToolGroup
                 key={`tg-${si}`}
@@ -312,9 +269,8 @@ export function MessageBubble({
 
           const { block, index } = seg;
 
-          // Thinking blocks — hidden when collapsed
+          // Thinking blocks
           if (block.type === "thinking") {
-            if (toolsCollapsed) return null;
             return (
               <ThinkingBlockView
                 key={si}
@@ -323,7 +279,6 @@ export function MessageBubble({
             );
           }
           if (block.type === "redacted_thinking") {
-            if (toolsCollapsed) return null;
             return <ThinkingBlockView key={si} thinking="" isRedacted />;
           }
 
@@ -342,12 +297,9 @@ export function MessageBubble({
             );
           }
 
-          // Tool use blocks (AskUserQuestion / ExitPlanMode always visible; others respect collapse)
+          // Tool use blocks (AskUserQuestion / ExitPlanMode — always standalone)
           if (block.type === "tool_use") {
             const tb = block as ToolUseContentBlock;
-            const isInteractive =
-              tb.name === "AskUserQuestion" || tb.name === "ExitPlanMode";
-            if (!isInteractive && toolsCollapsed) return null;
             const progress = toolProgress?.get(tb.id);
             const isRunning = progress !== undefined;
             const elapsed =
