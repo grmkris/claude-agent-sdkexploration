@@ -306,7 +306,11 @@ const timelineSessionsProc = os
     const archived = input.includeArchived ?? false;
     if (input.slug) {
       const projectPath = await resolveSlugToPath(input.slug);
-      const rows = getDbProjectSessions(projectPath, input.limit ?? 50, archived);
+      const rows = getDbProjectSessions(
+        projectPath,
+        input.limit ?? 50,
+        archived
+      );
       return Promise.all(rows.map(sessionRowToRecent));
     }
     const rows = getDbAllRecentSessions(input.limit ?? 50, archived);
@@ -714,10 +718,16 @@ const chatProc = os
 
               // Check for pre-filled approval stored during a restart scenario
               const storedPlan = getPendingExitPlanMode(opts.toolUseID);
-              if (storedPlan?.prefilledApproved !== null && storedPlan?.prefilledApproved !== undefined) {
+              if (
+                storedPlan?.prefilledApproved !== null &&
+                storedPlan?.prefilledApproved !== undefined
+              ) {
                 deletePendingExitPlanMode(opts.toolUseID);
                 if (storedPlan.prefilledApproved) {
-                  return { behavior: "allow" as const, updatedInput: typedInput };
+                  return {
+                    behavior: "allow" as const,
+                    updatedInput: typedInput,
+                  };
                 } else {
                   return {
                     behavior: "deny" as const,
@@ -812,12 +822,16 @@ const chatProc = os
                 });
 
                 // Resolve immediately if the SDK aborts so the Promise doesn't hang.
-                opts.signal?.addEventListener("abort", () => {
-                  if (pendingExitPlanMode.has(opts.toolUseID)) {
-                    resolve({ behavior: "deny", message: "Aborted" });
-                    pendingExitPlanMode.delete(opts.toolUseID);
-                  }
-                }, { once: true });
+                opts.signal?.addEventListener(
+                  "abort",
+                  () => {
+                    if (pendingExitPlanMode.has(opts.toolUseID)) {
+                      resolve({ behavior: "deny", message: "Aborted" });
+                      pendingExitPlanMode.delete(opts.toolUseID);
+                    }
+                  },
+                  { once: true }
+                );
               });
             }
 
@@ -1785,10 +1799,16 @@ const rootChatProc = os
 
               // Check for pre-filled approval stored during a restart scenario
               const storedPlan = getPendingExitPlanMode(opts.toolUseID);
-              if (storedPlan?.prefilledApproved !== null && storedPlan?.prefilledApproved !== undefined) {
+              if (
+                storedPlan?.prefilledApproved !== null &&
+                storedPlan?.prefilledApproved !== undefined
+              ) {
                 deletePendingExitPlanMode(opts.toolUseID);
                 if (storedPlan.prefilledApproved) {
-                  return { behavior: "allow" as const, updatedInput: typedInput };
+                  return {
+                    behavior: "allow" as const,
+                    updatedInput: typedInput,
+                  };
                 } else {
                   return {
                     behavior: "deny" as const,
@@ -1869,12 +1889,16 @@ const rootChatProc = os
                 });
 
                 // Resolve immediately if the SDK aborts so the Promise doesn't hang.
-                opts.signal?.addEventListener("abort", () => {
-                  if (pendingExitPlanMode.has(opts.toolUseID)) {
-                    resolve({ behavior: "deny", message: "Aborted" });
-                    pendingExitPlanMode.delete(opts.toolUseID);
-                  }
-                }, { once: true });
+                opts.signal?.addEventListener(
+                  "abort",
+                  () => {
+                    if (pendingExitPlanMode.has(opts.toolUseID)) {
+                      resolve({ behavior: "deny", message: "Aborted" });
+                      pendingExitPlanMode.delete(opts.toolUseID);
+                    }
+                  },
+                  { once: true }
+                );
               });
             }
 
