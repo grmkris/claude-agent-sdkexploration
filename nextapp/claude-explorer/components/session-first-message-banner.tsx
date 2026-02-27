@@ -5,6 +5,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
+import { ArchiveChatButton } from "@/components/archive-chat-button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { orpc } from "@/lib/orpc";
 
@@ -43,12 +44,13 @@ export function SessionFirstMessageBanner({
   if (!isLoading && !firstPrompt) return null;
 
   return (
-    <button
-      type="button"
-      onClick={() => setExpanded((v) => !v)}
-      className="group w-full text-left border-b border-border/50 bg-muted/30 hover:bg-muted/50 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-    >
-      <div className="flex items-start gap-2 px-3 py-1.5">
+    <div className="group flex w-full items-start border-b border-border/50 bg-muted/30">
+      {/* Clickable expand/collapse area */}
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        className="flex min-w-0 flex-1 items-start gap-2 px-3 py-1.5 text-left transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-inset"
+      >
         {/* Label */}
         <span className="mt-px shrink-0 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
           Started&nbsp;with
@@ -80,10 +82,18 @@ export function SessionFirstMessageBanner({
           <HugeiconsIcon
             icon={expanded ? ArrowUp01Icon : ArrowDown01Icon}
             size={12}
-            className="mt-0.5 shrink-0 text-muted-foreground group-hover:text-foreground transition-colors"
+            className="mt-0.5 shrink-0 text-muted-foreground transition-colors group-hover:text-foreground"
           />
         )}
+      </button>
+
+      {/* Right action slot — archive button */}
+      <div
+        className="flex shrink-0 items-center self-stretch border-l border-border/30 px-1"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <ArchiveChatButton size="sm" />
       </div>
-    </button>
+    </div>
   );
 }

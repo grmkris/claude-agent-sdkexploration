@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/tooltip";
 import { orpc } from "@/lib/orpc";
 
-export function ArchiveChatButton() {
+export function ArchiveChatButton({ size = "default" }: { size?: "default" | "sm" }) {
   const pathname = usePathname();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -65,7 +65,7 @@ export function ArchiveChatButton() {
           <Button
             variant="ghost"
             size="icon"
-            className="h-7 w-7 text-muted-foreground hover:text-foreground"
+            className={size === "sm" ? "h-6 w-6 text-muted-foreground hover:text-foreground" : "h-7 w-7 text-muted-foreground hover:text-foreground"}
             disabled={archiveMutation.isPending}
             {...props}
             onClick={(e) => {
@@ -75,7 +75,7 @@ export function ArchiveChatButton() {
             }}
           >
             <ArchiveIcon
-              className="h-4 w-4"
+              className={size === "sm" ? "h-3.5 w-3.5" : "h-4 w-4"}
               // Filled style when already archived so user can see the state
               fill={isArchived ? "currentColor" : "none"}
             />
