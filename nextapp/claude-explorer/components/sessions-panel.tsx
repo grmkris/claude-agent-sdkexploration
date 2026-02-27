@@ -211,20 +211,9 @@ function SessionRow({
             </SidebarMenuButton>
           </Link>
           {unarchiveButton ?? (
-            <>
-              <div className="ml-auto flex shrink-0 items-center pr-1">
-                <SessionStateBadge sessionId={session.id} compact />
-              </div>
-              <div className="flex shrink-0 items-center opacity-0 group-hover:opacity-100 transition-opacity">
-                <SessionActionsMenu
-                  session={{
-                    sessionId: session.id,
-                    resumeCommand: session.resumeCommand,
-                  }}
-                  onArchive={onArchive}
-                />
-              </div>
-            </>
+            <div className="ml-auto flex shrink-0 items-center pr-1">
+              <SessionStateBadge sessionId={session.id} compact />
+            </div>
           )}
         </div>
       </SessionPreviewPopover>
