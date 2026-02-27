@@ -112,6 +112,10 @@ import {
   saveOAuthApp,
   getOAuthApp,
   removeOAuthApp,
+  getSavedPrompts,
+  addSavedPrompt,
+  updateSavedPrompt,
+  removeSavedPrompt,
 } from "./explorer-store";
 import {
   getProvider,
@@ -158,6 +162,7 @@ import {
   WorkspaceEmailConfigSchema,
   EmailEventSchema,
   TmuxSessionSchema,
+  SavedPromptSchema,
 } from "./schemas";
 import { createSessionHooks } from "./session-hooks";
 import { getTmuxPanes, getTmuxSessions } from "./tmux";
@@ -3300,6 +3305,43 @@ const gitWorktreesProc = os
     return getGitWorktrees(projectPath);
   });
 
+// --- Saved Prompts ---
+
+const listSavedPromptsProc = os
+  .output(z.array(SavedPromptSchema))
+  .handler(async () => getSavedPrompts());
+
+const createSavedPromptProc = os
+  .input(z.object({ title: z.string().min(1), content: z.string().min(1) }))
+  .output(SavedPromptSchema)
+  .handler(async ({ input }) =>
+    addSavedPrompt({
+      id: crypto.randomUUID(),
+      title: input.title,
+      content: input.content,
+      createdAt: new Date().toISOString(),
+    })
+  );
+
+const updateSavedPromptProc = os
+  .input(
+    z.object({
+      id: z.string(),
+      title: z.string().min(1).optional(),
+      content: z.string().min(1).optional(),
+    })
+  )
+  .output(SavedPromptSchema.nullable())
+  .handler(async ({ input }) => {
+    const { id, ...updates } = input;
+    return updateSavedPrompt(id, updates);
+  });
+
+const deleteSavedPromptProc = os
+  .input(z.object({ id: z.string() }))
+  .output(z.object({ success: z.boolean() }))
+  .handler(async ({ input }) => ({ success: await removeSavedPrompt(input.id) }));
+
 export const router = {
   projects: {
     list: listProjectsProc,
@@ -3429,6 +3471,12 @@ export const router = {
     status: oauthStatusProc,
     saveCredentials: saveOAuthCredentialsProc,
     removeCredentials: removeOAuthCredentialsProc,
+  },
+  prompts: {
+    list: listSavedPromptsProc,
+    create: createSavedPromptProc,
+    update: updateSavedPromptProc,
+    delete: deleteSavedPromptProc,
   },
   linear: {
     emitActivity: linearEmitActivityProc,

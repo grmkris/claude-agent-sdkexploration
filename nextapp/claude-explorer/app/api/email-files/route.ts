@@ -1,5 +1,5 @@
-import { join, resolve } from "node:path";
 import { homedir } from "node:os";
+import { join, resolve } from "node:path";
 
 const USER_HOME = process.env.CLAUDE_CONFIG_DIR ?? homedir();
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
@@ -14,10 +14,18 @@ export async function GET(request: Request) {
   }
 
   // Security: reject path traversal attempts
-  if (eventId.includes("..") || eventId.includes("/") || eventId.includes("\\")) {
+  if (
+    eventId.includes("..") ||
+    eventId.includes("/") ||
+    eventId.includes("\\")
+  ) {
     return new Response("Invalid eventId", { status: 400 });
   }
-  if (filename.includes("..") || filename.includes("/") || filename.includes("\\")) {
+  if (
+    filename.includes("..") ||
+    filename.includes("/") ||
+    filename.includes("\\")
+  ) {
     return new Response("Invalid filename", { status: 400 });
   }
 

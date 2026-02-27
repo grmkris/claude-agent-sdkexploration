@@ -79,7 +79,8 @@ export function WebhookEventItem({
               {raw.eventType}
               {raw.action && (
                 <span className="text-muted-foreground font-normal">
-                  {" "}· {raw.action}
+                  {" "}
+                  · {raw.action}
                 </span>
               )}
             </span>

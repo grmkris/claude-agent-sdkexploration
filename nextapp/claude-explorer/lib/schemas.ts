@@ -225,6 +225,14 @@ export const OAuthAppSchema = z.object({
   botName: z.string().optional(),
 });
 
+export const SavedPromptSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  content: z.string(),
+  createdAt: z.string(),
+  updatedAt: z.string().optional(),
+});
+
 export const ExplorerStoreSchema = z.object({
   favorites: FavoritesSchema,
   crons: z.array(CronJobSchema),
@@ -238,6 +246,7 @@ export const ExplorerStoreSchema = z.object({
   emailConfigs: z.array(WorkspaceEmailConfigSchema).optional(),
   emailEvents: z.array(EmailEventSchema).optional(),
   oauthApps: z.array(OAuthAppSchema).optional(),
+  savedPrompts: z.array(SavedPromptSchema).optional(),
 });
 
 export type Project = z.infer<typeof ProjectSchema>;
@@ -262,6 +271,7 @@ export type RootWorkspace = z.infer<typeof RootWorkspaceSchema>;
 export type WorkspaceEmailConfig = z.infer<typeof WorkspaceEmailConfigSchema>;
 export type EmailEvent = z.infer<typeof EmailEventSchema>;
 export type OAuthApp = z.infer<typeof OAuthAppSchema>;
+export type SavedPrompt = z.infer<typeof SavedPromptSchema>;
 
 // --- Analytics schemas ---
 

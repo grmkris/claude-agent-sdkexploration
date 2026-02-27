@@ -2,10 +2,10 @@
 
 import type { z } from "zod";
 
-import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import Link from "next/link";
 import { ChevronDown, ChevronRight } from "lucide-react";
+import Link from "next/link";
+import { useState } from "react";
 
 import type { EmailEventSchema } from "@/lib/schemas";
 

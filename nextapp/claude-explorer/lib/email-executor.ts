@@ -91,7 +91,11 @@ async function materializeEmail(
   // Collect sanitized filenames for successfully downloaded attachments
   const attachmentFilenames = resolved
     .filter(({ localPath }) => localPath !== null)
-    .map(({ att }) => att.filename.replace(/[^a-zA-Z0-9._-]/g, "_") || `file-${crypto.randomUUID()}`);
+    .map(
+      ({ att }) =>
+        att.filename.replace(/[^a-zA-Z0-9._-]/g, "_") ||
+        `file-${crypto.randomUUID()}`
+    );
 
   // Build attachment table for email.md
   const attachmentRows = resolved
@@ -193,7 +197,10 @@ export function executeInboundEmail(
 
     try {
       // 1. Materialise email → ~/emails/{eventId}/ (keeps attachments on disk)
-      const { emailDir, attachmentFilenames } = await materializeEmail(email, eventId);
+      const { emailDir, attachmentFilenames } = await materializeEmail(
+        email,
+        eventId
+      );
 
       // Store attachment filenames so the thread view can serve them
       if (attachmentFilenames.length > 0) {

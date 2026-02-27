@@ -107,8 +107,8 @@ ENV CLAUDE_CONFIG_DIR=/home/bun/.claude
 
 EXPOSE 3000
 
-HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
-    CMD curl -f http://localhost:3000/ || exit 1
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:3000/login || exit 1
 
 USER root
 ENTRYPOINT ["dumb-init", "--"]

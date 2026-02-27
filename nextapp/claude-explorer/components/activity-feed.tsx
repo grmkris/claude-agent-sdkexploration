@@ -16,10 +16,10 @@ import type {
 } from "@/lib/activity-types";
 
 import { ActivityDetailSheet } from "@/components/activity-detail-sheet";
-import { CronEventItem } from "@/components/activity-items/cron-event-item";
-import { EmailEventItem } from "@/components/activity-items/email-event-item";
 import { CommitItem } from "@/components/activity-items/commit-item";
+import { CronEventItem } from "@/components/activity-items/cron-event-item";
 import { DeploymentItem } from "@/components/activity-items/deployment-item";
+import { EmailEventItem } from "@/components/activity-items/email-event-item";
 import { TicketItem } from "@/components/activity-items/ticket-item";
 import { WebhookEventItem } from "@/components/activity-items/webhook-event-item";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -224,7 +224,9 @@ function normalizeEmailEvents(
         id: `email:${e.id}`,
         type: "email" as ActivityItemType,
         timestamp: e.timestamp,
-        title: e.subject ?? `${e.direction === "inbound" ? "Email from" : "Email to"} ${e.direction === "inbound" ? e.from : e.to}`,
+        title:
+          e.subject ??
+          `${e.direction === "inbound" ? "Email from" : "Email to"} ${e.direction === "inbound" ? e.from : e.to}`,
         subtitle: e.from,
         status: e.status,
         raw,
@@ -567,13 +569,33 @@ export function ActivityFeed({ slug }: { slug: string }) {
     const deployments = normalizeDeployments(railwayData?.widgets);
     const tickets = normalizeTickets(linearData?.widgets);
     const emails = normalizeEmailEvents(emailEventsData, slug);
-    const webhooks = normalizeWebhookEvents(webhookEventsData, projectWebhookIds);
+    const webhooks = normalizeWebhookEvents(
+      webhookEventsData,
+      projectWebhookIds
+    );
     const crons = normalizeCronEvents(cronEventsData, projectCronIds);
-    return [...commits, ...deployments, ...tickets, ...emails, ...webhooks, ...crons].sort(
+    return [
+      ...commits,
+      ...deployments,
+      ...tickets,
+      ...emails,
+      ...webhooks,
+      ...crons,
+    ].sort(
       (a, b) =>
         new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
     );
-  }, [gitLog, railwayData, linearData, emailEventsData, webhookEventsData, projectWebhookIds, cronEventsData, projectCronIds, slug]);
+  }, [
+    gitLog,
+    railwayData,
+    linearData,
+    emailEventsData,
+    webhookEventsData,
+    projectWebhookIds,
+    cronEventsData,
+    projectCronIds,
+    slug,
+  ]);
 
   // ── Correlation maps ──────────────────────────────────────────────────────
   // Computed once from allItems; no extra fetch needed.

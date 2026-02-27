@@ -16,6 +16,7 @@ import type {
   EmailEvent,
   OAuthApp,
   NotificationSettings,
+  SavedPrompt,
 } from "./types";
 
 const CLAUDE_DIR = process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), ".claude");
@@ -38,6 +39,7 @@ const EMPTY_STORE: ExplorerStore = {
   emailConfigs: [],
   emailEvents: [],
   oauthApps: [],
+  savedPrompts: [],
 };
 
 // mtime-based cache to avoid redundant readFile + JSON.parse
@@ -679,4 +681,45 @@ export async function addPushSubscription(sub: {
 export async function removePushSubscription(endpoint: string): Promise<void> {
   const { removeSubscription } = await import("./push-subscriptions-db");
   removeSubscription(endpoint);
+}
+
+// --- Saved Prompts ---
+
+export async function getSavedPrompts(): Promise<SavedPrompt[]> {
+  const store = await readStore();
+  return (store as any).savedPrompts ?? [];
+}
+
+export async function addSavedPrompt(prompt: SavedPrompt): Promise<SavedPrompt> {
+  const store = await readStore();
+  if (!(store as any).savedPrompts) (store as any).savedPrompts = [];
+  (store as any).savedPrompts.push(prompt);
+  await writeStore(store);
+  return prompt;
+}
+
+export async function updateSavedPrompt(
+  id: string,
+  updates: { title?: string; content?: string }
+): Promise<SavedPrompt | null> {
+  const store = await readStore();
+  const prompts = ((store as any).savedPrompts ?? []) as SavedPrompt[];
+  const prompt = prompts.find((p) => p.id === id);
+  if (!prompt) return null;
+  if (updates.title !== undefined) prompt.title = updates.title;
+  if (updates.content !== undefined) prompt.content = updates.content;
+  prompt.updatedAt = new Date().toISOString();
+  await writeStore(store);
+  return prompt;
+}
+
+export async function removeSavedPrompt(id: string): Promise<boolean> {
+  const store = await readStore();
+  const prompts = ((store as any).savedPrompts ?? []) as SavedPrompt[];
+  const idx = prompts.findIndex((p) => p.id === id);
+  if (idx < 0) return false;
+  prompts.splice(idx, 1);
+  (store as any).savedPrompts = prompts;
+  await writeStore(store);
+  return true;
 }

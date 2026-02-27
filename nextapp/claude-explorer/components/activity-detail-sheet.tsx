@@ -1,13 +1,13 @@
 "use client";
 
+import Link from "next/link";
+
 import type {
   ActivityItem,
   CronEventRaw,
   EmailEventRaw,
   WebhookEventRaw,
 } from "@/lib/activity-types";
-
-import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -162,7 +162,8 @@ function WebhookDetail({
           {raw.eventType}
           {raw.action && (
             <span className="text-muted-foreground font-normal">
-              {" "}· {raw.action}
+              {" "}
+              · {raw.action}
             </span>
           )}
         </SheetTitle>

@@ -12,7 +12,16 @@ import { getTimeAgo } from "@/lib/utils";
 
 type EmailEvent = z.infer<typeof EmailEventSchema>;
 
-const IMAGE_EXTENSIONS = new Set(["jpg", "jpeg", "png", "gif", "webp", "svg", "avif", "bmp"]);
+const IMAGE_EXTENSIONS = new Set([
+  "jpg",
+  "jpeg",
+  "png",
+  "gif",
+  "webp",
+  "svg",
+  "avif",
+  "bmp",
+]);
 
 function getExtension(filename: string): string {
   return filename.split(".").pop()?.toLowerCase() ?? "";
@@ -59,7 +68,9 @@ function AttachmentChip({
 
 function EmailMessage({ event }: { event: EmailEvent }) {
   // Fetch disk content when body or attachment list isn't already stored on the event
-  const needsDiskFetch = !event.body || (event.direction === "inbound" && !event.attachmentFilenames);
+  const needsDiskFetch =
+    !event.body ||
+    (event.direction === "inbound" && !event.attachmentFilenames);
   const { data: detail, isLoading } = useQuery({
     ...orpc.email.getContent.queryOptions({ input: { eventId: event.id } }),
     enabled: needsDiskFetch,

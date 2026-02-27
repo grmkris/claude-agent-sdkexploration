@@ -16,12 +16,12 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 
 import { ActivityFeed } from "@/components/activity-feed";
+import { PushNotificationManager } from "@/components/push-notification-manager";
 import { AutomationsTab } from "@/components/right-sidebar/automations-tab";
 import { FileTreeTab } from "@/components/right-sidebar/file-tree-tab";
 import { GitTab } from "@/components/right-sidebar/git-tab";
 import { OverviewTab } from "@/components/right-sidebar/overview-tab";
 import { SkillsMcpsTab } from "@/components/right-sidebar/skills-mcps-tab";
-import { PushNotificationManager } from "@/components/push-notification-manager";
 import {
   SidebarContent,
   SidebarFooter,
@@ -227,7 +227,11 @@ export function ProjectExplorerPanel({ slug }: { slug: string }) {
             className="flex w-full items-center justify-between rounded-sm px-4 py-2 text-xs text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
           >
             <span>Open {activeTabDef.label} page</span>
-            <HugeiconsIcon icon={ArrowUpRight01Icon} size={13} strokeWidth={2} />
+            <HugeiconsIcon
+              icon={ArrowUpRight01Icon}
+              size={13}
+              strokeWidth={2}
+            />
           </Link>
         </div>
         <div className="group-data-[collapsible=icon]:hidden px-2 pb-1">

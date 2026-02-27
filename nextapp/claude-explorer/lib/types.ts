@@ -138,6 +138,7 @@ export type {
   WorkspaceEmailConfig,
   EmailEvent,
   OAuthApp,
+  SavedPrompt,
 } from "./schemas";
 
 export type PushSubscription = {

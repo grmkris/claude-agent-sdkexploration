@@ -85,5 +85,11 @@ export interface ActivityItem {
   status?: string;
   statusColor?: string;
   url?: string;
-  raw: CommitRaw | DeploymentRaw | TicketRaw | EmailEventRaw | WebhookEventRaw | CronEventRaw;
+  raw:
+    | CommitRaw
+    | DeploymentRaw
+    | TicketRaw
+    | EmailEventRaw
+    | WebhookEventRaw
+    | CronEventRaw;
 }
