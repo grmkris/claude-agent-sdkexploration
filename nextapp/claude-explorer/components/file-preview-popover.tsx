@@ -228,7 +228,8 @@ export function FilePreviewPopover({
           {/* File is outside the project root — can't preview via project API */}
           {isOutsideProject && (
             <div className="px-3 py-4 text-[11px] text-muted-foreground">
-              This file is outside the project directory and cannot be previewed here.
+              This file is outside the project directory and cannot be previewed
+              here.
             </div>
           )}
 

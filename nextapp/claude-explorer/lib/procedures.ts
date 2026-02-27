@@ -689,9 +689,11 @@ const chatProc = os
               //   3. Fall back to cwd/PLAN.md for legacy compatibility.
               let planText = "";
               {
-                const { readFile, readdir, stat: fsStat } = await import(
-                  "node:fs/promises"
-                );
+                const {
+                  readFile,
+                  readdir,
+                  stat: fsStat,
+                } = await import("node:fs/promises");
                 const homedir = (await import("node:os")).homedir();
                 const plansDir = join(homedir, ".claude", "plans");
 
@@ -719,9 +721,7 @@ const chatProc = os
                     );
                     // Sort newest first
                     stats.sort((a, b) => b.mtimeMs - a.mtimeMs);
-                    const recent = stats.find(
-                      (s) => now - s.mtimeMs < 60_000
-                    );
+                    const recent = stats.find((s) => now - s.mtimeMs < 60_000);
                     if (recent) {
                       planText = await readFile(
                         join(plansDir, recent.name),
@@ -1702,9 +1702,11 @@ const rootChatProc = os
               // Scan ~/.claude/plans/ for the most recently modified plan file
               let planText = "";
               {
-                const { readFile, readdir, stat: fsStat } = await import(
-                  "node:fs/promises"
-                );
+                const {
+                  readFile,
+                  readdir,
+                  stat: fsStat,
+                } = await import("node:fs/promises");
                 const homedir = (await import("node:os")).homedir();
                 const plansDir = join(homedir, ".claude", "plans");
 
@@ -1731,9 +1733,7 @@ const rootChatProc = os
                       }))
                     );
                     stats.sort((a, b) => b.mtimeMs - a.mtimeMs);
-                    const recent = stats.find(
-                      (s) => now - s.mtimeMs < 60_000
-                    );
+                    const recent = stats.find((s) => now - s.mtimeMs < 60_000);
                     if (recent) {
                       planText = await readFile(
                         join(plansDir, recent.name),
