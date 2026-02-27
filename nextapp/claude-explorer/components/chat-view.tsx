@@ -20,6 +20,7 @@ export function ChatView({
   projectSlug,
   sessionId,
   onRefresh,
+  onAnswer,
 }: {
   messages: ParsedMessage[];
   isStreaming?: boolean;
@@ -27,6 +28,7 @@ export function ChatView({
   projectSlug?: string;
   sessionId?: string | null;
   onRefresh?: () => void;
+  onAnswer?: (toolUseId: string, answers: Record<string, string[]>) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const stickToBottom = useRef(true);
@@ -95,6 +97,7 @@ export function ChatView({
                 isStreaming={isLastAssistant && isStreaming}
                 toolProgress={toolProgress}
                 projectSlug={projectSlug}
+                onAnswer={onAnswer}
               />
             );
           })}

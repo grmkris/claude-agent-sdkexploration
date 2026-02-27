@@ -1,10 +1,22 @@
 "use client";
 
+import {
+  Analytics01Icon,
+  ComputerTerminal01Icon,
+  Key01Icon,
+  Mail01Icon,
+  McpServerIcon,
+  TimeScheduleIcon,
+  WebhookIcon,
+} from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+import { AppBreadcrumb } from "@/components/app-breadcrumb";
 import { ProjectExplorerPanel } from "@/components/project-explorer-panel";
 import { PushNotificationManager } from "@/components/push-notification-manager";
+import { SshBadge } from "@/components/ssh-badge";
 import {
   Sidebar,
   SidebarContent,
@@ -15,16 +27,52 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarTrigger,
 } from "@/components/ui/sidebar";
 
 const GLOBAL_NAV = [
-  { href: "/analytics", label: "Analytics", tooltip: "Usage analytics" },
-  { href: "/keys", label: "Keys", tooltip: "API Key Vault" },
-  { href: "/mcps", label: "MCPs", tooltip: "MCP Servers & Skills" },
-  { href: "/email", label: "Email", tooltip: "Email Config" },
-  { href: "/webhooks", label: "Webhooks", tooltip: "Webhooks" },
-  { href: "/crons", label: "Crons", tooltip: "Cron Jobs" },
-  { href: "/tmux", label: "Tmux", tooltip: "Tmux Sessions" },
+  {
+    href: "/analytics",
+    label: "Analytics",
+    tooltip: "Usage analytics",
+    icon: Analytics01Icon,
+  },
+  {
+    href: "/keys",
+    label: "Keys",
+    tooltip: "API Key Vault",
+    icon: Key01Icon,
+  },
+  {
+    href: "/mcps",
+    label: "MCPs",
+    tooltip: "MCP Servers & Skills",
+    icon: McpServerIcon,
+  },
+  {
+    href: "/email",
+    label: "Email",
+    tooltip: "Email Config",
+    icon: Mail01Icon,
+  },
+  {
+    href: "/webhooks",
+    label: "Webhooks",
+    tooltip: "Webhooks",
+    icon: WebhookIcon,
+  },
+  {
+    href: "/crons",
+    label: "Crons",
+    tooltip: "Cron Jobs",
+    icon: TimeScheduleIcon,
+  },
+  {
+    href: "/tmux",
+    label: "Tmux",
+    tooltip: "Tmux Sessions",
+    icon: ComputerTerminal01Icon,
+  },
 ] as const;
 
 /** Extract project slug from paths like /project/[slug] or /project/[slug]/chat/[id] */
@@ -38,11 +86,14 @@ export function ProjectSidebar() {
   const projectSlug = extractProjectSlug(pathname);
 
   return (
-    <Sidebar>
-      <SidebarHeader>
-        <Link href="/">
-          <div className="px-2 py-1 text-sm font-semibold">Claude Explorer</div>
-        </Link>
+    <Sidebar collapsible="icon">
+      <SidebarHeader className="border-b p-0">
+        <div className="flex h-9 items-center gap-1.5 px-2">
+          <SidebarTrigger className="-ml-0.5 shrink-0" />
+          <div className="group-data-[collapsible=icon]:hidden min-w-0 flex-1">
+            <AppBreadcrumb />
+          </div>
+        </div>
       </SidebarHeader>
 
       <SidebarContent>
@@ -54,14 +105,17 @@ export function ProjectSidebar() {
           <SidebarGroup>
             <SidebarGroupContent>
               <SidebarMenu>
-                {GLOBAL_NAV.map(({ href, label, tooltip }) => (
+                {GLOBAL_NAV.map(({ href, label, tooltip, icon }) => (
                   <SidebarMenuItem key={href}>
                     <Link href={href}>
                       <SidebarMenuButton
                         isActive={pathname === href}
                         tooltip={tooltip}
                       >
-                        <span>{label}</span>
+                        <HugeiconsIcon icon={icon} size={15} strokeWidth={2} />
+                        <span className="group-data-[collapsible=icon]:hidden">
+                          {label}
+                        </span>
                       </SidebarMenuButton>
                     </Link>
                   </SidebarMenuItem>
@@ -73,6 +127,9 @@ export function ProjectSidebar() {
       </SidebarContent>
 
       <SidebarFooter>
+        <div className="group-data-[collapsible=icon]:hidden px-1 pb-1">
+          <SshBadge />
+        </div>
         <PushNotificationManager />
       </SidebarFooter>
     </Sidebar>

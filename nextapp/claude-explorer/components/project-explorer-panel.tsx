@@ -61,7 +61,7 @@ export function ProjectExplorerPanel({ slug }: { slug: string }) {
       className="flex flex-1 flex-col"
     >
       <SidebarHeader className="border-b p-0">
-        <div className="px-3 py-2 text-xs font-semibold text-sidebar-foreground truncate">
+        <div className="px-3 py-2 text-xs font-semibold text-sidebar-foreground truncate group-data-[collapsible=icon]:hidden">
           {projectName}
         </div>
         <TabsList

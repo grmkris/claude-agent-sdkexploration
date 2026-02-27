@@ -2,9 +2,14 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, use, useEffect, useRef } from "react";
+import { Suspense, use, useEffect, useRef, useState } from "react";
 
 import { ChatInput } from "@/components/chat-input";
+import {
+  ChatSettingsBar,
+  DEFAULT_CHAT_SETTINGS,
+  type ChatSettings,
+} from "@/components/chat-settings-bar";
 import { ChatView } from "@/components/chat-view";
 import { useChatStream } from "@/hooks/use-chat-stream";
 import { orpc } from "@/lib/orpc";
@@ -19,10 +24,25 @@ function NewChatContent({ slug }: { slug: string }) {
   const { data } = useQuery(
     orpc.projects.resolveSlug.queryOptions({ input: { slug } })
   );
-  const { messages, send, stop, isStreaming, sessionId, error, toolProgress } =
-    useChatStream({
-      cwd: data?.path,
-    });
+
+  const [settings, setSettings] = useState<ChatSettings>(DEFAULT_CHAT_SETTINGS);
+
+  const {
+    messages,
+    send,
+    stop,
+    answerQuestion,
+    isStreaming,
+    sessionId,
+    error,
+    toolProgress,
+  } = useChatStream({
+    cwd: data?.path,
+    thinking: settings.thinkingEnabled ? "adaptive" : "disabled",
+    permissionMode: settings.bypassPermissions
+      ? "bypassPermissions"
+      : "default",
+  });
 
   // Once the first stream completes, redirect to the canonical session URL.
   // This keeps /project/[slug]/chat always a blank slate, so clicking
@@ -48,12 +68,18 @@ function NewChatContent({ slug }: { slug: string }) {
         toolProgress={toolProgress}
         projectSlug={slug}
         sessionId={sessionId}
+        onAnswer={answerQuestion}
       />
       {error && (
         <div className="mx-4 mb-2 rounded border border-destructive/50 bg-destructive/10 px-3 py-2 text-xs text-destructive">
           {error}
         </div>
       )}
+      <ChatSettingsBar
+        settings={settings}
+        onSettingsChange={setSettings}
+        disabled={isStreaming}
+      />
       <ChatInput
         onSend={send}
         onStop={stop}

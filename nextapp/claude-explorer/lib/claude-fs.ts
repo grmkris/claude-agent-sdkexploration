@@ -269,8 +269,30 @@ export async function getGitFileDiff(
   filePath: string
 ): Promise<{ diff: string; additions: number; deletions: number } | null> {
   try {
-    const diff =
+    let diff =
       await Bun.$`git -C ${projectPath} diff HEAD -- ${filePath}`.text();
+
+    // For untracked / brand-new files, git diff HEAD returns empty because
+    // the file isn't in the index yet. Build a synthetic all-additions diff
+    // from the raw file content so the viewer still shows something useful.
+    if (!diff.trim()) {
+      try {
+        const absPath = join(projectPath, filePath);
+        const content = await Bun.file(absPath).text();
+        const lines = content.split("\n");
+        // Remove trailing empty line that split() adds
+        if (lines.at(-1) === "") lines.pop();
+        diff = [
+          `--- /dev/null`,
+          `+++ b/${filePath}`,
+          `@@ -0,0 +1,${lines.length} @@`,
+          ...lines.map((l) => `+${l}`),
+        ].join("\n");
+      } catch {
+        return null;
+      }
+    }
+
     if (!diff.trim()) return null;
     const lines = diff.split("\n");
     const additions = lines.filter(
@@ -371,9 +393,10 @@ export async function getGitLog(
     const SEP_F = "\x1f";
     const SEP_R = "\x1e";
     const fmt = `--format=%H${SEP_F}%s${SEP_F}%aN${SEP_F}%aI${SEP_F}%b${SEP_R}`;
-    const raw = await Bun.$`git -C ${projectPath} log ${`--max-count=${limit}`} ${fmt}`
-      .quiet()
-      .text();
+    const raw =
+      await Bun.$`git -C ${projectPath} log ${`--max-count=${limit}`} ${fmt}`
+        .quiet()
+        .text();
 
     const records = raw
       .split(SEP_R)
@@ -408,9 +431,10 @@ export async function getGitCommitFiles(
 ): Promise<GitCommitFile[]> {
   try {
     // --numstat outputs: additions\tdeletions\tpath
-    const out = await Bun.$`git -C ${projectPath} show ${"--format="} --numstat ${hash}`
-      .quiet()
-      .text();
+    const out =
+      await Bun.$`git -C ${projectPath} show ${"--format="} --numstat ${hash}`
+        .quiet()
+        .text();
     return out
       .trim()
       .split("\n")

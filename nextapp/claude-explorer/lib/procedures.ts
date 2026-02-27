@@ -440,6 +440,27 @@ const ImageInputSchema = z.object({
   mediaType: z.enum(["image/jpeg", "image/png", "image/gif", "image/webp"]),
 });
 
+// Module-level map of pending AskUserQuestion tool calls awaiting user answers.
+// Key: toolUseId. Value: { resolve, sessionId }.
+const pendingAnswers = new Map<
+  string,
+  {
+    resolve: (
+      result: { behavior: "allow" } | { behavior: "deny"; message: string }
+    ) => void;
+    sessionId: string;
+  }
+>();
+
+function cleanupPendingAnswers(sessionId: string) {
+  for (const [toolUseId, entry] of pendingAnswers.entries()) {
+    if (entry.sessionId === sessionId) {
+      entry.resolve({ behavior: "deny", message: "Session ended" });
+      pendingAnswers.delete(toolUseId);
+    }
+  }
+}
+
 function buildPromptArg(
   prompt: string,
   resume: string | undefined,
@@ -484,6 +505,16 @@ const chatProc = os
       resume: z.string().optional(),
       cwd: z.string().optional(),
       images: z.array(ImageInputSchema).optional(),
+      thinking: z.enum(["adaptive", "disabled"]).optional(),
+      permissionMode: z
+        .enum([
+          "bypassPermissions",
+          "default",
+          "acceptEdits",
+          "plan",
+          "dontAsk",
+        ])
+        .optional(),
     })
   )
   .output(eventIterator(z.custom<SDKMessage>()))
@@ -500,6 +531,17 @@ const chatProc = os
     const ac = new AbortController();
     signal?.addEventListener("abort", () => ac.abort(), { once: true });
 
+    let sessionId: string | undefined;
+
+    // Cleanup pending answers if the request is aborted
+    signal?.addEventListener(
+      "abort",
+      () => {
+        if (sessionId) cleanupPendingAnswers(sessionId);
+      },
+      { once: true }
+    );
+
     try {
       // Merge per-project env vars (if cwd resolves to a registered project)
       let projectEnv: Record<string, string> = {};
@@ -511,17 +553,47 @@ const chatProc = os
         }
       }
 
+      const effectivePermMode = input.permissionMode ?? "bypassPermissions";
+      const needsDangerous = effectivePermMode === "bypassPermissions";
+
+      // Thinking config
+      const thinkingConfig =
+        input.thinking === "adaptive"
+          ? ({ type: "adaptive" } as const)
+          : input.thinking === "disabled"
+            ? ({ type: "disabled" } as const)
+            : undefined;
+
       const conversation = query({
         prompt: buildPromptArg(input.prompt, input.resume, input.images),
         options: {
           model: "claude-sonnet-4-6",
           executable: "bun",
-          permissionMode: "bypassPermissions",
-          allowDangerouslySkipPermissions: true,
+          permissionMode: effectivePermMode,
+          allowDangerouslySkipPermissions: needsDangerous,
           env: { ...cleanEnv, ...projectEnv },
           abortController: ac,
           stderr: (data: string) => {
             console.error("[chat] stderr:", data);
+          },
+          ...(thinkingConfig ? { thinking: thinkingConfig } : {}),
+          // Intercept AskUserQuestion to pause and wait for user input
+          canUseTool: async (
+            toolName: string,
+            _toolInput: unknown,
+            opts: { toolUseID: string }
+          ) => {
+            if (toolName === "AskUserQuestion" && sessionId) {
+              return new Promise<
+                { behavior: "allow" } | { behavior: "deny"; message: string }
+              >((resolve) => {
+                pendingAnswers.set(opts.toolUseID, {
+                  resolve,
+                  sessionId: sessionId!,
+                });
+              });
+            }
+            return { behavior: "allow" as const };
           },
           mcpServers: {
             [process.env.INSTANCE_NAME ?? "claude-explorer"]: {
@@ -542,7 +614,6 @@ const chatProc = os
         },
       });
 
-      let sessionId: string | undefined;
       for await (const msg of conversation) {
         // Capture session_id from init message
         if ("type" in msg && msg.type === "system" && "session_id" in msg) {
@@ -580,7 +651,27 @@ const chatProc = os
       if (signal?.aborted) return;
       console.error("[chat] error:", err);
       throw err;
+    } finally {
+      if (sessionId) cleanupPendingAnswers(sessionId);
     }
+  });
+
+// Procedure for answering a pending AskUserQuestion tool call
+const answerQuestionProc = os
+  .input(
+    z.object({
+      sessionId: z.string(),
+      toolUseId: z.string(),
+      answers: z.record(z.string(), z.array(z.string())),
+    })
+  )
+  .output(z.object({ success: z.boolean() }))
+  .handler(async ({ input }) => {
+    const pending = pendingAnswers.get(input.toolUseId);
+    if (!pending) return { success: false };
+    pending.resolve({ behavior: "allow" });
+    pendingAnswers.delete(input.toolUseId);
+    return { success: true };
   });
 
 // --- Webhooks ---
@@ -1198,6 +1289,16 @@ const rootChatProc = os
       prompt: z.string(),
       resume: z.string().optional(),
       images: z.array(ImageInputSchema).optional(),
+      thinking: z.enum(["adaptive", "disabled"]).optional(),
+      permissionMode: z
+        .enum([
+          "bypassPermissions",
+          "default",
+          "acceptEdits",
+          "plan",
+          "dontAsk",
+        ])
+        .optional(),
     })
   )
   .output(eventIterator(z.custom<SDKMessage>()))
@@ -1214,19 +1315,57 @@ const rootChatProc = os
     const ac = new AbortController();
     signal?.addEventListener("abort", () => ac.abort(), { once: true });
 
+    let sessionId: string | undefined;
+
+    signal?.addEventListener(
+      "abort",
+      () => {
+        if (sessionId) cleanupPendingAnswers(sessionId);
+      },
+      { once: true }
+    );
+
     try {
+      const effectivePermMode = input.permissionMode ?? "bypassPermissions";
+      const needsDangerous = effectivePermMode === "bypassPermissions";
+
+      const thinkingConfig =
+        input.thinking === "adaptive"
+          ? ({ type: "adaptive" } as const)
+          : input.thinking === "disabled"
+            ? ({ type: "disabled" } as const)
+            : undefined;
+
       const conversation = query({
         prompt: buildPromptArg(input.prompt, input.resume, input.images),
         options: {
           model: "claude-sonnet-4-6",
           executable: "bun",
-          permissionMode: "bypassPermissions",
-          allowDangerouslySkipPermissions: true,
+          permissionMode: effectivePermMode,
+          allowDangerouslySkipPermissions: needsDangerous,
           env: cleanEnv,
           cwd: USER_HOME,
           abortController: ac,
           stderr: (data: string) => {
             console.error("[rootChat] stderr:", data);
+          },
+          ...(thinkingConfig ? { thinking: thinkingConfig } : {}),
+          canUseTool: async (
+            toolName: string,
+            _toolInput: unknown,
+            opts: { toolUseID: string }
+          ) => {
+            if (toolName === "AskUserQuestion" && sessionId) {
+              return new Promise<
+                { behavior: "allow" } | { behavior: "deny"; message: string }
+              >((resolve) => {
+                pendingAnswers.set(opts.toolUseID, {
+                  resolve,
+                  sessionId: sessionId!,
+                });
+              });
+            }
+            return { behavior: "allow" as const };
           },
           systemPrompt: {
             type: "preset",
@@ -1252,7 +1391,6 @@ const rootChatProc = os
         },
       });
 
-      let sessionId: string | undefined;
       for await (const msg of conversation) {
         if ("type" in msg && msg.type === "system" && "session_id" in msg) {
           sessionId = (msg as { session_id: string }).session_id;
@@ -1285,6 +1423,8 @@ const rootChatProc = os
       if (signal?.aborted) return;
       console.error("[rootChat] error:", err);
       throw err;
+    } finally {
+      if (sessionId) cleanupPendingAnswers(sessionId);
     }
   });
 
@@ -2321,6 +2461,7 @@ const SessionRowSchema = z.object({
   source: z.string().nullable(),
   model: z.string().nullable(),
   first_prompt: z.string().nullable(),
+  git_branch: z.string().nullable().optional(),
   started_at: z.string(),
   updated_at: z.string(),
   ended_at: z.string().nullable(),
@@ -2330,6 +2471,7 @@ const SessionRowSchema = z.object({
   num_turns: z.number().nullable(),
   duration_ms: z.number().nullable(),
   error: z.string().nullable(),
+  is_archived: z.number().default(0),
 });
 
 const sessionLiveStateProc = os
@@ -2448,6 +2590,7 @@ export const router = {
     facets: facetsProc,
   },
   chat: chatProc,
+  answerQuestion: answerQuestionProc,
   root: {
     primarySession: rootPrimarySessionProc,
     setPrimary: rootSetPrimaryProc,

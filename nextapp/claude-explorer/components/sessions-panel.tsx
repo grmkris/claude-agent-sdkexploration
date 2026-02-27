@@ -1,5 +1,7 @@
 "use client";
 
+import type { IconSvgElement } from "@hugeicons/react";
+
 import {
   Clock01Icon,
   CommandLineIcon,
@@ -8,7 +10,6 @@ import {
   Message01Icon,
   WebhookIcon,
 } from "@hugeicons/core-free-icons";
-import type { IconSvgElement } from "@hugeicons/react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
@@ -288,8 +289,10 @@ export function SessionsPanel({
                     </div>
                   </SidebarMenuButton>
                 </Link>
-                <div className="ml-auto flex shrink-0 items-center gap-1 pr-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="ml-auto flex shrink-0 items-center pr-1">
                   <SessionStateBadge sessionId={session.id} compact />
+                </div>
+                <div className="flex shrink-0 items-center opacity-0 group-hover:opacity-100 transition-opacity">
                   <SessionActionsMenu
                     session={{
                       sessionId: session.id,

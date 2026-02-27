@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArchiveIcon } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 
@@ -27,18 +27,36 @@ export function ArchiveChatButton() {
   const sessionId = projectChatMatch?.[2] ?? rootChatMatch?.[1];
   const projectSlug = projectChatMatch?.[1] ?? null;
 
+  // Query the live session row to know whether it's already archived
+  const { data: sessionData } = useQuery({
+    ...orpc.liveState.session.queryOptions({
+      input: { sessionId: sessionId ?? "" },
+    }),
+    enabled: !!sessionId,
+  });
+
+  const isArchived = sessionData?.is_archived === 1;
+
   const archiveMutation = useMutation({
-    ...orpc.sessions.archive.mutationOptions(),
-    onSuccess: () => {
-      // Invalidate all session-related queries so lists update immediately
+    mutationFn: (archived: boolean) =>
+      // Use client directly to avoid any mutationOptions typing issues
+      import("@/lib/orpc-client").then(({ client }) =>
+        client.sessions.archive({ sessionId: sessionId!, archived })
+      ),
+    onSuccess: (_data, archived) => {
       void queryClient.invalidateQueries();
-      // Navigate away from the now-archived conversation
-      router.push(projectSlug ? `/project/${projectSlug}` : "/");
+      if (archived) {
+        // Navigating away after archiving
+        router.push(projectSlug ? `/project/${projectSlug}` : "/");
+      }
+      // If unarchiving, just stay on the page — the button will update to show the archive state
     },
   });
 
   // Only render on existing session pages (not new-chat pages)
   if (!sessionId) return null;
+
+  const label = isArchived ? "Unarchive conversation" : "Archive conversation";
 
   return (
     <Tooltip>
@@ -48,16 +66,24 @@ export function ArchiveChatButton() {
             variant="ghost"
             size="icon"
             className="h-7 w-7 text-muted-foreground hover:text-foreground"
-            onClick={() => archiveMutation.mutate({ sessionId })}
             disabled={archiveMutation.isPending}
             {...props}
+            onClick={(e) => {
+              // Merge Radix's own onClick (if any) with our handler
+              (props as React.HTMLAttributes<HTMLButtonElement>).onClick?.(e);
+              archiveMutation.mutate(!isArchived);
+            }}
           >
-            <ArchiveIcon className="h-4 w-4" />
-            <span className="sr-only">Archive conversation</span>
+            <ArchiveIcon
+              className="h-4 w-4"
+              // Filled style when already archived so user can see the state
+              fill={isArchived ? "currentColor" : "none"}
+            />
+            <span className="sr-only">{label}</span>
           </Button>
         )}
       />
-      <TooltipContent>Archive conversation</TooltipContent>
+      <TooltipContent>{label}</TooltipContent>
     </Tooltip>
   );
 }

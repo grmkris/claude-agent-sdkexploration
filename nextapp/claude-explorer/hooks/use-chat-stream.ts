@@ -21,16 +21,29 @@ type UseChatStreamReturn = {
   messages: ParsedMessage[];
   send: (prompt: string, images?: AttachedImage[]) => void;
   stop: () => void;
+  answerQuestion: (
+    toolUseId: string,
+    answers: Record<string, string[]>
+  ) => void;
   isStreaming: boolean;
   sessionId: string | null;
   error: string | null;
   toolProgress: Map<string, ToolProgressEntry>;
 };
 
-export function useChatStream(opts?: {
+export type ChatStreamOpts = {
   resume?: string;
   cwd?: string;
-}): UseChatStreamReturn {
+  thinking?: "adaptive" | "disabled";
+  permissionMode?:
+    | "bypassPermissions"
+    | "default"
+    | "acceptEdits"
+    | "plan"
+    | "dontAsk";
+};
+
+export function useChatStream(opts?: ChatStreamOpts): UseChatStreamReturn {
   const [messages, setMessages] = useState<ParsedMessage[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -46,6 +59,14 @@ export function useChatStream(opts?: {
     setIsStreaming(false);
     streamingRef.current = false;
   }, []);
+
+  const answerQuestion = useCallback(
+    (toolUseId: string, answers: Record<string, string[]>) => {
+      if (!sessionId) return;
+      void client.answerQuestion({ sessionId, toolUseId, answers });
+    },
+    [sessionId]
+  );
 
   const send = useCallback(
     (prompt: string, images?: AttachedImage[]) => {
@@ -98,6 +119,10 @@ export function useChatStream(opts?: {
                 base64: img.base64,
                 mediaType: img.mediaType,
               })),
+              ...(opts?.thinking ? { thinking: opts.thinking } : {}),
+              ...(opts?.permissionMode
+                ? { permissionMode: opts.permissionMode }
+                : {}),
             },
             { signal: ac.signal }
           );
@@ -127,13 +152,14 @@ export function useChatStream(opts?: {
         }
       })();
     },
-    [sessionId, opts?.resume, opts?.cwd]
+    [sessionId, opts?.resume, opts?.cwd, opts?.thinking, opts?.permissionMode]
   );
 
   return {
     messages,
     send,
     stop,
+    answerQuestion,
     isStreaming,
     sessionId,
     error,

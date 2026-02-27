@@ -79,6 +79,17 @@ export type UserImageBlock = {
   dataUrl: string; // data: URL for <img src> — display only, never persisted
 };
 
+export type ThinkingBlock = {
+  type: "thinking";
+  thinking: string;
+  signature: string;
+};
+
+export type RedactedThinkingBlock = {
+  type: "redacted_thinking";
+  data: string;
+};
+
 export type AttachedImage = {
   id: string; // crypto.randomUUID() for React key / removal
   dataUrl: string; // "data:image/png;base64,..." — used for <img src>
@@ -93,7 +104,9 @@ export type ContentBlock =
   | ResultBlock
   | SystemEventBlock
   | ToolUseSummaryBlock
-  | UserImageBlock;
+  | UserImageBlock
+  | ThinkingBlock
+  | RedactedThinkingBlock;
 
 export type {
   Project,

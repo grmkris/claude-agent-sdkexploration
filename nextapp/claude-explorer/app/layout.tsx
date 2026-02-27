@@ -7,19 +7,10 @@ import "./globals.css";
 import Script from "next/script";
 
 import { AgentTabBar } from "@/components/agent-tabs/agent-tab-bar";
-import { AppBreadcrumb } from "@/components/app-breadcrumb";
-import { ArchiveChatButton } from "@/components/archive-chat-button";
 import { ProjectSidebar } from "@/components/project-sidebar";
 import { RightSidebar } from "@/components/right-sidebar";
-import { SshBadge } from "@/components/ssh-badge";
 import { RightSidebarProvider } from "@/components/ui/right-sidebar-context";
-import { RightSidebarTrigger } from "@/components/ui/right-sidebar-trigger";
-import { Separator } from "@/components/ui/separator";
-import {
-  SidebarProvider,
-  SidebarInset,
-  SidebarTrigger,
-} from "@/components/ui/sidebar";
+import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
 import { Providers } from "./providers";
@@ -55,8 +46,7 @@ export default async function RootLayout({
   const cookieStore = await cookies();
   const tabBarVisible =
     cookieStore.get("agent_tab_bar_state")?.value !== "false";
-  const leftSidebarOpen =
-    cookieStore.get("sidebar_state")?.value !== "false";
+  const leftSidebarOpen = cookieStore.get("sidebar_state")?.value !== "false";
   const rightSidebarOpen =
     cookieStore.get("right_sidebar_state")?.value === "true";
 
@@ -76,15 +66,6 @@ export default async function RootLayout({
               <RightSidebarProvider defaultOpen={rightSidebarOpen}>
                 <ProjectSidebar />
                 <SidebarInset>
-                  <header className="flex h-10 shrink-0 items-center gap-2 border-b px-3">
-                    <SidebarTrigger className="-ml-1" />
-                    <Separator orientation="vertical" className="mr-2 h-4" />
-                    <AppBreadcrumb />
-                    <SshBadge />
-                    <div className="flex-1" />
-                    <ArchiveChatButton />
-                    <RightSidebarTrigger />
-                  </header>
                   <AgentTabBar />
                   <div className="flex flex-1 flex-col overflow-hidden">
                     {children}

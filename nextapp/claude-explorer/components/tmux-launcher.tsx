@@ -88,7 +88,7 @@ export function TmuxLauncher({
 
   const { data: serverConfig } = useQuery(orpc.server.config.queryOptions());
   const { data: sessions } = useQuery(
-    orpc.sessions.list.queryOptions({ input: { slug } }),
+    orpc.sessions.list.queryOptions({ input: { slug } })
   );
 
   // Auto-fill SSH target from server config (only on first load; user can override)
@@ -154,7 +154,7 @@ export function TmuxLauncher({
                 "h-6 w-6 rounded text-[10px] font-mono transition-colors",
                 panelCount === n
                   ? "bg-primary text-primary-foreground"
-                  : "bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground",
+                  : "bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground"
               )}
             >
               {n}
@@ -171,7 +171,9 @@ export function TmuxLauncher({
           </span>
           <Select
             value={layout}
-            onValueChange={(v) => setLayout((v ?? "even-horizontal") as TmuxLayout)}
+            onValueChange={(v) =>
+              setLayout((v ?? "even-horizontal") as TmuxLayout)
+            }
           >
             <SelectTrigger size="sm" className="h-6 flex-1 text-[10px]">
               <SelectValue />
@@ -230,7 +232,10 @@ export function TmuxLauncher({
           strokeWidth={2}
           strokeLinecap="round"
           strokeLinejoin="round"
-          className={cn("h-3 w-3 transition-transform", showOptions && "rotate-180")}
+          className={cn(
+            "h-3 w-3 transition-transform",
+            showOptions && "rotate-180"
+          )}
         >
           <path d="m6 9 6 6 6-6" />
         </svg>
@@ -311,7 +316,7 @@ export function TmuxLauncher({
           "flex h-7 items-center justify-center gap-1.5 rounded text-[10px] font-medium transition-colors",
           command
             ? "bg-muted text-foreground hover:bg-muted/80"
-            : "cursor-not-allowed bg-muted/30 text-muted-foreground/40",
+            : "cursor-not-allowed bg-muted/30 text-muted-foreground/40"
         )}
       >
         {copied ? (

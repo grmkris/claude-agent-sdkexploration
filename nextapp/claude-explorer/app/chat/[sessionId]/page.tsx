@@ -1,9 +1,14 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { use, useMemo } from "react";
+import { use, useMemo, useState } from "react";
 
 import { ChatInput } from "@/components/chat-input";
+import {
+  ChatSettingsBar,
+  DEFAULT_CHAT_SETTINGS,
+  type ChatSettings,
+} from "@/components/chat-settings-bar";
 import { ChatView } from "@/components/chat-view";
 import { useRootChatStream } from "@/hooks/use-root-chat-stream";
 import { orpc } from "@/lib/orpc";
@@ -24,15 +29,22 @@ export default function RootSessionChatPage({
     refetchInterval: false,
   });
 
+  const [settings, setSettings] = useState<ChatSettings>(DEFAULT_CHAT_SETTINGS);
+
   const {
     messages: streamMessages,
     send,
     stop,
+    answerQuestion,
     isStreaming,
     error,
     toolProgress,
   } = useRootChatStream({
     resume: sessionId,
+    thinking: settings.thinkingEnabled ? "adaptive" : "disabled",
+    permissionMode: settings.bypassPermissions
+      ? "bypassPermissions"
+      : "default",
   });
 
   const allMessages = useMemo(() => {
@@ -63,12 +75,18 @@ export default function RootSessionChatPage({
         projectSlug="__root__"
         sessionId={sessionId}
         onRefresh={() => refetch()}
+        onAnswer={answerQuestion}
       />
       {error && (
         <div className="mx-4 mb-2 rounded border border-destructive/50 bg-destructive/10 px-3 py-2 text-xs text-destructive">
           {error}
         </div>
       )}
+      <ChatSettingsBar
+        settings={settings}
+        onSettingsChange={setSettings}
+        disabled={isStreaming}
+      />
       <ChatInput
         onSend={send}
         onStop={stop}

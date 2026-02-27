@@ -8,6 +8,10 @@ export type ToolRendererProps = {
   elapsed?: number;
   isRunning?: boolean;
   projectSlug?: string;
+  /** Only set for AskUserQuestion blocks */
+  toolUseId?: string;
+  /** Callback invoked when the user answers an AskUserQuestion */
+  onAnswer?: (toolUseId: string, answers: Record<string, string[]>) => void;
 };
 
 /** Safely stringify an unknown value from tool input */
@@ -17,6 +21,7 @@ export function str(value: unknown): string {
   return JSON.stringify(value);
 }
 
+import { AskUserQuestionTool } from "./ask-user-question-tool";
 import { BashTool } from "./bash-tool";
 import { FileTool } from "./file-tool";
 import { GenericTool } from "./generic-tool";
@@ -25,6 +30,7 @@ import { TaskTool } from "./task-tool";
 import { WebTool } from "./web-tool";
 
 const toolMap: Record<string, ComponentType<ToolRendererProps>> = {
+  AskUserQuestion: AskUserQuestionTool,
   Bash: BashTool,
   Read: FileTool,
   Write: FileTool,

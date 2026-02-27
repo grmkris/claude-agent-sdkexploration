@@ -17,7 +17,9 @@ export function SshBadge() {
 
   // Fetch session data to get project_path for the correct working directory
   const { data: sessionData } = useQuery({
-    ...orpc.liveState.session.queryOptions({ input: { sessionId: sessionId ?? "" } }),
+    ...orpc.liveState.session.queryOptions({
+      input: { sessionId: sessionId ?? "" },
+    }),
     enabled: !!sessionId,
   });
 

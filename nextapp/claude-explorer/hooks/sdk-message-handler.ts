@@ -75,6 +75,9 @@ export function handleSDKMessage(
             id: string;
             name: string;
             text: string;
+            thinking: string;
+            signature: string;
+            data: string;
             input: unknown;
             citations?: unknown;
           }>;
@@ -112,6 +115,43 @@ export function handleSDKMessage(
                   ],
                 };
               }
+            }
+            return msgs;
+          });
+        } else if (block.type === "thinking") {
+          setMessages((prev) => {
+            const msgs = [...prev];
+            const last = msgs[msgs.length - 1];
+            if (last?.role === "assistant") {
+              msgs[msgs.length - 1] = {
+                ...last,
+                content: [
+                  ...last.content,
+                  {
+                    type: "thinking" as const,
+                    thinking: block.thinking ?? "",
+                    signature: block.signature ?? "",
+                  },
+                ],
+              };
+            }
+            return msgs;
+          });
+        } else if (block.type === "redacted_thinking") {
+          setMessages((prev) => {
+            const msgs = [...prev];
+            const last = msgs[msgs.length - 1];
+            if (last?.role === "assistant") {
+              msgs[msgs.length - 1] = {
+                ...last,
+                content: [
+                  ...last.content,
+                  {
+                    type: "redacted_thinking" as const,
+                    data: block.data ?? "",
+                  },
+                ],
+              };
             }
             return msgs;
           });

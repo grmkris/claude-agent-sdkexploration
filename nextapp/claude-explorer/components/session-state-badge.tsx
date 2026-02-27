@@ -11,6 +11,8 @@ import {
 import { orpc } from "@/lib/orpc";
 import { getTimeAgo } from "@/lib/utils";
 
+const inactiveStates = new Set(["stopped", "done"]);
+
 const stateConfig: Record<
   string,
   { color: string; pulse?: boolean; label: string }

@@ -3,7 +3,7 @@
 import { useState } from "react";
 
 import type { ToolProgressEntry } from "@/hooks/use-chat-stream";
-import type { ContentBlock, UserImageBlock } from "@/lib/types";
+import type { ContentBlock, ThinkingBlock, UserImageBlock } from "@/lib/types";
 
 import {
   Collapsible,
@@ -14,6 +14,7 @@ import {
 import { MarkdownContent } from "./markdown-content";
 import { ResultBlock } from "./result-block";
 import { SystemEventBlock, ToolUseSummaryBlock } from "./system-event-block";
+import { ThinkingBlockView } from "./thinking-block";
 import { ToolUseBlock } from "./tool-use-block";
 
 type ToolUseContentBlock = Extract<ContentBlock, { type: "tool_use" }>;
@@ -22,10 +23,12 @@ function ToolGroup({
   blocks,
   toolProgress,
   projectSlug,
+  onAnswer,
 }: {
   blocks: ToolUseContentBlock[];
   toolProgress?: Map<string, ToolProgressEntry>;
   projectSlug?: string;
+  onAnswer?: (toolUseId: string, answers: Record<string, string[]>) => void;
 }) {
   const anyRunning = blocks.some((b) => toolProgress?.has(b.id));
   const doneCount = blocks.filter((b) => b.output !== undefined).length;
@@ -71,6 +74,8 @@ function ToolGroup({
               elapsed={elapsed}
               isRunning={isRunning}
               projectSlug={projectSlug}
+              toolUseId={block.id}
+              onAnswer={onAnswer}
             />
           );
         })}
@@ -86,6 +91,7 @@ export function MessageBubble({
   isStreaming,
   toolProgress,
   projectSlug,
+  onAnswer,
 }: {
   role: "user" | "assistant" | "system";
   content: ContentBlock[];
@@ -93,6 +99,7 @@ export function MessageBubble({
   isStreaming?: boolean;
   toolProgress?: Map<string, ToolProgressEntry>;
   projectSlug?: string;
+  onAnswer?: (toolUseId: string, answers: Record<string, string[]>) => void;
 }) {
   if (role === "system") {
     return (
@@ -150,7 +157,8 @@ export function MessageBubble({
     );
   }
 
-  // Assistant: group consecutive tool_use blocks
+  // ── Assistant message ────────────────────────────────────────────────────────
+
   const textContent = content
     .filter(
       (b): b is Extract<ContentBlock, { type: "text" }> => b.type === "text"
@@ -160,12 +168,17 @@ export function MessageBubble({
 
   const hasText = textContent.trim().length > 0;
   const hasTools = content.some((b) => b.type === "tool_use");
+  const hasThinking = content.some(
+    (b) => b.type === "thinking" || b.type === "redacted_thinking"
+  );
 
-  if (!hasText && !hasTools) return null;
+  if (!hasText && !hasTools && !hasThinking) return null;
 
   const isLastAssistantStreaming = isStreaming && hasText;
 
-  // Build render segments: group consecutive tool_use blocks
+  // Build render segments.
+  // AskUserQuestion blocks are always standalone (never grouped).
+  // Other consecutive tool_use blocks are grouped when ≥ 3.
   type Segment =
     | { kind: "block"; block: ContentBlock; index: number }
     | { kind: "tool_group"; blocks: ToolUseContentBlock[] };
@@ -188,7 +201,20 @@ export function MessageBubble({
   for (let i = 0; i < content.length; i++) {
     const block = content[i];
     if (block.type === "tool_use") {
-      currentToolRun.push(block as ToolUseContentBlock);
+      const tb = block as ToolUseContentBlock;
+      if (tb.name === "AskUserQuestion") {
+        // Always render AskUserQuestion standalone — flush any pending group first
+        flushToolRun();
+        segments.push({ kind: "block", block, index: i });
+      } else {
+        currentToolRun.push(tb);
+      }
+    } else if (
+      block.type === "thinking" ||
+      block.type === "redacted_thinking"
+    ) {
+      flushToolRun();
+      segments.push({ kind: "block", block, index: i });
     } else {
       flushToolRun();
       segments.push({ kind: "block", block, index: i });
@@ -207,10 +233,27 @@ export function MessageBubble({
                 blocks={seg.blocks}
                 toolProgress={toolProgress}
                 projectSlug={projectSlug}
+                onAnswer={onAnswer}
               />
             );
           }
+
           const { block, index } = seg;
+
+          // Thinking blocks
+          if (block.type === "thinking") {
+            return (
+              <ThinkingBlockView
+                key={si}
+                thinking={(block as ThinkingBlock).thinking}
+              />
+            );
+          }
+          if (block.type === "redacted_thinking") {
+            return <ThinkingBlockView key={si} thinking="" isRedacted />;
+          }
+
+          // Text blocks
           if (block.type === "text" && block.text.trim()) {
             const isLast =
               index === content.length - 1 ||
@@ -224,6 +267,8 @@ export function MessageBubble({
               </MarkdownContent>
             );
           }
+
+          // Tool use blocks (including AskUserQuestion standalone)
           if (block.type === "tool_use") {
             const tb = block as ToolUseContentBlock;
             const progress = toolProgress?.get(tb.id);
@@ -241,9 +286,12 @@ export function MessageBubble({
                 elapsed={elapsed}
                 isRunning={isRunning}
                 projectSlug={projectSlug}
+                toolUseId={tb.id}
+                onAnswer={onAnswer}
               />
             );
           }
+
           return null;
         })}
         <div className="mt-1 text-[10px] opacity-40">

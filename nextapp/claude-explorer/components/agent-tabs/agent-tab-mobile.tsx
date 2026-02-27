@@ -4,7 +4,9 @@ import Link from "next/link";
 
 import type { LiveSession } from "@/components/resume-session-popover";
 
+import { ArchiveChatButton } from "@/components/archive-chat-button";
 import { StateBadgeInline } from "@/components/session-state-badge";
+import { RightSidebarTrigger } from "@/components/ui/right-sidebar-trigger";
 import {
   Sheet,
   SheetContent,
@@ -63,19 +65,25 @@ export function AgentTabMobile({
 
   return (
     <>
-      {/* Pill trigger */}
-      <button
-        className="flex h-8 items-center gap-1.5 border-b px-3 text-xs"
-        onClick={() => setMobileOpen(true)}
-      >
-        {activeCount > 0 && (
-          <span className="inline-block h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
-        )}
-        <span>
-          {tabs.length} tab{tabs.length !== 1 ? "s" : ""}
-        </span>
-        <span className="text-muted-foreground">▾</span>
-      </button>
+      {/* Pill trigger row */}
+      <div className="flex h-8 shrink-0 items-stretch border-b">
+        <button
+          className="flex flex-1 items-center gap-1.5 px-3 text-xs"
+          onClick={() => setMobileOpen(true)}
+        >
+          {activeCount > 0 && (
+            <span className="inline-block h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
+          )}
+          <span>
+            {tabs.length} tab{tabs.length !== 1 ? "s" : ""}
+          </span>
+          <span className="text-muted-foreground">▾</span>
+        </button>
+        <div className="flex shrink-0 items-center gap-0.5 border-l border-border/50 px-1.5">
+          <ArchiveChatButton />
+          <RightSidebarTrigger />
+        </div>
+      </div>
 
       {/* Bottom sheet */}
       <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
