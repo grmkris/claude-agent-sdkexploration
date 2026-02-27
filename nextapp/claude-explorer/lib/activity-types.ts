@@ -1,4 +1,10 @@
-export type ActivityItemType = "commit" | "deployment" | "ticket";
+export type ActivityItemType =
+  | "commit"
+  | "deployment"
+  | "ticket"
+  | "email"
+  | "webhook"
+  | "cron";
 
 export interface CommitRaw {
   hash: string;
@@ -34,8 +40,43 @@ export interface TicketRaw {
   updatedAt?: string;
 }
 
+export interface EmailEventRaw {
+  id: string;
+  direction: "inbound" | "outbound";
+  from: string;
+  to: string;
+  subject?: string;
+  status: "success" | "error" | "running";
+  sessionId?: string;
+  timestamp: string;
+  projectSlug: string;
+}
+
+export interface WebhookEventRaw {
+  id: string;
+  webhookId: string;
+  provider: string;
+  eventType: string;
+  action: string;
+  payloadSummary: string;
+  status: "success" | "error" | "running";
+  sessionId?: string;
+  timestamp: string;
+}
+
+export interface CronEventRaw {
+  id: string;
+  cronId: string;
+  expression: string;
+  prompt: string;
+  status: "success" | "error" | "running";
+  sessionId?: string;
+  error?: string;
+  timestamp: string;
+}
+
 export interface ActivityItem {
-  /** Unique key: "commit:{hash}", "deploy:{id}", "ticket:{identifier}" */
+  /** Unique key: "commit:{hash}", "deploy:{id}", "ticket:{identifier}", "email:{id}", "webhook:{id}", "cron:{id}" */
   id: string;
   type: ActivityItemType;
   timestamp: string;
@@ -44,5 +85,5 @@ export interface ActivityItem {
   status?: string;
   statusColor?: string;
   url?: string;
-  raw: CommitRaw | DeploymentRaw | TicketRaw;
+  raw: CommitRaw | DeploymentRaw | TicketRaw | EmailEventRaw | WebhookEventRaw | CronEventRaw;
 }

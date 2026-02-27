@@ -8,18 +8,28 @@ import type {
   ActivityItem,
   ActivityItemType,
   CommitRaw,
+  CronEventRaw,
   DeploymentRaw,
+  EmailEventRaw,
   TicketRaw,
+  WebhookEventRaw,
 } from "@/lib/activity-types";
 
+import { ActivityDetailSheet } from "@/components/activity-detail-sheet";
+import { CronEventItem } from "@/components/activity-items/cron-event-item";
+import { EmailEventItem } from "@/components/activity-items/email-event-item";
 import { CommitItem } from "@/components/activity-items/commit-item";
 import { DeploymentItem } from "@/components/activity-items/deployment-item";
 import { TicketItem } from "@/components/activity-items/ticket-item";
+import { WebhookEventItem } from "@/components/activity-items/webhook-event-item";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import {
   buildCommitContextPrompt,
+  buildCronContextPrompt,
   buildDeploymentContextPrompt,
+  buildEmailContextPrompt,
   buildTicketContextPrompt,
+  buildWebhookContextPrompt,
 } from "@/lib/activity-context";
 import { orpc } from "@/lib/orpc";
 import { cn } from "@/lib/utils";
@@ -173,6 +183,139 @@ function normalizeTickets(
   return items;
 }
 
+function normalizeEmailEvents(
+  events:
+    | {
+        id: string;
+        projectSlug: string;
+        timestamp: string;
+        direction: "inbound" | "outbound";
+        from: string;
+        to: string;
+        subject?: string;
+        status: "success" | "error" | "running";
+        sessionId?: string;
+      }[]
+    | undefined,
+  slug: string
+): ActivityItem[] {
+  if (!events) return [];
+  // Only include events for this project (or root outbound)
+  return events
+    .filter(
+      (e) =>
+        e.projectSlug === slug ||
+        e.projectSlug === "__root__" ||
+        e.projectSlug === "__outbound__"
+    )
+    .map((e) => {
+      const raw: EmailEventRaw = {
+        id: e.id,
+        direction: e.direction,
+        from: e.from,
+        to: e.to,
+        subject: e.subject,
+        status: e.status,
+        sessionId: e.sessionId,
+        timestamp: e.timestamp,
+        projectSlug: e.projectSlug,
+      };
+      return {
+        id: `email:${e.id}`,
+        type: "email" as ActivityItemType,
+        timestamp: e.timestamp,
+        title: e.subject ?? `${e.direction === "inbound" ? "Email from" : "Email to"} ${e.direction === "inbound" ? e.from : e.to}`,
+        subtitle: e.from,
+        status: e.status,
+        raw,
+      };
+    });
+}
+
+function normalizeWebhookEvents(
+  events:
+    | {
+        id: string;
+        webhookId: string;
+        timestamp: string;
+        provider: string;
+        eventType: string;
+        action: string;
+        payloadSummary: string;
+        status: "success" | "error" | "running";
+        sessionId?: string;
+      }[]
+    | undefined,
+  projectWebhookIds: Set<string>
+): ActivityItem[] {
+  if (!events) return [];
+  return events
+    .filter((e) => projectWebhookIds.has(e.webhookId))
+    .map((e) => {
+      const raw: WebhookEventRaw = {
+        id: e.id,
+        webhookId: e.webhookId,
+        provider: e.provider,
+        eventType: e.eventType,
+        action: e.action,
+        payloadSummary: e.payloadSummary,
+        status: e.status,
+        sessionId: e.sessionId,
+        timestamp: e.timestamp,
+      };
+      return {
+        id: `webhook:${e.id}`,
+        type: "webhook" as ActivityItemType,
+        timestamp: e.timestamp,
+        title: `${e.eventType}${e.action ? ` · ${e.action}` : ""}`,
+        subtitle: e.provider,
+        status: e.status,
+        raw,
+      };
+    });
+}
+
+function normalizeCronEvents(
+  events:
+    | {
+        id: string;
+        cronId: string;
+        timestamp: string;
+        status: "success" | "error" | "running";
+        expression: string;
+        prompt: string;
+        sessionId?: string;
+        error?: string;
+      }[]
+    | undefined,
+  projectCronIds: Set<string>
+): ActivityItem[] {
+  if (!events) return [];
+  return events
+    .filter((e) => projectCronIds.has(e.cronId))
+    .map((e) => {
+      const raw: CronEventRaw = {
+        id: e.id,
+        cronId: e.cronId,
+        expression: e.expression,
+        prompt: e.prompt,
+        status: e.status,
+        sessionId: e.sessionId,
+        error: e.error,
+        timestamp: e.timestamp,
+      };
+      return {
+        id: `cron:${e.id}`,
+        type: "cron" as ActivityItemType,
+        timestamp: e.timestamp,
+        title: e.expression,
+        subtitle: e.prompt,
+        status: e.status,
+        raw,
+      };
+    });
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Filter chip
 // ─────────────────────────────────────────────────────────────────────────────
@@ -246,7 +389,8 @@ function EmptyState({ hasIntegrations }: { hasIntegrations: boolean }) {
       <div className="text-2xl">✨</div>
       <p className="text-sm font-medium text-foreground">No activity yet</p>
       <p className="text-xs text-muted-foreground">
-        Commits, deployments, and tickets will appear here as they happen.
+        Commits, deployments, tickets, emails, webhooks, and cron runs will
+        appear here as they happen.
       </p>
     </div>
   );
@@ -303,9 +447,9 @@ function groupByDate(
 export function ActivityFeed({ slug }: { slug: string }) {
   const router = useRouter();
 
-  // Filter state
+  // Filter state — all types on by default
   const [activeTypes, setActiveTypes] = useState<Set<ActivityItemType>>(
-    new Set(["commit", "deployment", "ticket"])
+    new Set(["commit", "deployment", "ticket", "email", "webhook", "cron"])
   );
   const [activeDeployStatuses, setActiveDeployStatuses] = useState<Set<string>>(
     new Set()
@@ -313,6 +457,9 @@ export function ActivityFeed({ slug }: { slug: string }) {
   const [activeTicketStatuses, setActiveTicketStatuses] = useState<Set<string>>(
     new Set()
   );
+
+  // Detail sheet state
+  const [detailItem, setDetailItem] = useState<ActivityItem | null>(null);
 
   // ── Data fetching ────────────────────────────────────────────────────────
 
@@ -356,6 +503,58 @@ export function ActivityFeed({ slug }: { slug: string }) {
     staleTime: 30_000,
   });
 
+  // Email events for this project
+  const { data: emailEventsData } = useQuery({
+    ...orpc.email.events.queryOptions({ input: { projectSlug: slug } }),
+    refetchInterval: 30_000,
+  });
+
+  // Webhook configs — used to know which webhooks belong to this project
+  const { data: webhookConfigs } = useQuery({
+    ...orpc.webhooks.list.queryOptions(),
+    staleTime: 60_000,
+  });
+
+  const projectWebhookIds = useMemo(
+    () =>
+      new Set(
+        (webhookConfigs ?? [])
+          .filter((w) => w.projectSlug === slug)
+          .map((w) => w.id)
+      ),
+    [webhookConfigs, slug]
+  );
+
+  // All webhook events — filtered client-side to this project's webhooks
+  const { data: webhookEventsData } = useQuery({
+    ...orpc.webhooks.events.queryOptions({ input: {} }),
+    refetchInterval: 30_000,
+    enabled: projectWebhookIds.size > 0,
+  });
+
+  // Cron configs — used to know which crons belong to this project
+  const { data: cronConfigs } = useQuery({
+    ...orpc.crons.list.queryOptions(),
+    staleTime: 60_000,
+  });
+
+  const projectCronIds = useMemo(
+    () =>
+      new Set(
+        (cronConfigs ?? [])
+          .filter((c) => c.projectSlug === slug)
+          .map((c) => c.id)
+      ),
+    [cronConfigs, slug]
+  );
+
+  // All cron events — filtered client-side to this project's crons
+  const { data: cronEventsData } = useQuery({
+    ...orpc.crons.events.queryOptions({ input: {} }),
+    refetchInterval: 30_000,
+    enabled: projectCronIds.size > 0,
+  });
+
   const isLoading =
     gitLoading ||
     (!!railwayIntegration && railwayLoading) ||
@@ -367,11 +566,14 @@ export function ActivityFeed({ slug }: { slug: string }) {
     const commits = normalizeCommits(gitLog?.commits);
     const deployments = normalizeDeployments(railwayData?.widgets);
     const tickets = normalizeTickets(linearData?.widgets);
-    return [...commits, ...deployments, ...tickets].sort(
+    const emails = normalizeEmailEvents(emailEventsData, slug);
+    const webhooks = normalizeWebhookEvents(webhookEventsData, projectWebhookIds);
+    const crons = normalizeCronEvents(cronEventsData, projectCronIds);
+    return [...commits, ...deployments, ...tickets, ...emails, ...webhooks, ...crons].sort(
       (a, b) =>
         new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
     );
-  }, [gitLog, railwayData, linearData]);
+  }, [gitLog, railwayData, linearData, emailEventsData, webhookEventsData, projectWebhookIds, cronEventsData, projectCronIds, slug]);
 
   // ── Correlation maps ──────────────────────────────────────────────────────
   // Computed once from allItems; no extra fetch needed.
@@ -503,9 +705,35 @@ export function ActivityFeed({ slug }: { slug: string }) {
     });
   }, [allItems, activeTypes, activeDeployStatuses, activeTicketStatuses]);
 
+  // ── Absorbed deployments ─────────────────────────────────────────────────
+  // When a deployment is linked to a commit that is also visible in the feed,
+  // we suppress the standalone deployment row — the commit row already shows
+  // the deployment status as a badge, so rendering both would be duplicative.
+  // If commits are hidden (type filter) the deployment rows show as normal.
+
+  const absorbedDeploymentIds = useMemo(() => {
+    const commitHashesInFeed = new Set(
+      filteredItems
+        .filter((i) => i.type === "commit")
+        .map((i) => (i.raw as CommitRaw).hash)
+    );
+    const absorbed = new Set<string>();
+    for (const [deployId, commit] of deploymentToCommit) {
+      if (commitHashesInFeed.has(commit.hash)) absorbed.add(deployId);
+    }
+    return absorbed;
+  }, [filteredItems, deploymentToCommit]);
+
   const groupedItems = useMemo(
-    () => groupByDate(filteredItems),
-    [filteredItems]
+    () =>
+      groupByDate(
+        filteredItems.filter(
+          (i) =>
+            i.type !== "deployment" ||
+            !absorbedDeploymentIds.has((i.raw as DeploymentRaw).id)
+        )
+      ),
+    [filteredItems, absorbedDeploymentIds]
   );
 
   // ── Chat handler ─────────────────────────────────────────────────────────
@@ -522,6 +750,42 @@ export function ActivityFeed({ slug }: { slug: string }) {
       case "ticket":
         prompt = buildTicketContextPrompt(item.raw as TicketRaw);
         break;
+      case "email": {
+        const raw = item.raw as EmailEventRaw;
+        if (raw.sessionId) {
+          const isRoot =
+            raw.projectSlug === "__root__" ||
+            raw.projectSlug === "__outbound__";
+          router.push(
+            isRoot
+              ? `/chat/${raw.sessionId}`
+              : `/project/${slug}/chat/${raw.sessionId}`
+          );
+          return;
+        }
+        prompt = buildEmailContextPrompt(raw);
+        break;
+      }
+      case "webhook": {
+        const raw = item.raw as WebhookEventRaw;
+        if (raw.sessionId) {
+          router.push(`/project/${slug}/chat/${raw.sessionId}`);
+          return;
+        }
+        prompt = buildWebhookContextPrompt(raw);
+        break;
+      }
+      case "cron": {
+        const raw = item.raw as CronEventRaw;
+        if (raw.sessionId) {
+          router.push(`/project/${slug}/chat/${raw.sessionId}`);
+          return;
+        }
+        prompt = buildCronContextPrompt(raw);
+        break;
+      }
+      default:
+        return;
     }
     router.push(`/project/${slug}/chat?prompt=${encodeURIComponent(prompt)}`);
   }
@@ -560,8 +824,11 @@ export function ActivityFeed({ slug }: { slug: string }) {
   }
 
   const hasIntegrations = !!railwayIntegration || !!linearIntegration;
-  const typeCount = (type: ActivityItemType) =>
-    allItems.filter((i) => i.type === type).length;
+  const typeCount = (type: ActivityItemType) => {
+    const total = allItems.filter((i) => i.type === type).length;
+    if (type === "deployment") return total - absorbedDeploymentIds.size;
+    return total;
+  };
 
   // ── Render ───────────────────────────────────────────────────────────────
 
@@ -597,6 +864,33 @@ export function ActivityFeed({ slug }: { slug: string }) {
                 count={typeCount("ticket")}
                 color="#3b82f6"
                 onClick={() => toggleType("ticket")}
+              />
+            )}
+            {availableTypes.has("email") && (
+              <FilterChip
+                label="Emails"
+                active={activeTypes.has("email")}
+                count={typeCount("email")}
+                color="#6366f1"
+                onClick={() => toggleType("email")}
+              />
+            )}
+            {availableTypes.has("webhook") && (
+              <FilterChip
+                label="Webhooks"
+                active={activeTypes.has("webhook")}
+                count={typeCount("webhook")}
+                color="#f97316"
+                onClick={() => toggleType("webhook")}
+              />
+            )}
+            {availableTypes.has("cron") && (
+              <FilterChip
+                label="Crons"
+                active={activeTypes.has("cron")}
+                count={typeCount("cron")}
+                color="#14b8a6"
+                onClick={() => toggleType("cron")}
               />
             )}
 
@@ -715,6 +1009,40 @@ export function ActivityFeed({ slug }: { slug: string }) {
                         />
                       );
                     }
+                    case "email": {
+                      const raw = item.raw as EmailEventRaw;
+                      return (
+                        <EmailEventItem
+                          key={item.id}
+                          raw={raw}
+                          onOpen={() => setDetailItem(item)}
+                          onStartChat={() => handleStartChat(item)}
+                        />
+                      );
+                    }
+                    case "webhook": {
+                      const raw = item.raw as WebhookEventRaw;
+                      return (
+                        <WebhookEventItem
+                          key={item.id}
+                          raw={raw}
+                          onOpen={() => setDetailItem(item)}
+                          onStartChat={() => handleStartChat(item)}
+                        />
+                      );
+                    }
+                    case "cron": {
+                      const raw = item.raw as CronEventRaw;
+                      return (
+                        <CronEventItem
+                          key={item.id}
+                          raw={raw}
+                          slug={slug}
+                          onOpen={() => setDetailItem(item)}
+                          onStartChat={() => handleStartChat(item)}
+                        />
+                      );
+                    }
                   }
                 })}
               </div>
@@ -722,6 +1050,13 @@ export function ActivityFeed({ slug }: { slug: string }) {
           )}
         </div>
       </TooltipProvider>
+
+      {/* Detail sheet — opens for email / webhook / cron rows */}
+      <ActivityDetailSheet
+        item={detailItem}
+        slug={slug}
+        onClose={() => setDetailItem(null)}
+      />
     </div>
   );
 }

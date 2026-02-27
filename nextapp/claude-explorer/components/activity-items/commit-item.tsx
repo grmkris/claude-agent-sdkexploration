@@ -92,43 +92,51 @@ export function CommitItem({
           {/* Correlation badges: deployments + tickets */}
           {((relatedDeployments && relatedDeployments.length > 0) ||
             (relatedTickets && relatedTickets.length > 0)) && (
-            <div className="mt-1 flex flex-wrap gap-1">
-              {relatedDeployments?.map((dep) => {
-                const isFailed =
-                  dep.status === "FAILED" || dep.status === "CRASHED";
-                const isLive = dep.status === "SUCCESS";
-                const isBuilding =
-                  dep.status === "DEPLOYING" || dep.status === "BUILDING";
-                return (
-                  <Tooltip key={dep.id}>
-                    <TooltipTrigger>
-                      <span
-                        className={cn(
-                          "inline-flex items-center gap-1 text-[10px] px-1 py-0.5 rounded font-medium cursor-default",
-                          isFailed && "bg-red-500/10 text-red-400",
-                          isLive && "bg-green-500/10 text-green-400",
-                          isBuilding && "bg-yellow-500/10 text-yellow-400",
-                          !isFailed &&
-                            !isLive &&
-                            !isBuilding &&
-                            "bg-muted text-muted-foreground"
-                        )}
-                      >
-                        <span
-                          className={cn(
-                            "h-1.5 w-1.5 rounded-full bg-current shrink-0",
-                            isBuilding && "animate-pulse"
-                          )}
-                        />
-                        {dep.serviceName}
-                      </span>
-                    </TooltipTrigger>
-                    <TooltipContent side="top">
-                      Deployed to {dep.serviceName}: {dep.status}
-                    </TooltipContent>
-                  </Tooltip>
-                );
-              })}
+            <div className="mt-1 flex flex-wrap gap-1 items-center">
+              {relatedDeployments && relatedDeployments.length > 0 && (
+                <>
+                  {/* Tiny "deployed →" label when there are deployment badges */}
+                  <span className="text-[10px] text-muted-foreground/60 mr-0.5">
+                    deployed →
+                  </span>
+                  {relatedDeployments.map((dep) => {
+                    const isFailed =
+                      dep.status === "FAILED" || dep.status === "CRASHED";
+                    const isLive = dep.status === "SUCCESS";
+                    const isBuilding =
+                      dep.status === "DEPLOYING" || dep.status === "BUILDING";
+                    return (
+                      <Tooltip key={dep.id}>
+                        <TooltipTrigger>
+                          <span
+                            className={cn(
+                              "inline-flex items-center gap-1 text-[10px] px-1 py-0.5 rounded font-medium cursor-default",
+                              isFailed && "bg-red-500/10 text-red-400",
+                              isLive && "bg-green-500/10 text-green-400",
+                              isBuilding && "bg-yellow-500/10 text-yellow-400",
+                              !isFailed &&
+                                !isLive &&
+                                !isBuilding &&
+                                "bg-muted text-muted-foreground"
+                            )}
+                          >
+                            <span
+                              className={cn(
+                                "h-1.5 w-1.5 rounded-full bg-current shrink-0",
+                                isBuilding && "animate-pulse"
+                              )}
+                            />
+                            {dep.serviceName}
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent side="top">
+                          {dep.serviceName}: {dep.status}
+                        </TooltipContent>
+                      </Tooltip>
+                    );
+                  })}
+                </>
+              )}
               {relatedTickets?.map((ticket) => (
                 <Tooltip key={ticket.identifier}>
                   <TooltipTrigger>

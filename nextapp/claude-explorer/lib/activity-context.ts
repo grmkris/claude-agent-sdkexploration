@@ -1,4 +1,11 @@
-import type { CommitRaw, DeploymentRaw, TicketRaw } from "./activity-types";
+import type {
+  CommitRaw,
+  CronEventRaw,
+  DeploymentRaw,
+  EmailEventRaw,
+  TicketRaw,
+  WebhookEventRaw,
+} from "./activity-types";
 
 const PRIORITY_LABEL: Record<number, string> = {
   0: "No priority",
@@ -157,6 +164,130 @@ export function buildTicketContextPrompt(raw: TicketRaw): string {
     "",
     "What would you like to do?"
   );
+
+  return lines.join("\n");
+}
+
+/**
+ * Builds a rich contextual prompt string for an inbound/outbound email event.
+ */
+export function buildEmailContextPrompt(raw: EmailEventRaw): string {
+  const lines: string[] = [
+    "[Activity Context: Email Event]",
+    "",
+    `Direction: ${raw.direction}`,
+    `From: ${raw.from}`,
+    `To: ${raw.to}`,
+  ];
+
+  if (raw.subject) {
+    lines.push(`Subject: ${raw.subject}`);
+  }
+
+  lines.push(`Status: ${raw.status}`);
+  lines.push(`Time: ${raw.timestamp}`);
+
+  if (raw.sessionId) {
+    lines.push(`Session ID: ${raw.sessionId}`);
+  }
+
+  lines.push(
+    "",
+    "---",
+    "",
+    "I can help you with this email. For example:",
+    "- Draft a reply to this email",
+    "- Summarise what was discussed in the conversation",
+    "- Take action based on the email content",
+    "- Check if any follow-up is needed",
+    "",
+    "What would you like to do?"
+  );
+
+  return lines.join("\n");
+}
+
+/**
+ * Builds a rich contextual prompt string for a webhook delivery event.
+ */
+export function buildWebhookContextPrompt(raw: WebhookEventRaw): string {
+  const lines: string[] = [
+    "[Activity Context: Webhook Event]",
+    "",
+    `Provider: ${raw.provider}`,
+    `Event: ${raw.eventType}${raw.action ? ` · ${raw.action}` : ""}`,
+    `Status: ${raw.status}`,
+    `Time: ${raw.timestamp}`,
+  ];
+
+  if (raw.payloadSummary) {
+    lines.push("", "Payload Summary:", raw.payloadSummary);
+  }
+
+  if (raw.sessionId) {
+    lines.push("", `Session ID: ${raw.sessionId}`);
+  }
+
+  lines.push(
+    "",
+    "---",
+    "",
+    "I can help you with this webhook event. For example:",
+    "- Explain what triggered this event and what it means",
+    "- Take action in response to this event",
+    "- Debug why this event may have failed",
+    "- Review the related code or configuration",
+    "",
+    "What would you like to do?"
+  );
+
+  return lines.join("\n");
+}
+
+/**
+ * Builds a rich contextual prompt string for a cron job execution event.
+ */
+export function buildCronContextPrompt(raw: CronEventRaw): string {
+  const lines: string[] = [
+    "[Activity Context: Cron Execution]",
+    "",
+    `Schedule: ${raw.expression}`,
+    `Status: ${raw.status}`,
+    `Time: ${raw.timestamp}`,
+    "",
+    "Prompt that was executed:",
+    raw.prompt,
+  ];
+
+  if (raw.error) {
+    lines.push("", "Error:", raw.error);
+  }
+
+  if (raw.sessionId) {
+    lines.push("", `Session ID: ${raw.sessionId}`);
+  }
+
+  const isFailed = raw.status === "error";
+
+  lines.push("", "---", "");
+
+  if (isFailed) {
+    lines.push(
+      "This cron execution failed. I can help you:",
+      "- Investigate what went wrong",
+      "- Fix the prompt or underlying issue",
+      "- Re-run the task manually to test the fix"
+    );
+  } else {
+    lines.push(
+      "I can help you with this cron execution. For example:",
+      "- Review what the agent did during this run",
+      "- Adjust the prompt for future executions",
+      "- Check the output or side effects of this run"
+    );
+  }
+
+  lines.push("", "What would you like to do?");
 
   return lines.join("\n");
 }
