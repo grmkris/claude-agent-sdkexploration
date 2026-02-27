@@ -164,12 +164,12 @@ function CollapsedRightSidebar({ activeSlug }: { activeSlug: string | null }) {
 }
 
 function RightSidebarInner() {
-  const { state } = useRightSidebar();
+  const { state, isMobile } = useRightSidebar();
   const pathname = usePathname();
   const router = useRouter();
   const activeSlug = extractSlug(pathname);
 
-  if (state === "collapsed") {
+  if (!isMobile && state === "collapsed") {
     return <CollapsedRightSidebar activeSlug={activeSlug} />;
   }
 
@@ -268,7 +268,7 @@ export function RightSidebar() {
       {/* Fixed panel — narrows to icon width when collapsed, always stays at right-0 */}
       <div
         data-side="right"
-        className="fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) border-l transition-[width] duration-200 ease-linear data-[side=right]:right-0 group-data-[collapsible=icon]:w-(--sidebar-width-icon) md:flex"
+        className="fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) border-l transition-[width] duration-200 ease-linear data-[side=right]:right-0 group-data-[collapsible=icon]:w-(--sidebar-width-icon) max-md:!hidden md:flex"
       >
         <RightSidebarInner />
       </div>
