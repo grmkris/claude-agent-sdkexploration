@@ -13,6 +13,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { SidebarTrigger } from "@/components/ui/sidebar";
 import { getTimeAgo } from "@/lib/utils";
 
 import type { Tab } from "./tab-context";
@@ -61,32 +62,38 @@ export function AgentTabMobile({
     );
   }).length;
 
-  if (tabs.length === 0) return null;
-
   return (
     <>
-      {/* Pill trigger row */}
+      {/* Trigger row */}
       <div className="flex h-8 shrink-0 items-stretch border-b">
+        {/* LEFT: left sidebar trigger (nav / project explorer) */}
+        <div className="flex shrink-0 items-center gap-0.5 border-r border-border/50 px-1.5">
+          <SidebarTrigger />
+        </div>
+        {/* CENTER: active session indicator (if any running) */}
         <button
-          className="flex flex-1 items-center gap-1.5 px-3 text-xs"
-          onClick={() => setMobileOpen(true)}
+          className="flex flex-1 items-center justify-center gap-1.5 px-3 text-xs text-muted-foreground"
+          onClick={() => tabs.length > 0 && setMobileOpen(true)}
         >
           {activeCount > 0 && (
-            <span className="inline-block h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
+            <>
+              <span className="inline-block h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
+              <span>{activeCount} running</span>
+            </>
           )}
-          <span>
-            {tabs.length} tab{tabs.length !== 1 ? "s" : ""}
-          </span>
-          <span className="text-muted-foreground">▾</span>
         </button>
+        {/* RIGHT: archive + right sidebar trigger (recent sessions) */}
         <div className="flex shrink-0 items-center gap-0.5 border-l border-border/50 px-1.5">
           <ArchiveChatButton />
           <RightSidebarTrigger />
         </div>
       </div>
 
-      {/* Bottom sheet */}
-      <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
+      {/* Bottom sheet (only when tabs are open) */}
+      <Sheet
+        open={tabs.length > 0 ? mobileOpen : false}
+        onOpenChange={tabs.length > 0 ? setMobileOpen : undefined}
+      >
         <SheetContent side="bottom" className="max-h-[70vh]">
           <SheetHeader>
             <SheetTitle>Open Tabs</SheetTitle>

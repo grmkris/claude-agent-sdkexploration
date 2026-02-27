@@ -12,8 +12,8 @@ import {
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
-import * as React from "react";
 import { usePathname, useRouter } from "next/navigation";
+import * as React from "react";
 
 import { SessionsPanel } from "@/components/sessions-panel";
 import { Button } from "@/components/ui/button";
