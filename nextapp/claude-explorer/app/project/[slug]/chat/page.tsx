@@ -55,11 +55,13 @@ function NewChatContent({
   });
 
   // Auto-send the initial prompt (from project creation) once the cwd is ready.
+  // Pass data.path directly as cwdOverride so the correct project directory is
+  // used even if opts.cwd was still undefined when useChatStream initialised.
   const didAutoSend = useRef(false);
   useEffect(() => {
     if (initialPrompt && data?.path && !didAutoSend.current) {
       didAutoSend.current = true;
-      send(initialPrompt);
+      send(initialPrompt, undefined, data.path);
     }
   }, [initialPrompt, data?.path, send]);
 

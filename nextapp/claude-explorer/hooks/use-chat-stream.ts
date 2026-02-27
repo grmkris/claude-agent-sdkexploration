@@ -19,7 +19,7 @@ export type { ToolProgressEntry };
 
 type UseChatStreamReturn = {
   messages: ParsedMessage[];
-  send: (prompt: string, images?: AttachedImage[]) => void;
+  send: (prompt: string, images?: AttachedImage[], cwdOverride?: string) => void;
   stop: () => void;
   answerQuestion: (
     toolUseId: string,
@@ -70,7 +70,7 @@ export function useChatStream(opts?: ChatStreamOpts): UseChatStreamReturn {
   }, []);
 
   const send = useCallback(
-    (prompt: string, images?: AttachedImage[]) => {
+    (prompt: string, images?: AttachedImage[], cwdOverride?: string) => {
       if (streamingRef.current) return;
       streamingRef.current = true;
       toolProgressRef.current.clear();
@@ -115,7 +115,10 @@ export function useChatStream(opts?: ChatStreamOpts): UseChatStreamReturn {
             {
               prompt,
               resume: opts?.resume ?? sessionId ?? undefined,
-              cwd: opts?.cwd,
+              // cwdOverride wins over opts.cwd — lets callers pass the resolved
+              // path at send() time, avoiding the race where opts.cwd is still
+              // undefined when the hook initialises but resolves later.
+              cwd: cwdOverride ?? opts?.cwd,
               images: images?.map((img) => ({
                 base64: img.base64,
                 mediaType: img.mediaType,

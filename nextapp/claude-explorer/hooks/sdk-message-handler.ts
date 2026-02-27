@@ -378,14 +378,37 @@ export function handleSDKMessage(
         filepath?: string;
         summary?: string;
       };
-      appendSystemMessage(setMessages, [
-        {
-          type: "tool_use_summary" as const,
-          toolName: sumMsg.tool_name ?? "unknown",
-          filepath: sumMsg.filepath,
-          summary: sumMsg.summary,
-        } satisfies ToolUseSummaryBlock,
-      ]);
+      const newBlock: ToolUseSummaryBlock = {
+        type: "tool_use_summary" as const,
+        toolName: sumMsg.tool_name ?? "unknown",
+        filepath: sumMsg.filepath,
+        summary: sumMsg.summary,
+      };
+      // Append to the last system message if it only contains tool_use_summary blocks,
+      // otherwise create a new system message. This groups summaries into one row.
+      setMessages((prev) => {
+        const last = prev[prev.length - 1];
+        if (
+          last &&
+          last.role === "system" &&
+          last.content.length > 0 &&
+          last.content.every((b) => b.type === "tool_use_summary")
+        ) {
+          return [
+            ...prev.slice(0, -1),
+            { ...last, content: [...last.content, newBlock] },
+          ];
+        }
+        return [
+          ...prev,
+          {
+            role: "system" as const,
+            content: [newBlock],
+            timestamp: new Date().toISOString(),
+            uuid: crypto.randomUUID(),
+          },
+        ];
+      });
       break;
     }
   }

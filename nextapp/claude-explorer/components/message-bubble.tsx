@@ -13,7 +13,7 @@ import {
 
 import { MarkdownContent } from "./markdown-content";
 import { ResultBlock } from "./result-block";
-import { SystemEventBlock, ToolUseSummaryBlock } from "./system-event-block";
+import { SystemEventBlock, ToolUseSummaryBlock, ToolUseSummaryGroup } from "./system-event-block";
 import { ThinkingBlockView } from "./thinking-block";
 import { ToolUseBlock } from "./tool-use-block";
 
@@ -120,6 +120,15 @@ export function MessageBubble({
   ) => void;
 }) {
   if (role === "system") {
+    // If all blocks are tool_use_summary, render as a single grouped row
+    const allSummaries = content.every((b) => b.type === "tool_use_summary");
+    if (allSummaries && content.length > 0) {
+      return (
+        <ToolUseSummaryGroup
+          blocks={content as Extract<ContentBlock, { type: "tool_use_summary" }>[]}
+        />
+      );
+    }
     return (
       <div className="flex flex-col items-center gap-0.5">
         {content.map((block, i) => {
