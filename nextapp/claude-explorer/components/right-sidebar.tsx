@@ -15,6 +15,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import * as React from "react";
 
+import { ArchiveChatButton } from "@/components/archive-chat-button";
 import { SessionsPanel } from "@/components/sessions-panel";
 import { Button } from "@/components/ui/button";
 import { useRightSidebar } from "@/components/ui/right-sidebar-context";
@@ -188,32 +189,41 @@ function RightSidebarInner() {
         <div className="flex h-9 items-center gap-1.5">
           <RightSidebarTrigger className="-ml-0.5 shrink-0" />
           <span className="flex-1 text-sm font-semibold">Sessions</span>
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-6 gap-1 px-2 text-xs"
-            render={
-              <Link
-                href={
-                  activeSlug
-                    ? `/project/${activeSlug}/chat?_new=${Date.now()}`
-                    : "/chat"
-                }
-                onClick={(e) => {
-                  if (!e.metaKey && !e.ctrlKey) {
-                    e.preventDefault();
-                    router.push(
-                      activeSlug
-                        ? `/project/${activeSlug}/chat?_new=${Date.now()}`
-                        : "/chat"
-                    );
+          <ArchiveChatButton size="sm" />
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                  render={
+                    <Link
+                      href={
+                        activeSlug
+                          ? `/project/${activeSlug}/chat?_new=${Date.now()}`
+                          : "/chat"
+                      }
+                      onClick={(e) => {
+                        if (!e.metaKey && !e.ctrlKey) {
+                          e.preventDefault();
+                          router.push(
+                            activeSlug
+                              ? `/project/${activeSlug}/chat?_new=${Date.now()}`
+                              : "/chat"
+                          );
+                        }
+                      }}
+                    />
                   }
-                }}
-              />
-            }
-          >
-            New Conversation
-          </Button>
+                >
+                  <HugeiconsIcon icon={Add01Icon} size={14} strokeWidth={2} />
+                  <span className="sr-only">New Conversation</span>
+                </Button>
+              }
+            />
+            <TooltipContent side="bottom">New Conversation</TooltipContent>
+          </Tooltip>
         </div>
       </SidebarHeader>
       <SidebarContent>
