@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { orpc } from "@/lib/orpc";
 import { client } from "@/lib/orpc-client";
+import { getTimeAgo } from "@/lib/utils";
 
 function ChevronIcon({
   open,
@@ -32,17 +33,6 @@ function ChevronIcon({
       <path d="m9 18 6-6-6-6" />
     </svg>
   );
-}
-
-function timeAgo(ts: string): string {
-  const diff = Date.now() - new Date(ts).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  const days = Math.floor(hrs / 24);
-  return `${days}d ago`;
 }
 
 // --- Widget display for a single integration ---
@@ -84,7 +74,7 @@ export function IntegrationWidgets({
             {widget.items.map((item) => (
               <div
                 key={item.id}
-                className={`flex items-start gap-1.5 py-0.5 sm:items-center rounded -mx-1 px-1 ${item.url ? "hover:bg-muted/50 cursor-pointer" : ""}`}
+                className={`flex items-start gap-1.5 py-0.5 rounded -mx-1 px-1 ${item.url ? "hover:bg-muted/50 cursor-pointer" : ""}`}
                 onClick={
                   item.url
                     ? () =>
@@ -94,38 +84,46 @@ export function IntegrationWidgets({
               >
                 {item.statusColor && (
                   <span
-                    className="mt-1 h-2 w-2 shrink-0 rounded-full sm:mt-0"
+                    className="mt-1 h-2 w-2 shrink-0 rounded-full"
                     style={{ backgroundColor: item.statusColor }}
                   />
                 )}
-                <div className="min-w-0 flex-1 flex flex-col sm:flex-row sm:items-center sm:gap-1.5">
-                  <span className="truncate text-xs">{item.title}</span>
-                  {item.secondaryUrl && item.secondaryLabel && (
-                    <a
-                      href={item.secondaryUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="shrink-0 text-[10px] text-blue-400 hover:underline"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      {item.secondaryLabel}
-                    </a>
-                  )}
-                  {item.subtitle && (
-                    <span className="truncate text-[10px] text-muted-foreground sm:shrink-0">
-                      {item.subtitle}
-                    </span>
+                <div className="min-w-0 flex-1 flex flex-col gap-0.5">
+                  {/* Row 1: title + secondary link */}
+                  <div className="flex items-center gap-1 min-w-0">
+                    <span className="truncate text-xs">{item.title}</span>
+                    {item.secondaryUrl && item.secondaryLabel && (
+                      <a
+                        href={item.secondaryUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="shrink-0 text-[10px] text-blue-400 hover:underline"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {item.secondaryLabel}
+                      </a>
+                    )}
+                  </div>
+                  {/* Row 2: subtitle + timestamp */}
+                  {(item.subtitle || item.timestamp) && (
+                    <div className="flex items-center gap-1">
+                      {item.subtitle && (
+                        <span className="truncate text-[10px] text-muted-foreground">
+                          {item.subtitle}
+                        </span>
+                      )}
+                      {item.timestamp && (
+                        <span className="ml-auto shrink-0 text-[10px] text-muted-foreground/80">
+                          {getTimeAgo(item.timestamp)}
+                        </span>
+                      )}
+                    </div>
                   )}
                 </div>
                 {item.status && !item.statusColor && (
                   <Badge variant="outline" className="shrink-0 text-[10px]">
                     {item.status}
                   </Badge>
-                )}
-                {item.timestamp && (
-                  <span className="shrink-0 text-[9px] text-muted-foreground sm:text-[10px]">
-                    {timeAgo(item.timestamp)}
-                  </span>
                 )}
                 {item.copyValue && (
                   <span onClick={(e) => e.stopPropagation()}>
@@ -619,7 +617,7 @@ export function ProjectIntegrations({ slug }: { slug: string }) {
                     )}
                     {integration.lastFetched && (
                       <span className="text-[10px] text-muted-foreground">
-                        {timeAgo(integration.lastFetched)}
+                        {getTimeAgo(integration.lastFetched)}
                       </span>
                     )}
                     <div className="flex-1" />

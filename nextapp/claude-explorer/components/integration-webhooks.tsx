@@ -11,22 +11,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { orpc } from "@/lib/orpc";
 import { client } from "@/lib/orpc-client";
+import { getTimeAgo } from "@/lib/utils";
 
 function webhookUrl(id: string) {
   return typeof window !== "undefined"
     ? `${window.location.origin}/api/webhooks/${id}`
     : `/api/webhooks/${id}`;
-}
-
-function timeAgo(ts: string): string {
-  const diff = Date.now() - new Date(ts).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  const days = Math.floor(hrs / 24);
-  return `${days}d ago`;
 }
 
 // --- Webhook row ---
@@ -129,8 +119,8 @@ function WebhookRow({
             </div>
           )}
           {webhook.lastTriggered && (
-            <div className="text-[9px] text-muted-foreground">
-              Last triggered: {timeAgo(webhook.lastTriggered)}
+            <div className="text-[10px] text-muted-foreground">
+              Last triggered: {getTimeAgo(webhook.lastTriggered)}
             </div>
           )}
         </div>
