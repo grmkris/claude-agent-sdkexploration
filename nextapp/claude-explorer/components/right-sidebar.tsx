@@ -82,7 +82,7 @@ function CollapsedRightSidebar({ activeSlug }: { activeSlug: string | null }) {
   return (
     <div className="bg-sidebar flex size-full flex-col items-center gap-0.5 py-1">
       {/* Expand trigger */}
-      <RightSidebarTrigger />
+      <RightSidebarTrigger className="md:hidden" />
 
       <div className="my-0.5 w-5 border-t border-border/50" />
 
@@ -186,7 +186,7 @@ function RightSidebarInner() {
     <div className="bg-sidebar flex size-full flex-col">
       <SidebarHeader className="border-b px-2 py-0">
         <div className="flex h-9 items-center gap-1.5">
-          <RightSidebarTrigger className="-ml-0.5 shrink-0" />
+          <RightSidebarTrigger className="-ml-0.5 shrink-0 md:hidden" />
           <span className="flex-1 text-sm font-semibold">Sessions</span>
           <Button
             size="sm"

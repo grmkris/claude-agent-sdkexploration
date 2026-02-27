@@ -96,7 +96,7 @@ export function ProjectSidebar() {
     <Sidebar collapsible="icon">
       <SidebarHeader className="border-b p-0">
         <div className="flex h-9 items-center gap-1.5 px-2">
-          <SidebarTrigger className="-ml-0.5 shrink-0" />
+          <SidebarTrigger className="-ml-0.5 shrink-0 md:hidden" />
           <div className="group-data-[collapsible=icon]:hidden min-w-0 flex-1">
             <AppBreadcrumb />
           </div>
