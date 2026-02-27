@@ -26,7 +26,11 @@ export function useLiveUpdates() {
         predicate: (query) => {
           const key = query.queryKey;
           // Match orpc keys like ["sessions","list"], ["sessions","recent"],
-          // ["sessions","timeline"], ["root","sessions"]
+          // ["sessions","timeline"], ["root","sessions"],
+          // and ["liveState","active"], ["liveState","session"], etc.
+          if (Array.isArray(key) && key.length >= 1) {
+            if (key[0] === "liveState") return true;
+          }
           if (Array.isArray(key) && key.length >= 2) {
             if (key[0] === "sessions") return true;
             if (key[0] === "root" && key[1] === "sessions") return true;

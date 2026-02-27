@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, use, useEffect, useRef, useState } from "react";
 
@@ -27,6 +27,7 @@ function NewChatContent({
   initialPrompt?: string;
 }) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { data } = useQuery(
     orpc.projects.resolveSlug.queryOptions({ input: { slug } })
   );
@@ -64,6 +65,28 @@ function NewChatContent({
       send(initialPrompt, undefined, data.path);
     }
   }, [initialPrompt, data?.path, send]);
+
+  // Eagerly refresh the sidebar / active-sessions list as soon as the new
+  // session ID is known — don't wait for the SSE polling interval.
+  const didInvalidate = useRef(false);
+  useEffect(() => {
+    if (sessionId && !didInvalidate.current) {
+      didInvalidate.current = true;
+      void queryClient.invalidateQueries({
+        predicate: (query) => {
+          const key = query.queryKey;
+          if (Array.isArray(key) && key.length >= 1) {
+            if (key[0] === "liveState") return true;
+          }
+          if (Array.isArray(key) && key.length >= 2) {
+            if (key[0] === "sessions") return true;
+            if (key[0] === "root" && key[1] === "sessions") return true;
+          }
+          return false;
+        },
+      });
+    }
+  }, [sessionId, queryClient]);
 
   // Once the first stream completes, redirect to the canonical session URL.
   // This keeps /project/[slug]/chat always a blank slate, so clicking

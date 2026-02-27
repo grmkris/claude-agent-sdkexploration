@@ -2,6 +2,7 @@
 
 import {
   Activity01Icon,
+  ArrowUpRight01Icon,
   Clock01Icon,
   FolderOpenIcon,
   GitBranchIcon,
@@ -81,6 +82,35 @@ const TABS = [
 ] as const;
 
 /**
+ * Full-width link shown at the bottom of each expanded tab panel.
+ * On mobile it also closes the sidebar Sheet before navigating.
+ */
+function TabPageLink({
+  href,
+  label,
+  isMobile,
+  onClose,
+}: {
+  href: string;
+  label: string;
+  isMobile: boolean;
+  onClose: () => void;
+}) {
+  return (
+    <div className="border-t border-sidebar-border px-2 py-2">
+      <Link
+        href={href}
+        onClick={isMobile ? onClose : undefined}
+        className="flex w-full items-center justify-between rounded-sm px-2 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+      >
+        <span>Open {label} page</span>
+        <HugeiconsIcon icon={ArrowUpRight01Icon} size={13} strokeWidth={2} />
+      </Link>
+    </div>
+  );
+}
+
+/**
  * Project explorer panel rendered inside the LEFT sidebar.
  *
  * Expanded  → 5-tab panel with inline quick-action content.
@@ -88,7 +118,7 @@ const TABS = [
  *             corresponding full-page route and has a tooltip.
  */
 export function ProjectExplorerPanel({ slug }: { slug: string }) {
-  const { state, isMobile } = useSidebar();
+  const { state, isMobile, setOpenMobile } = useSidebar();
   // On mobile the sidebar renders as a Sheet (always "expanded" visually),
   // so never show the collapsed icon rail on mobile.
   const isCollapsed = !isMobile && state === "collapsed";
@@ -147,6 +177,9 @@ export function ProjectExplorerPanel({ slug }: { slug: string }) {
   }
 
   // ── Expanded: tab strip + inline content ──────────────────────────────────
+  const tabPageMap = Object.fromEntries(TABS.map((t) => [t.value, t]));
+  const handleCloseMobile = () => setOpenMobile(false);
+
   return (
     <Tabs
       value={activeTab}
@@ -195,21 +228,57 @@ export function ProjectExplorerPanel({ slug }: { slug: string }) {
       <SidebarContent>
         <TabsContent value="overview" hidden={activeTab !== "overview"}>
           <OverviewTab slug={slug} />
+          <TabPageLink
+            href={tabPageMap["overview"].page(slug)}
+            label={tabPageMap["overview"].label}
+            isMobile={isMobile}
+            onClose={handleCloseMobile}
+          />
         </TabsContent>
         <TabsContent value="skills" hidden={activeTab !== "skills"}>
           <SkillsMcpsTab slug={slug} />
+          <TabPageLink
+            href={tabPageMap["skills"].page(slug)}
+            label={tabPageMap["skills"].label}
+            isMobile={isMobile}
+            onClose={handleCloseMobile}
+          />
         </TabsContent>
         <TabsContent value="git" hidden={activeTab !== "git"}>
           <GitTab slug={slug} />
+          <TabPageLink
+            href={tabPageMap["git"].page(slug)}
+            label={tabPageMap["git"].label}
+            isMobile={isMobile}
+            onClose={handleCloseMobile}
+          />
         </TabsContent>
         <TabsContent value="files" hidden={activeTab !== "files"}>
           <FileTreeTab slug={slug} />
+          <TabPageLink
+            href={tabPageMap["files"].page(slug)}
+            label={tabPageMap["files"].label}
+            isMobile={isMobile}
+            onClose={handleCloseMobile}
+          />
         </TabsContent>
         <TabsContent value="automations" hidden={activeTab !== "automations"}>
           <AutomationsTab slug={slug} />
+          <TabPageLink
+            href={tabPageMap["automations"].page(slug)}
+            label={tabPageMap["automations"].label}
+            isMobile={isMobile}
+            onClose={handleCloseMobile}
+          />
         </TabsContent>
         <TabsContent value="activity" hidden={activeTab !== "activity"}>
           <ActivityFeed slug={slug} />
+          <TabPageLink
+            href={tabPageMap["activity"].page(slug)}
+            label={tabPageMap["activity"].label}
+            isMobile={isMobile}
+            onClose={handleCloseMobile}
+          />
         </TabsContent>
       </SidebarContent>
     </Tabs>

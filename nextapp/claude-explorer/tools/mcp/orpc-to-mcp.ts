@@ -40,13 +40,6 @@ const DESCRIPTIONS: Record<string, string> = {
   projects_files: "List files and directories inside a project",
   projects_readFile: "Read the contents of a file inside a project",
   projects_createDir: "Create a subdirectory inside a project",
-  projects_gitStatus: "Get the git status of a project",
-  projects_gitLog: "Get the git commit log of a project",
-  projects_gitDiff: "Get the git diff for a project",
-  projects_gitPull: "Pull the latest changes for a project",
-  projects_gitStageAll: "Stage all changes in a project",
-  projects_gitCommit: "Commit staged changes in a project",
-  projects_gitCommitPush: "Commit and push staged changes in a project",
   projects_getEnv: "Get project-level environment variables",
   projects_setEnv: "Set project-level environment variables",
 

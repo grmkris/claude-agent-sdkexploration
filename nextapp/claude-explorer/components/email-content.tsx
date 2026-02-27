@@ -64,6 +64,7 @@ export function EmailContent({ projectSlug: scopedSlug }: EmailContentProps) {
   >("new_session");
   const [sessionId, setSessionId] = useState("");
   const [prompt, setPrompt] = useState("");
+  const [eventsProjectFilter, setEventsProjectFilter] = useState<string>("__all__");
 
   const finalAddress =
     addressMode === "new" ? `${localPart}@${domain}` : selectedAddress;
@@ -143,19 +144,23 @@ export function EmailContent({ projectSlug: scopedSlug }: EmailContentProps) {
 
   // Scoped filtering
   const displayConfigs = useMemo(
-    () =>
-      scopedSlug
-        ? configs?.filter((c) => c.projectSlug === scopedSlug)
-        : configs,
-    [configs, scopedSlug]
+    () => {
+      if (scopedSlug) return configs?.filter((c) => c.projectSlug === scopedSlug);
+      if (eventsProjectFilter !== "__all__")
+        return configs?.filter((c) => c.projectSlug === eventsProjectFilter);
+      return configs;
+    },
+    [configs, scopedSlug, eventsProjectFilter]
   );
 
   const displayEvents = useMemo(
-    () =>
-      scopedSlug
-        ? events?.filter((ev) => ev.projectSlug === scopedSlug)
-        : events,
-    [events, scopedSlug]
+    () => {
+      if (scopedSlug) return events?.filter((ev) => ev.projectSlug === scopedSlug);
+      if (eventsProjectFilter !== "__all__")
+        return events?.filter((ev) => ev.projectSlug === eventsProjectFilter);
+      return events;
+    },
+    [events, scopedSlug, eventsProjectFilter]
   );
 
   return (
@@ -394,72 +399,100 @@ export function EmailContent({ projectSlug: scopedSlug }: EmailContentProps) {
       )}
 
       {/* Email events log */}
-      {displayEvents && displayEvents.length > 0 && (
+      {((displayEvents && displayEvents.length > 0) || scopedSlug || eventsProjectFilter !== "__all__") && (
         <>
-          <h2 className="mb-3 text-sm font-medium text-muted-foreground">
-            Recent Email Events
-          </h2>
-          <div className="flex flex-col gap-1.5">
-            {displayEvents.slice(0, 50).map((ev) => {
-              const href = ev.sessionId
-                ? ev.projectSlug === "__root__" ||
-                  ev.projectSlug === "__outbound__"
-                  ? `/chat/${ev.sessionId}`
-                  : `/project/${ev.projectSlug}/chat/${ev.sessionId}`
-                : null;
-              const rowClass = `flex flex-wrap items-center gap-x-2 gap-y-1 rounded border px-2 py-1.5${href ? " cursor-pointer hover:bg-muted/50" : ""}`;
-              const children = (
-                <>
-                  <span
-                    className={`h-2 w-2 shrink-0 rounded-full ${ev.status === "success" ? "bg-green-500" : ev.status === "error" ? "bg-red-500" : "bg-yellow-500 animate-pulse"}`}
-                  />
-                  <span className="shrink-0 text-[10px] text-muted-foreground">
-                    {getTimeAgo(ev.timestamp)}
-                  </span>
-                  <Badge variant="outline" className="shrink-0 text-[10px]">
-                    {ev.direction}
-                  </Badge>
-                  <span className="shrink-0 text-[10px] text-muted-foreground">
-                    {ev.from}
-                  </span>
-                  <span className="shrink-0 text-[10px] text-muted-foreground">
-                    &rarr; {ev.to}
-                  </span>
-                  <Badge
-                    variant={
-                      ev.status === "success"
-                        ? "secondary"
-                        : ev.status === "error"
-                          ? "destructive"
-                          : "outline"
-                    }
-                    className="text-[10px]"
-                  >
-                    {ev.status}
-                  </Badge>
-                  {ev.subject && (
-                    <span className="hidden sm:block min-w-0 flex-1 truncate text-[10px] text-muted-foreground">
-                      {ev.subject}
-                    </span>
-                  )}
-                  {href && (
-                    <span className="hidden sm:block shrink-0 text-[10px] text-blue-400">
-                      session &rarr;
-                    </span>
-                  )}
-                </>
-              );
-              return href ? (
-                <Link key={ev.id} href={href} className={rowClass}>
-                  {children}
-                </Link>
-              ) : (
-                <div key={ev.id} className={rowClass}>
-                  {children}
-                </div>
-              );
-            })}
+          <div className="mb-3 flex items-center gap-3">
+            <h2 className="text-sm font-medium text-muted-foreground">
+              Recent Email Events
+            </h2>
+            {!scopedSlug && (
+              <select
+                value={eventsProjectFilter}
+                onChange={(e) => setEventsProjectFilter(e.target.value)}
+                className="h-7 rounded-none border bg-background px-2 text-xs"
+              >
+                <option value="__all__">All projects</option>
+                {projects?.map((p) => (
+                  <option key={p.slug} value={p.slug}>
+                    {p.path.split("/").pop() ?? p.slug}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
+          {displayEvents && displayEvents.length > 0 ? (
+            <div className="flex flex-col gap-1.5">
+              {displayEvents.slice(0, 50).map((ev) => {
+                const href = ev.sessionId
+                  ? ev.projectSlug === "__root__" ||
+                    ev.projectSlug === "__outbound__"
+                    ? `/chat/${ev.sessionId}`
+                    : `/project/${ev.projectSlug}/chat/${ev.sessionId}`
+                  : null;
+                const rowClass = `flex flex-wrap items-center gap-x-2 gap-y-1 rounded border px-2 py-1.5${href ? " cursor-pointer hover:bg-muted/50" : ""}`;
+                const children = (
+                  <>
+                    <span
+                      className={`h-2 w-2 shrink-0 rounded-full ${ev.status === "success" ? "bg-green-500" : ev.status === "error" ? "bg-red-500" : "bg-yellow-500 animate-pulse"}`}
+                    />
+                    <span className="shrink-0 text-[10px] text-muted-foreground">
+                      {getTimeAgo(ev.timestamp)}
+                    </span>
+                    <Badge variant="outline" className="shrink-0 text-[10px]">
+                      {ev.direction}
+                    </Badge>
+                    {!scopedSlug && (
+                      <span className="shrink-0 rounded bg-muted px-1 text-[10px] text-muted-foreground">
+                        {ev.projectSlug === "__root__" || ev.projectSlug === "__outbound__"
+                          ? "root"
+                          : projects?.find((p) => p.slug === ev.projectSlug)?.path.split("/").pop()
+                              ?? ev.projectSlug}
+                      </span>
+                    )}
+                    <span className="shrink-0 text-[10px] text-muted-foreground">
+                      {ev.from}
+                    </span>
+                    <span className="shrink-0 text-[10px] text-muted-foreground">
+                      &rarr; {ev.to}
+                    </span>
+                    <Badge
+                      variant={
+                        ev.status === "success"
+                          ? "secondary"
+                          : ev.status === "error"
+                            ? "destructive"
+                            : "outline"
+                      }
+                      className="text-[10px]"
+                    >
+                      {ev.status}
+                    </Badge>
+                    {ev.subject && (
+                      <span className="hidden sm:block min-w-0 flex-1 truncate text-[10px] text-muted-foreground">
+                        {ev.subject}
+                      </span>
+                    )}
+                    {href && (
+                      <span className="hidden sm:block shrink-0 text-[10px] font-medium text-blue-500">
+                        session &rarr;
+                      </span>
+                    )}
+                  </>
+                );
+                return href ? (
+                  <Link key={ev.id} href={href} className={rowClass}>
+                    {children}
+                  </Link>
+                ) : (
+                  <div key={ev.id} className={rowClass}>
+                    {children}
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">No email events yet.</p>
+          )}
         </>
       )}
     </div>

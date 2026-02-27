@@ -44,17 +44,7 @@ import {
   readCommandContent,
   readProjectEnv,
   writeProjectEnv,
-  getGitStatus,
-  getGitFileDiff,
-  gitPull,
-  gitStageAll,
-  gitCommit,
-  gitCommitAndPush,
-  getGitLog,
-  getGitCommitFiles,
-  getGitCommitDiff,
   findProjectPathForSession,
-  getGitWorktrees,
 } from "./claude-fs";
 import { sendEmail } from "./email";
 import {
@@ -157,7 +147,6 @@ import {
   ServerConfigSchema,
   WorkspaceEmailConfigSchema,
   EmailEventSchema,
-  GitWorktreeSchema,
   TmuxSessionSchema,
 } from "./schemas";
 import { createSessionHooks } from "./session-hooks";
@@ -464,16 +453,6 @@ const tmuxPanesProc = os
 const tmuxSessionsProc = os
   .output(z.array(TmuxSessionSchema))
   .handler(async () => getTmuxSessions());
-
-// --- Git Worktrees ---
-
-const gitWorktreesProc = os
-  .input(z.object({ slug: z.string() }))
-  .output(z.array(GitWorktreeSchema))
-  .handler(async ({ input }) => {
-    const projectPath = await resolveSlugToPath(input.slug);
-    return getGitWorktrees(projectPath);
-  });
 
 // --- Server Config ---
 
@@ -1265,117 +1244,6 @@ const readFileProc = os
   .handler(async ({ input }) => {
     const projectPath = await resolveSlugToPath(input.slug);
     return readFileContent(projectPath, input.path);
-  });
-
-const gitStatusProc = os
-  .input(z.object({ slug: z.string() }))
-  .output(
-    z.object({
-      isRepo: z.boolean(),
-      branch: z.string(),
-      changes: z.array(z.object({ path: z.string(), status: z.string() })),
-    })
-  )
-  .handler(async ({ input }) => {
-    const projectPath = await resolveSlugToPath(input.slug);
-    return getGitStatus(projectPath);
-  });
-
-const gitDiffProc = os
-  .input(z.object({ slug: z.string(), path: z.string() }))
-  .output(
-    z
-      .object({
-        diff: z.string(),
-        additions: z.number(),
-        deletions: z.number(),
-      })
-      .nullable()
-  )
-  .handler(async ({ input }) => {
-    const projectPath = await resolveSlugToPath(input.slug);
-    return getGitFileDiff(projectPath, input.path);
-  });
-
-const gitOpOutput = z.object({
-  success: z.boolean(),
-  output: z.string(),
-});
-
-const gitPullProc = os
-  .input(z.object({ slug: z.string() }))
-  .output(gitOpOutput)
-  .handler(async ({ input }) => {
-    const projectPath = await resolveSlugToPath(input.slug);
-    return gitPull(projectPath);
-  });
-
-const gitStageAllProc = os
-  .input(z.object({ slug: z.string() }))
-  .output(gitOpOutput)
-  .handler(async ({ input }) => {
-    const projectPath = await resolveSlugToPath(input.slug);
-    return gitStageAll(projectPath);
-  });
-
-const gitCommitProc = os
-  .input(z.object({ slug: z.string(), message: z.string() }))
-  .output(gitOpOutput)
-  .handler(async ({ input }) => {
-    const projectPath = await resolveSlugToPath(input.slug);
-    return gitCommit(projectPath, input.message);
-  });
-
-const gitCommitPushProc = os
-  .input(z.object({ slug: z.string(), message: z.string() }))
-  .output(gitOpOutput)
-  .handler(async ({ input }) => {
-    const projectPath = await resolveSlugToPath(input.slug);
-    return gitCommitAndPush(projectPath, input.message);
-  });
-
-// --- Git Log / History ---
-
-const GitLogEntrySchema = z.object({
-  hash: z.string(),
-  shortHash: z.string(),
-  subject: z.string(),
-  body: z.string(),
-  author: z.string(),
-  date: z.string(),
-});
-
-const GitCommitFileSchema = z.object({
-  path: z.string(),
-  additions: z.number(),
-  deletions: z.number(),
-});
-
-const gitLogProc = os
-  .input(z.object({ slug: z.string(), limit: z.number().optional() }))
-  .output(z.object({ commits: z.array(GitLogEntrySchema) }))
-  .handler(async ({ input }) => {
-    const projectPath = await resolveSlugToPath(input.slug);
-    const commits = await getGitLog(projectPath, input.limit ?? 20);
-    return { commits };
-  });
-
-const gitCommitFilesProc = os
-  .input(z.object({ slug: z.string(), hash: z.string() }))
-  .output(z.object({ files: z.array(GitCommitFileSchema) }))
-  .handler(async ({ input }) => {
-    const projectPath = await resolveSlugToPath(input.slug);
-    const files = await getGitCommitFiles(projectPath, input.hash);
-    return { files };
-  });
-
-const gitCommitDiffProc = os
-  .input(z.object({ slug: z.string(), hash: z.string(), path: z.string() }))
-  .output(z.object({ diff: z.string() }))
-  .handler(async ({ input }) => {
-    const projectPath = await resolveSlugToPath(input.slug);
-    const diff = await getGitCommitDiff(projectPath, input.hash, input.path);
-    return { diff };
   });
 
 const SkillInfoSchema = z.object({
@@ -3088,16 +2956,6 @@ export const router = {
     readFile: readFileProc,
     createDir: createDirProc,
     create: createProjectProc,
-    gitStatus: gitStatusProc,
-    gitDiff: gitDiffProc,
-    gitPull: gitPullProc,
-    gitStageAll: gitStageAllProc,
-    gitCommit: gitCommitProc,
-    gitCommitPush: gitCommitPushProc,
-    gitWorktrees: gitWorktreesProc,
-    gitLog: gitLogProc,
-    gitCommitFiles: gitCommitFilesProc,
-    gitCommitDiff: gitCommitDiffProc,
     getEnv: getProjectEnvProc,
     setEnv: setProjectEnvProc,
   },
