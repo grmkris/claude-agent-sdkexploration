@@ -9,13 +9,13 @@ import type { LiveSession } from "@/components/resume-session-popover";
 import { ArchiveChatButton } from "@/components/archive-chat-button";
 import { getSessionUrl } from "@/components/resume-session-popover";
 import { StateBadgeInline } from "@/components/session-state-badge";
-import { SidebarTrigger } from "@/components/ui/sidebar";
-import { RightSidebarTrigger } from "@/components/ui/right-sidebar-trigger";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { RightSidebarTrigger } from "@/components/ui/right-sidebar-trigger";
+import { SidebarTrigger } from "@/components/ui/sidebar";
 import { orpc } from "@/lib/orpc";
 import { getTimeAgo } from "@/lib/utils";
 
@@ -154,25 +154,21 @@ export function AgentTabBar() {
 
       {/* CENTER: running indicator / tab list trigger */}
       <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
-        <PopoverTrigger asChild>
-          <button className="flex flex-1 items-center justify-center gap-1.5 px-3 text-xs text-muted-foreground hover:text-foreground transition-colors">
-            {activeCount > 0 ? (
-              <>
-                <span className="inline-block h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
-                <span>{activeCount} running</span>
-              </>
-            ) : tabs.length > 0 ? (
-              <span>{tabs.length} session{tabs.length !== 1 ? "s" : ""}</span>
-            ) : null}
-          </button>
+        <PopoverTrigger className="flex flex-1 items-center justify-center gap-1.5 px-3 text-xs text-muted-foreground hover:text-foreground transition-colors">
+          {activeCount > 0 ? (
+            <>
+              <span className="inline-block h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
+              <span>{activeCount} running</span>
+            </>
+          ) : tabs.length > 0 ? (
+            <span>
+              {tabs.length} session{tabs.length !== 1 ? "s" : ""}
+            </span>
+          ) : null}
         </PopoverTrigger>
 
         {tabs.length > 0 && (
-          <PopoverContent
-            align="center"
-            className="w-80 p-0"
-            sideOffset={4}
-          >
+          <PopoverContent align="center" className="w-80 p-0" sideOffset={4}>
             <div className="flex flex-col max-h-[60vh] overflow-y-auto">
               {tabs.map((tab) => {
                 const session = tab.sessionId
@@ -199,7 +195,9 @@ export function AgentTabBar() {
                       )}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-xs font-medium">{tab.title}</p>
+                      <p className="truncate text-xs font-medium">
+                        {tab.title}
+                      </p>
                       {tab.projectSlug && (
                         <p className="mt-0.5 truncate text-[10px] text-muted-foreground">
                           {tab.projectSlug}
