@@ -1,158 +1,212 @@
-# Bug Fix Plan: "New Conversation" Button Does Nothing
+# Plan: Tmux Launcher — Popover Redesign + SSH/-CC Improvements
 
-## Root Cause Analysis
+## What the user wants
+1. **`-CC` mode** (iTerm2 `tmux -CC`) as a visible, easy checkbox — currently missing from the UI entirely
+2. **SSH** more accessible — currently buried inside the "Options" accordion that's collapsed by default
+3. **Possibly convert to a popover** — the current collapsible `TmuxLauncherSection` is a tall section in the sidebar
 
-### Bug 1 (Primary — what the user is hitting)
-**Same-URL navigation is a silent no-op in Next.js**
+## My recommendation: Yes, go with the popover
 
-The "New Conversation" button in `OverviewTab` (`components/right-sidebar/overview-tab.tsx`) links to `/project/{slug}/chat`. The user experiences "nothing happens" because:
-
-- `/project/{slug}/chat/page.tsx` is the **blank new conversation page**
-- After the user sends their **first message**, the stream starts and `sessionId` is set server-side, BUT the redirect to `/project/{slug}/chat/{sessionId}` only fires **after streaming completes** (`isStreaming === false`)
-- So while Claude is **actively responding**, the URL is still `/project/{slug}/chat`
-- Clicking "New Conversation" → links to `/project/{slug}/chat` → **same URL as current page** → Next.js silently skips navigation → **nothing happens**
-
-This is also reproducible any time the user is at `/project/{slug}/chat` (e.g. the page immediately after clicking "New Conversation" the first time) and tries to click it again.
-
-The code itself even comments this intent:
-> "This keeps /project/[slug]/chat always a blank slate, so clicking '+ New' from a session page always hits a different URL"
-— but this assumption breaks down the moment the user is *already* on `/project/{slug}/chat`.
-
-### Bug 2 (Secondary — potential silent failure in some browsers)
-**Invalid HTML: `<button>` nested inside `<a>`**
-
-```tsx
-// overview-tab.tsx — line 103-107
-<Link href={`/project/${slug}/chat`}>
-  <Button size="sm" className="w-full">
-    New Conversation
-  </Button>
-</Link>
+The current sidebar layout has two separate tmux sections:
+```
+┌─── Tmux Sessions ────────────────┐
+│  ● claude-myproject         [↵]  │
+└──────────────────────────────────┘
+┌─── Launch Tmux Session ▼ ────────┐  ← collapsible, can be tall
+│  Panels  [1][2][3][4]            │
+│  Layout  [Side by side ▾]        │
+│  Pane 1  [New session ▾]         │
+│  ▶ Options                       │  ← SSH + -CC buried here
+│  tmux new-session ...            │
+│  [Copy command]                  │
+└──────────────────────────────────┘
 ```
 
-`<Link>` renders as `<a>`, and `<Button>` (via `@base-ui/react/button`) renders as `<button>`. Nesting `<button>` inside `<a>` is **invalid per the HTML spec** (interactive content cannot be descendant of `<a>`). Most modern browsers handle it gracefully, but it is fragile and can silently fail to fire the link, especially with custom UI primitives like Base UI which have their own pointer/keyboard event handling.
-
----
-
-## The Fix
-
-### Strategy
-Instead of using a static `<Link>` that always points to `/project/{slug}/chat`, use an `onClick` handler with `router.push` that **always appends a changing `_new=<timestamp>` search param**. This:
-1. Forces Next.js to treat it as a **different URL on every click** (solving the same-URL no-op)
-2. Eliminates the `<a><button>` nesting (solving the invalid HTML issue)
-3. The `_new` param acts as a **React key** to trigger a full remount of the chat component, resetting `useChatStream` state completely
-
-### Files to Change
-
-#### 1. `components/right-sidebar/overview-tab.tsx`
-- Add `useRouter` import from `next/navigation`
-- Remove `<Link>` wrapper around the button
-- Add `onClick` handler that calls `router.push(`/project/${slug}/chat?_new=${Date.now()}`)`
-
-```tsx
-// Before
-import Link from "next/link";
-...
-<div className="px-2">
-  <Link href={`/project/${slug}/chat`}>
-    <Button size="sm" className="w-full">
-      New Conversation
-    </Button>
-  </Link>
-</div>
-
-// After
-import { useRouter } from "next/navigation";
-...
-const router = useRouter();
-...
-<div className="px-2">
-  <Button
-    size="sm"
-    className="w-full"
-    onClick={() => router.push(`/project/${slug}/chat?_new=${Date.now()}`)}
-  >
-    New Conversation
-  </Button>
-</div>
+**After the redesign**, these merge into one compact section:
+```
+┌─── Tmux ─────────────────── [⊕] ┐  ← [⊕] opens launcher popover
+│  ● claude-myproject         [↵]  │
+│  ○ other-session            [↵]  │
+└──────────────────────────────────┘
 ```
 
-#### 2. `app/project/[slug]/chat/page.tsx`
-Split the component so `useSearchParams()` can be used to key off `_new` for forced remounts. This follows the same pattern used in `app/chat/page.tsx` (which already uses this Suspense + inner component approach).
+The `[⊕]` button opens a **Popover** floating to the right/left of the sidebar with the full launcher form — now with `-CC` and SSH always visible at the top, no accordion needed:
 
-```tsx
-// After refactor:
-
-"use client";
-
-import { Suspense, use, useEffect, useRef } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
-import { ChatInput } from "@/components/chat-input";
-import { ChatView } from "@/components/chat-view";
-import { useChatStream } from "@/hooks/use-chat-stream";
-import { orpc } from "@/lib/orpc";
-
-// Inner component — keyed on `_new` so it fully remounts on each "New Conversation" click
-function NewChatContent({ slug }: { slug: string }) {
-  const router = useRouter();
-  const { data } = useQuery(
-    orpc.projects.resolveSlug.queryOptions({ input: { slug } })
-  );
-  const { messages, send, stop, isStreaming, sessionId, error, toolProgress } =
-    useChatStream({ cwd: data?.path });
-
-  const didRedirect = useRef(false);
-  useEffect(() => {
-    if (sessionId && !isStreaming && !didRedirect.current) {
-      didRedirect.current = true;
-      router.replace(`/project/${slug}/chat/${sessionId}`);
-    }
-  }, [sessionId, isStreaming, slug, router]);
-
-  return (
-    <div className="flex flex-1 flex-col overflow-hidden">
-      <ChatView ... />
-      {error && <div ...>{error}</div>}
-      <ChatInput ... storageKey={`${slug}:new`} />
-    </div>
-  );
-}
-
-// Middle wrapper — reads `_new` param and uses it as key to force remount
-function NewChatPageInner({ slug }: { slug: string }) {
-  const searchParams = useSearchParams();
-  const newKey = searchParams.get("_new") ?? "initial";
-  return <NewChatContent key={newKey} slug={slug} />;
-}
-
-// Root export — wraps in Suspense (required for useSearchParams in client components)
-export default function NewChatPage({
-  params,
-}: {
-  params: Promise<{ slug: string }>;
-}) {
-  const { slug } = use(params);
-  return (
-    <Suspense>
-      <NewChatPageInner slug={slug} />
-    </Suspense>
-  );
-}
+```
+┌─────────────────────────────────────┐
+│  Launch Tmux Session                │
+│ ─────────────────────────────────── │
+│  Panels  [1] [2] [3] [4]  ☐ -CC   │  ← -CC on same row as panels
+│  Layout  [Side by side ▾]           │  (only shows when panels > 1)
+│  Pane 1  [New session     ▾]        │
+│  SSH     [user@host            ]    │  ← always visible, no accordion
+│  Flags   ☐ skip-perms  Model [▾]   │
+│ ─────────────────────────────────── │
+│  tmux new-session -s claude-... \   │  ← scrollable code block
+│  [Copy command]                     │
+└─────────────────────────────────────┘
 ```
 
----
+### Why this is better than alternatives
 
-## Why This Works
-
-| Scenario | Before | After |
+| Approach | Pros | Cons |
 |---|---|---|
-| At `/project/{slug}/chat/{sessionId}`, click "New Conversation" | ✅ Works (different URL) | ✅ Works (different URL + new `_new` param, component remounts) |
-| At `/project/{slug}/chat` while streaming, click "New Conversation" | ❌ Same URL → nothing happens | ✅ `?_new=<timestamp>` changes → component remounts → fresh `useChatStream` state, streaming aborted |
-| At `/project/{slug}/chat` (idle), click "New Conversation" again | ❌ Same URL → nothing happens | ✅ New timestamp → fresh blank canvas |
-| HTML validity | ❌ `<a><button>` (invalid) | ✅ Plain `<button>` with `onClick` |
+| Add -CC checkbox to existing Options accordion | Minimal change | -CC still buried, SSH still buried, sidebar still tall |
+| Add -CC checkbox inline, move SSH to top | Better visibility | Sidebar still tall when launcher is open |
+| **Popover (recommended)** | Sidebar stays compact always; -CC + SSH always visible; launcher is wider so command preview is readable; one section instead of two | Slightly more code |
 
-## No Breaking Changes
-- The redirect logic (`router.replace('/project/{slug}/chat/${sessionId}')`) still fires correctly — it redirects to the session URL (which clears the `_new` param from the URL)
-- The `storageKey` for chat input drafts is unchanged (`${slug}:new`)
-- The sidebar behavior (staying on Overview tab, same project slug extraction) is unchanged
+---
+
+## Implementation Plan
+
+### Files to change
+| File | Change |
+|---|---|
+| `components/tmux-launcher.tsx` | Add `ccMode` state + checkbox; remove inner Options accordion (flatten); pass `ccMode` to `generateTmuxCommand` |
+| `components/right-sidebar/overview-tab.tsx` | Merge `ProjectTmuxSection` + `TmuxLauncherSection` into one `TmuxSection` that has a Popover trigger |
+
+### Step 1 — `components/tmux-launcher.tsx`: Add `-CC` + flatten options
+
+Add `ccMode` state and checkbox. Remove the collapsible "Options" sub-accordion — instead, SSH, `-CC`, skip-perms, and model are always shown.
+
+**New state:**
+```ts
+const [ccMode, setCcMode] = useState(false);
+```
+
+**New row: Panels + -CC on same line:**
+```tsx
+{/* Panels */}
+<div className="flex items-center gap-1.5">
+  <span className="w-10 shrink-0 text-[10px] text-muted-foreground">Panels</span>
+  <div className="flex flex-1 gap-0.5">
+    {([1, 2, 3, 4] as const).map((n) => (
+      <button key={n} onClick={() => handlePanelCount(n)} className={...}>
+        {n}
+      </button>
+    ))}
+  </div>
+  {/* -CC toggle on the right */}
+  <label className="flex cursor-pointer items-center gap-1">
+    <input
+      type="checkbox"
+      checked={ccMode}
+      onChange={(e) => setCcMode(e.target.checked)}
+      className="h-3 w-3 accent-primary"
+    />
+    <span className="text-[10px] text-muted-foreground">-CC</span>
+  </label>
+</div>
+```
+
+**SSH row always visible (remove from Options accordion):**
+```tsx
+<div className="flex items-center gap-1.5">
+  <span className="w-10 shrink-0 text-[10px] text-muted-foreground">SSH</span>
+  <input
+    type="text"
+    value={sshTarget}
+    onChange={(e) => setSshTarget(e.target.value)}
+    placeholder="user@host (optional)"
+    className="h-6 flex-1 rounded bg-muted/50 px-1.5 font-mono text-[10px] ..."
+  />
+</div>
+```
+
+**Flags row (skip-perms + model, compact, always visible):**
+```tsx
+<div className="flex items-center gap-1.5">
+  <span className="w-10 shrink-0 text-[10px] text-muted-foreground">Flags</span>
+  <label className="flex cursor-pointer items-center gap-1">
+    <input type="checkbox" checked={skipPermissions} onChange={...} className="h-3 w-3 accent-primary" />
+    <span className="text-[10px]">skip-perms</span>
+  </label>
+  <div className="ml-auto">
+    <Select value={model} onValueChange={...}>...</Select>
+  </div>
+</div>
+```
+
+**Pass `ccMode` to `generateTmuxCommand`:**
+```ts
+const command = projectPath
+  ? generateTmuxCommand({
+      sessionName,
+      projectPath,
+      panelCount,
+      layout,
+      resumeSessionIds: resumeIds,
+      skipPermissions,
+      model: model || undefined,
+      sshTarget: sshTarget || undefined,
+      ccMode,  // ← NEW
+    })
+  : null;
+```
+
+---
+
+### Step 2 — `components/right-sidebar/overview-tab.tsx`: Merge into one Popover section
+
+Replace `ProjectTmuxSection` + `TmuxLauncherSection` with a single `TmuxSection`:
+
+```tsx
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+
+function TmuxSection({ slug }: { slug: string }) {
+  const { data: projects } = useQuery(orpc.projects.list.queryOptions());
+  const project = projects?.find((p) => p.slug === slug);
+
+  return (
+    <SidebarGroup>
+      {/* Header row: label + launch button */}
+      <div className="flex items-center justify-between px-2 pb-1">
+        <span className="text-[11px] font-medium text-sidebar-foreground/70">
+          Tmux Sessions
+        </span>
+        <Popover>
+          <PopoverTrigger
+            className="rounded p-0.5 text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors"
+            title="Launch new tmux session"
+          >
+            {/* Plus / terminal icon */}
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}
+              strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5">
+              <rect width="20" height="14" x="2" y="3" rx="2" />
+              <path d="m8 10 2 2-2 2" />
+              <path d="M12 14h4" />
+            </svg>
+          </PopoverTrigger>
+          <PopoverContent side="left" align="start" sideOffset={8} className="w-80 p-3">
+            <div className="mb-2 text-xs font-medium">Launch Tmux Session</div>
+            <TmuxLauncher slug={slug} projectPath={project?.path ?? null} />
+          </PopoverContent>
+        </Popover>
+      </div>
+
+      {/* Active sessions list */}
+      <SidebarGroupContent>
+        <TmuxSessionsPanel filterProjectPath={project?.path} />
+      </SidebarGroupContent>
+    </SidebarGroup>
+  );
+}
+```
+
+Remove both `ProjectTmuxSection` and `TmuxLauncherSection` from `OverviewTab`, replace with `<TmuxSection slug={slug} />`.
+
+---
+
+## Risk / Notes
+- `ccMode` just passes to `generateTmuxCommand` which already has full support for it — the backend/command generation needs zero changes
+- Removing the inner Options accordion makes the launcher slightly taller when open, but since it's now in a popover (not inline in the sidebar), that's fine — popovers scroll naturally
+- `PopoverContent` default width is `w-72` (from the existing component). We'll override to `w-80` for the launcher to give the command preview more room
+- The `side="left"` positions the popover to the left of the sidebar trigger, which makes sense since the left sidebar is on the left edge of the screen. If this causes clipping, use `side="right"` or `side="bottom"` — test both
+
+## Files changed summary
+- `components/tmux-launcher.tsx` — add `ccMode` state + checkbox, flatten SSH/flags out of accordion
+- `components/right-sidebar/overview-tab.tsx` — replace two tmux sections with one `TmuxSection` using Popover

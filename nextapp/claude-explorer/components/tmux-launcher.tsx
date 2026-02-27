@@ -84,6 +84,7 @@ export function TmuxLauncher({
   const [ccMode, setCcMode] = useState(false);
   const [model, setModel] = useState("");
   const [sshTarget, setSshTarget] = useState("");
+  const [sshEnabled, setSshEnabled] = useState(false);
   const [copied, setCopied] = useState(false);
 
   const { data: serverConfig } = useQuery(orpc.server.config.queryOptions());
@@ -96,6 +97,7 @@ export function TmuxLauncher({
     const host = serverConfig?.sshHost;
     if (host) {
       setSshTarget((prev) => prev || host);
+      setSshEnabled(true);
     }
   }, [serverConfig?.sshHost]);
 
@@ -127,7 +129,7 @@ export function TmuxLauncher({
         resumeSessionIds: resumeIds,
         skipPermissions,
         model: model || undefined,
-        sshTarget: sshTarget || undefined,
+        sshTarget: sshEnabled && sshTarget ? sshTarget : undefined,
         ccMode,
       })
     : null;
@@ -190,7 +192,9 @@ export function TmuxLauncher({
             }
           >
             <SelectTrigger size="sm" className="h-6 flex-1 text-[10px]">
-              <SelectValue />
+              <SelectValue>
+                {LAYOUTS.find((l) => l.value === layout)?.label ?? layout}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               {LAYOUTS.map((l) => (
@@ -214,10 +218,20 @@ export function TmuxLauncher({
             onValueChange={(v) => setResumeId(i, v)}
           >
             <SelectTrigger size="sm" className="h-6 flex-1 text-[10px]">
-              <SelectValue placeholder="New session" />
+              <SelectValue>
+                {(() => {
+                  const id = resumeIds[i];
+                  if (!id) return "new session";
+                  const s = sessions?.find((s) => s.id === id);
+                  if (!s) return id.slice(0, 8);
+                  return s.firstPrompt
+                    ? s.firstPrompt.slice(0, 24)
+                    : s.id.slice(0, 8);
+                })()}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="new">New session</SelectItem>
+              <SelectItem value="new">new session</SelectItem>
               {sessions && sessions.length > 0 && <SelectSeparator />}
               {sessions?.map((s) => (
                 <SelectItem key={s.id} value={s.id}>
@@ -234,17 +248,25 @@ export function TmuxLauncher({
         </div>
       ))}
 
-      {/* ── SSH target (always visible) ── */}
+      {/* ── SSH target ── */}
       <div className="flex items-center gap-1.5">
-        <span className="w-10 shrink-0 text-[10px] text-muted-foreground">
-          SSH
-        </span>
+        <label className="flex w-10 shrink-0 cursor-pointer items-center gap-1">
+          <input
+            type="checkbox"
+            checked={sshEnabled}
+            onChange={(e) => setSshEnabled(e.target.checked)}
+            className="h-3 w-3 accent-primary"
+          />
+          <span className="text-[10px] text-muted-foreground">SSH</span>
+        </label>
         <input
           type="text"
           value={sshTarget}
           onChange={(e) => setSshTarget(e.target.value)}
-          placeholder="user@host (optional)"
-          className="h-6 flex-1 rounded bg-muted/50 px-1.5 font-mono text-[10px] text-foreground outline-none placeholder:text-muted-foreground/50 focus:ring-1 focus:ring-ring"
+          onFocus={() => setSshEnabled(true)}
+          placeholder="user@host"
+          disabled={!sshEnabled}
+          className="h-6 flex-1 rounded bg-muted/50 px-1.5 font-mono text-[10px] text-foreground outline-none placeholder:text-muted-foreground/50 focus:ring-1 focus:ring-ring disabled:opacity-40"
         />
       </div>
 
