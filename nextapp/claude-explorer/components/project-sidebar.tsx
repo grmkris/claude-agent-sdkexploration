@@ -17,7 +17,6 @@ import { usePathname } from "next/navigation";
 import { AppBreadcrumb } from "@/components/app-breadcrumb";
 import { ProjectExplorerPanel } from "@/components/project-explorer-panel";
 import { PushNotificationManager } from "@/components/push-notification-manager";
-import { SshBadge } from "@/components/ssh-badge";
 import {
   Sidebar,
   SidebarContent,
@@ -135,12 +134,13 @@ export function ProjectSidebar() {
         )}
       </SidebarContent>
 
-      <SidebarFooter>
-        <div className="group-data-[collapsible=icon]:hidden px-1 pb-1">
-          <SshBadge />
-        </div>
-        <PushNotificationManager />
-      </SidebarFooter>
+      {!projectSlug && (
+        <SidebarFooter>
+          <div className="group-data-[collapsible=icon]:hidden px-2 pb-1">
+            <PushNotificationManager />
+          </div>
+        </SidebarFooter>
+      )}
     </Sidebar>
   );
 }

@@ -21,8 +21,10 @@ import { FileTreeTab } from "@/components/right-sidebar/file-tree-tab";
 import { GitTab } from "@/components/right-sidebar/git-tab";
 import { OverviewTab } from "@/components/right-sidebar/overview-tab";
 import { SkillsMcpsTab } from "@/components/right-sidebar/skills-mcps-tab";
+import { PushNotificationManager } from "@/components/push-notification-manager";
 import {
   SidebarContent,
+  SidebarFooter,
   SidebarHeader,
   useSidebar,
 } from "@/components/ui/sidebar";
@@ -80,35 +82,6 @@ const TABS = [
     page: (slug: string) => `/project/${slug}/activity`,
   },
 ] as const;
-
-/**
- * Full-width link shown at the bottom of each expanded tab panel.
- * On mobile it also closes the sidebar Sheet before navigating.
- */
-function TabPageLink({
-  href,
-  label,
-  isMobile,
-  onClose,
-}: {
-  href: string;
-  label: string;
-  isMobile: boolean;
-  onClose: () => void;
-}) {
-  return (
-    <div className="border-t border-sidebar-border px-2 py-2">
-      <Link
-        href={href}
-        onClick={isMobile ? onClose : undefined}
-        className="flex w-full items-center justify-between rounded-sm px-2 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-      >
-        <span>Open {label} page</span>
-        <HugeiconsIcon icon={ArrowUpRight01Icon} size={13} strokeWidth={2} />
-      </Link>
-    </div>
-  );
-}
 
 /**
  * Project explorer panel rendered inside the LEFT sidebar.
@@ -179,6 +152,7 @@ export function ProjectExplorerPanel({ slug }: { slug: string }) {
   // ── Expanded: tab strip + inline content ──────────────────────────────────
   const tabPageMap = Object.fromEntries(TABS.map((t) => [t.value, t]));
   const handleCloseMobile = () => setOpenMobile(false);
+  const activeTabDef = tabPageMap[activeTab];
 
   return (
     <Tabs
@@ -228,59 +202,38 @@ export function ProjectExplorerPanel({ slug }: { slug: string }) {
       <SidebarContent>
         <TabsContent value="overview" hidden={activeTab !== "overview"}>
           <OverviewTab slug={slug} />
-          <TabPageLink
-            href={tabPageMap["overview"].page(slug)}
-            label={tabPageMap["overview"].label}
-            isMobile={isMobile}
-            onClose={handleCloseMobile}
-          />
         </TabsContent>
         <TabsContent value="skills" hidden={activeTab !== "skills"}>
           <SkillsMcpsTab slug={slug} />
-          <TabPageLink
-            href={tabPageMap["skills"].page(slug)}
-            label={tabPageMap["skills"].label}
-            isMobile={isMobile}
-            onClose={handleCloseMobile}
-          />
         </TabsContent>
         <TabsContent value="git" hidden={activeTab !== "git"}>
           <GitTab slug={slug} />
-          <TabPageLink
-            href={tabPageMap["git"].page(slug)}
-            label={tabPageMap["git"].label}
-            isMobile={isMobile}
-            onClose={handleCloseMobile}
-          />
         </TabsContent>
         <TabsContent value="files" hidden={activeTab !== "files"}>
           <FileTreeTab slug={slug} />
-          <TabPageLink
-            href={tabPageMap["files"].page(slug)}
-            label={tabPageMap["files"].label}
-            isMobile={isMobile}
-            onClose={handleCloseMobile}
-          />
         </TabsContent>
         <TabsContent value="automations" hidden={activeTab !== "automations"}>
           <AutomationsTab slug={slug} />
-          <TabPageLink
-            href={tabPageMap["automations"].page(slug)}
-            label={tabPageMap["automations"].label}
-            isMobile={isMobile}
-            onClose={handleCloseMobile}
-          />
         </TabsContent>
         <TabsContent value="activity" hidden={activeTab !== "activity"}>
           <ActivityFeed slug={slug} />
-          <TabPageLink
-            href={tabPageMap["activity"].page(slug)}
-            label={tabPageMap["activity"].label}
-            isMobile={isMobile}
-            onClose={handleCloseMobile}
-          />
         </TabsContent>
       </SidebarContent>
+      <SidebarFooter className="border-t border-sidebar-border p-0">
+        <div className="group-data-[collapsible=icon]:hidden">
+          <Link
+            href={activeTabDef.page(slug)}
+            onClick={isMobile ? handleCloseMobile : undefined}
+            className="flex w-full items-center justify-between rounded-sm px-4 py-2 text-xs text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+          >
+            <span>Open {activeTabDef.label} page</span>
+            <HugeiconsIcon icon={ArrowUpRight01Icon} size={13} strokeWidth={2} />
+          </Link>
+        </div>
+        <div className="group-data-[collapsible=icon]:hidden px-2 pb-1">
+          <PushNotificationManager />
+        </div>
+      </SidebarFooter>
     </Tabs>
   );
 }
