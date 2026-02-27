@@ -3,39 +3,10 @@
 import { useQuery } from "@tanstack/react-query";
 
 import { ActivityFeed } from "@/components/activity-feed";
-import { IntegrationWidgets } from "@/components/project-integrations";
 import { WorktreeInfoSection } from "@/components/right-sidebar/worktree-info-section";
 import { TmuxSessionsPanel } from "@/components/tmux-sessions-panel";
 import { SidebarGroup, SidebarGroupContent } from "@/components/ui/sidebar";
 import { orpc } from "@/lib/orpc";
-
-// ── Integration widgets (Railway, Linear, GitHub) ────────────────────────────
-
-function IntegrationsSection({ slug }: { slug: string }) {
-  const { data: integrations } = useQuery({
-    ...orpc.integrations.list.queryOptions(),
-    refetchInterval: 60_000,
-  });
-
-  const projectIntegrations =
-    integrations?.filter((i) => i.projectSlug === slug && i.enabled) ?? [];
-
-  if (projectIntegrations.length === 0) return null;
-
-  return (
-    <SidebarGroup>
-      <SidebarGroupContent>
-        <div className="flex flex-col gap-3 px-2">
-          {projectIntegrations.map((integration) => (
-            <div key={integration.id}>
-              <IntegrationWidgets integrationId={integration.id} />
-            </div>
-          ))}
-        </div>
-      </SidebarGroupContent>
-    </SidebarGroup>
-  );
-}
 
 // ── Tmux: active sessions list ───────────────────────────────────────────────
 
@@ -71,9 +42,6 @@ export function OverviewTab({ slug }: { slug: string | null }) {
 
       {/* Active tmux sessions */}
       <TmuxSection slug={slug} />
-
-      {/* Integrations */}
-      <IntegrationsSection slug={slug} />
 
       {/* Activity feed */}
       <ActivityFeed slug={slug} />
