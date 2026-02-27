@@ -1,10 +1,9 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
-
 import { ArrowDown01Icon, ArrowUp01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { useQuery } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 
 import { Skeleton } from "@/components/ui/skeleton";
 import { orpc } from "@/lib/orpc";

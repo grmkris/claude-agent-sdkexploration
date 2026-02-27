@@ -387,7 +387,9 @@ export function SessionsPanel({
             const projectLabel = session.projectSlug
               ? (session.projectPath.split("/").pop() ?? session.projectSlug)
               : "root";
-            const timeAgo = getTimeAgo(session.lastModified ?? session.timestamp);
+            const timeAgo = getTimeAgo(
+              session.lastModified ?? session.timestamp
+            );
 
             return (
               <SidebarMenuItem key={session.id}>
