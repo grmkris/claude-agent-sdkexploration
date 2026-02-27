@@ -53,6 +53,7 @@ import {
   getGitCommitFiles,
   getGitCommitDiff,
   getGitWorktrees,
+  gitClone,
 } from "./claude-fs";
 import { sendEmail } from "./email";
 import {
@@ -932,13 +933,33 @@ const chatProc = os
             duration_ms?: number;
             is_error?: boolean;
             subtype?: string;
+            modelUsage?: Record<
+              string,
+              { contextWindow?: number; maxOutputTokens?: number }
+            >;
           };
+          // Extract peak context window across all models
+          let contextWindow: number | null = null;
+          let maxContextWindow: number | null = null;
+          if (r.modelUsage) {
+            const vals = Object.values(r.modelUsage);
+            const cw = vals
+              .map((u) => u.contextWindow ?? 0)
+              .reduce((a, b) => Math.max(a, b), 0);
+            const mw = vals
+              .map((u) => u.maxOutputTokens ?? 0)
+              .reduce((a, b) => Math.max(a, b), 0);
+            if (cw > 0) contextWindow = cw;
+            if (mw > 0) maxContextWindow = mw;
+          }
           upsertSession(sessionId, {
             cost_usd: r.total_cost_usd ?? null,
             input_tokens: r.usage?.input_tokens ?? null,
             output_tokens: r.usage?.output_tokens ?? null,
             num_turns: r.num_turns ?? null,
             duration_ms: r.duration_ms ?? null,
+            context_window: contextWindow,
+            max_context_window: maxContextWindow,
             ...(r.is_error
               ? { state: "error", error: r.subtype ?? "error" }
               : {}),
@@ -1384,6 +1405,50 @@ const listIntegrationsProc = os
   .handler(async () => {
     const all = await getIntegrations();
     return all.map(({ auth: _auth, ...rest }) => rest);
+  });
+
+const GithubRepoSchema = z.object({
+  id: z.number(),
+  fullName: z.string(),
+  name: z.string(),
+  private: z.boolean(),
+  description: z.string().nullable(),
+  defaultBranch: z.string(),
+  cloneUrl: z.string(),
+  updatedAt: z.string(),
+});
+
+const githubListReposProc = os
+  .input(z.object({ integrationId: z.string() }))
+  .output(z.array(GithubRepoSchema))
+  .handler(async ({ input }) => {
+    const all = await getIntegrations();
+    const integration = all.find(
+      (i) => i.id === input.integrationId && i.type === "github"
+    );
+    if (!integration) throw new Error("GitHub integration not found");
+    if (!integration.enabled) throw new Error("Integration is disabled");
+
+    const token = await resolveIntegrationToken(integration);
+    const { Octokit } = await import("@octokit/rest");
+    const octokit = new Octokit({ auth: token });
+
+    const { data } = await octokit.rest.repos.listForAuthenticatedUser({
+      per_page: 100,
+      sort: "updated",
+      affiliation: "owner,collaborator,organization_member",
+    });
+
+    return data.map((repo) => ({
+      id: repo.id,
+      fullName: repo.full_name,
+      name: repo.name,
+      private: repo.private,
+      description: repo.description ?? null,
+      defaultBranch: repo.default_branch,
+      cloneUrl: repo.clone_url,
+      updatedAt: repo.updated_at ?? "",
+    }));
   });
 
 const createIntegrationProc = os
@@ -1912,13 +1977,33 @@ const rootChatProc = os
             duration_ms?: number;
             is_error?: boolean;
             subtype?: string;
+            modelUsage?: Record<
+              string,
+              { contextWindow?: number; maxOutputTokens?: number }
+            >;
           };
+          // Extract peak context window across all models
+          let contextWindow: number | null = null;
+          let maxContextWindow: number | null = null;
+          if (r.modelUsage) {
+            const vals = Object.values(r.modelUsage);
+            const cw = vals
+              .map((u) => u.contextWindow ?? 0)
+              .reduce((a, b) => Math.max(a, b), 0);
+            const mw = vals
+              .map((u) => u.maxOutputTokens ?? 0)
+              .reduce((a, b) => Math.max(a, b), 0);
+            if (cw > 0) contextWindow = cw;
+            if (mw > 0) maxContextWindow = mw;
+          }
           upsertSession(sessionId, {
             cost_usd: r.total_cost_usd ?? null,
             input_tokens: r.usage?.input_tokens ?? null,
             output_tokens: r.usage?.output_tokens ?? null,
             num_turns: r.num_turns ?? null,
             duration_ms: r.duration_ms ?? null,
+            context_window: contextWindow,
+            max_context_window: maxContextWindow,
             ...(r.is_error
               ? { state: "error", error: r.subtype ?? "error" }
               : {}),
@@ -2376,10 +2461,17 @@ const emailGetContentProc = os
       // Build attachment list from stored filenames
       const attachments: { filename: string; size: number }[] = [];
       if (event.attachmentFilenames?.length) {
-        const attachmentsDir = join(USER_HOME, "emails", input.eventId, "attachments");
+        const attachmentsDir = join(
+          USER_HOME,
+          "emails",
+          input.eventId,
+          "attachments"
+        );
         for (const filename of event.attachmentFilenames) {
           try {
-            const s = await stat(join(attachmentsDir, filename)).catch(() => null);
+            const s = await stat(join(attachmentsDir, filename)).catch(
+              () => null
+            );
             attachments.push({ filename, size: s?.size ?? 0 });
           } catch {
             attachments.push({ filename, size: 0 });
@@ -2391,7 +2483,12 @@ const emailGetContentProc = os
 
     // Fallback: read from disk (legacy inbound events without stored body)
     const emailMdPath = join(USER_HOME, "emails", input.eventId, "email.md");
-    const attachmentsDir = join(USER_HOME, "emails", input.eventId, "attachments");
+    const attachmentsDir = join(
+      USER_HOME,
+      "emails",
+      input.eventId,
+      "attachments"
+    );
 
     let body: string | null = null;
     try {
@@ -3043,6 +3140,8 @@ const SessionRowSchema = z.object({
   duration_ms: z.number().nullable(),
   error: z.string().nullable(),
   is_archived: z.number().default(0),
+  context_window: z.number().nullable().optional(),
+  max_context_window: z.number().nullable().optional(),
 });
 
 const sessionLiveStateProc = os

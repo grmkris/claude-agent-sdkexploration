@@ -58,19 +58,33 @@ export function handleSDKMessage(
         if (setCurrentPermissionMode && sysMsg.permissionMode) {
           setCurrentPermissionMode(sysMsg.permissionMode);
         }
-      } else if (
-        sysMsg.subtype === "status" ||
-        sysMsg.subtype === "compact_boundary"
-      ) {
-        const detail =
-          sysMsg.subtype === "compact_boundary"
-            ? "Context compacted"
-            : (sysMsg.message ?? sysMsg.subtype);
+      } else if (sysMsg.subtype === "compact_boundary") {
+        const compactMsg = msg as {
+          subtype: "compact_boundary";
+          compact_metadata?: { trigger: "manual" | "auto"; pre_tokens: number };
+        };
+        const meta = compactMsg.compact_metadata;
+        appendSystemMessage(setMessages, [
+          {
+            type: "system_event" as const,
+            subtype: "compact_boundary",
+            message: "Context compacted",
+            ...(meta
+              ? {
+                  compactMetadata: {
+                    trigger: meta.trigger,
+                    preTokens: meta.pre_tokens,
+                  },
+                }
+              : {}),
+          } satisfies SystemEventBlock,
+        ]);
+      } else if (sysMsg.subtype === "status") {
         appendSystemMessage(setMessages, [
           {
             type: "system_event" as const,
             subtype: sysMsg.subtype,
-            message: detail,
+            message: sysMsg.message ?? sysMsg.subtype,
           } satisfies SystemEventBlock,
         ]);
       }
@@ -294,9 +308,28 @@ export function handleSDKMessage(
         total_output_tokens?: number;
         is_error?: boolean;
         subtype?: string;
+        modelUsage?: Record<
+          string,
+          { contextWindow?: number; maxOutputTokens?: number }
+        >;
       };
       toolProgressRef.current.clear();
       bumpProgressTick();
+
+      // Extract context window info from per-model usage breakdown
+      let contextWindow: number | undefined;
+      let maxContextWindow: number | undefined;
+      if (resultMsg.modelUsage) {
+        const values = Object.values(resultMsg.modelUsage);
+        const cw = values
+          .map((u) => u.contextWindow ?? 0)
+          .reduce((a, b) => Math.max(a, b), 0);
+        const mw = values
+          .map((u) => u.maxOutputTokens ?? 0)
+          .reduce((a, b) => Math.max(a, b), 0);
+        if (cw > 0) contextWindow = cw;
+        if (mw > 0) maxContextWindow = mw;
+      }
 
       appendSystemMessage(setMessages, [
         {
@@ -309,6 +342,8 @@ export function handleSDKMessage(
           outputTokens: resultMsg.total_output_tokens,
           isError: resultMsg.is_error,
           subtype: resultMsg.subtype,
+          contextWindow,
+          maxContextWindow,
         } satisfies ResultBlock,
       ]);
 

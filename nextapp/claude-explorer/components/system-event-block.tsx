@@ -28,8 +28,39 @@ function linkify(text: string) {
   );
 }
 
+function formatTokens(n: number): string {
+  if (n < 1000) return String(n);
+  if (n < 1_000_000) return `${(n / 1000).toFixed(1)}k`;
+  return `${(n / 1_000_000).toFixed(2)}M`;
+}
+
 export function SystemEventBlock({ block }: { block: SystemEventBlockType }) {
   const [showDetail, setShowDetail] = useState(false);
+
+  // Enriched compact_boundary pill
+  if (block.subtype === "compact_boundary") {
+    const meta = block.compactMetadata;
+    return (
+      <div className="flex justify-center py-1.5">
+        <div className="flex items-center gap-1.5 rounded-full border border-yellow-500/30 bg-yellow-500/10 px-3 py-1 text-[10px] text-yellow-600 dark:text-yellow-400">
+          <span>⟳</span>
+          <span>Context compacted</span>
+          {meta && (
+            <>
+              <span className="text-yellow-600/50 dark:text-yellow-400/50">
+                ·
+              </span>
+              <span className="capitalize">{meta.trigger}</span>
+              <span className="text-yellow-600/50 dark:text-yellow-400/50">
+                ·
+              </span>
+              <span>{formatTokens(meta.preTokens)} before</span>
+            </>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   const icon = eventIcon(block.subtype);
   const isAuth = block.subtype === "auth_status";

@@ -10,6 +10,7 @@ import { useEffect, useRef, useCallback, useState } from "react";
 import type { ToolProgressEntry } from "@/hooks/use-chat-stream";
 import type { ParsedMessage } from "@/lib/types";
 
+import { ContextBar } from "./context-bar";
 import { MessageBubble } from "./message-bubble";
 import { SessionStateBadge } from "./session-state-badge";
 
@@ -83,8 +84,9 @@ export function ChatView({
       : "Thinking...";
 
   return (
-    <div className="relative flex-1 overflow-hidden">
-      <div ref={containerRef} className="absolute inset-0 overflow-y-auto">
+    <div className="relative flex-1 flex flex-col overflow-hidden">
+      {sessionId && <ContextBar sessionId={sessionId} />}
+      <div ref={containerRef} className="flex-1 overflow-y-auto">
         <div className="flex flex-col gap-3 p-4">
           {messages.length === 0 && (
             <div className="flex flex-1 items-center justify-center py-20 text-sm text-muted-foreground">

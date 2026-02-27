@@ -35,6 +35,15 @@ export function ResultBlock({ block }: { block: ResultBlockType }) {
     stats.push({ label: "In", value: formatTokens(block.inputTokens) });
   if (block.outputTokens)
     stats.push({ label: "Out", value: formatTokens(block.outputTokens) });
+  if (
+    block.contextWindow &&
+    block.maxContextWindow &&
+    block.maxContextWindow > 0
+  )
+    stats.push({
+      label: "CTX",
+      value: `${Math.round((block.contextWindow / block.maxContextWindow) * 100)}%`,
+    });
 
   if (stats.length === 0) return null;
 

@@ -58,6 +58,8 @@ export type ResultBlock = {
   outputTokens?: number;
   isError?: boolean;
   subtype?: string;
+  contextWindow?: number;
+  maxContextWindow?: number;
 };
 
 export type SystemEventBlock = {
@@ -65,6 +67,7 @@ export type SystemEventBlock = {
   subtype: string;
   message: string;
   detail?: string;
+  compactMetadata?: { trigger: "manual" | "auto"; preTokens: number };
 };
 
 export type ToolUseSummaryBlock = {

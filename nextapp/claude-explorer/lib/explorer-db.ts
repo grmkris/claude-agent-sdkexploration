@@ -38,6 +38,8 @@ export interface SessionRow {
   duration_ms: number | null;
   error: string | null;
   is_archived: number; // 0 = visible, 1 = archived
+  context_window: number | null;
+  max_context_window: number | null;
 }
 
 export type SessionPatch = Partial<Omit<SessionRow, "session_id">>;
@@ -80,12 +82,14 @@ function getDB(): Database {
       started_at     TEXT NOT NULL,
       updated_at     TEXT NOT NULL,
       ended_at       TEXT,
-      cost_usd       REAL,
-      input_tokens   INTEGER,
-      output_tokens  INTEGER,
-      num_turns      INTEGER,
-      duration_ms    INTEGER,
-      error          TEXT
+      cost_usd           REAL,
+      input_tokens       INTEGER,
+      output_tokens      INTEGER,
+      num_turns          INTEGER,
+      duration_ms        INTEGER,
+      error              TEXT,
+      context_window     INTEGER,
+      max_context_window INTEGER
     );
     CREATE INDEX IF NOT EXISTS idx_sessions_state ON sessions(state);
     CREATE INDEX IF NOT EXISTS idx_sessions_updated ON sessions(updated_at);
@@ -128,6 +132,18 @@ function getDB(): Database {
     db.exec(
       "CREATE INDEX IF NOT EXISTS idx_sessions_archived ON sessions(is_archived)"
     );
+  } catch {
+    // Column already exists
+  }
+
+  // Migration: add context_window columns to existing DBs
+  try {
+    db.exec("ALTER TABLE sessions ADD COLUMN context_window INTEGER");
+  } catch {
+    // Column already exists
+  }
+  try {
+    db.exec("ALTER TABLE sessions ADD COLUMN max_context_window INTEGER");
   } catch {
     // Column already exists
   }
@@ -236,11 +252,13 @@ export function upsertSession(sessionId: string, patch: SessionPatch): void {
       duration_ms: patch.duration_ms ?? null,
       error: patch.error ?? null,
       is_archived: patch.is_archived ?? 0,
+      context_window: patch.context_window ?? null,
+      max_context_window: patch.max_context_window ?? null,
     };
 
     d.query(
-      `INSERT INTO sessions (session_id, project_path, state, current_tool, source, model, first_prompt, git_branch, started_at, updated_at, ended_at, cost_usd, input_tokens, output_tokens, num_turns, duration_ms, error, is_archived)
-       VALUES ($session_id, $project_path, $state, $current_tool, $source, $model, $first_prompt, $git_branch, $started_at, $updated_at, $ended_at, $cost_usd, $input_tokens, $output_tokens, $num_turns, $duration_ms, $error, $is_archived)`
+      `INSERT INTO sessions (session_id, project_path, state, current_tool, source, model, first_prompt, git_branch, started_at, updated_at, ended_at, cost_usd, input_tokens, output_tokens, num_turns, duration_ms, error, is_archived, context_window, max_context_window)
+       VALUES ($session_id, $project_path, $state, $current_tool, $source, $model, $first_prompt, $git_branch, $started_at, $updated_at, $ended_at, $cost_usd, $input_tokens, $output_tokens, $num_turns, $duration_ms, $error, $is_archived, $context_window, $max_context_window)`
     ).run({
       $session_id: row.session_id,
       $project_path: row.project_path,
@@ -260,6 +278,8 @@ export function upsertSession(sessionId: string, patch: SessionPatch): void {
       $duration_ms: row.duration_ms,
       $error: row.error,
       $is_archived: row.is_archived,
+      $context_window: row.context_window,
+      $max_context_window: row.max_context_window,
     });
   } else {
     // UPDATE only provided fields
