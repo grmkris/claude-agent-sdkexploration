@@ -4,10 +4,9 @@ import type { IconSvgElement } from "@hugeicons/react";
 
 import {
   Clock01Icon,
-  CommandLineIcon,
   LayerIcon,
   Mail01Icon,
-  Message01Icon,
+  UserIcon,
   WebhookIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -38,13 +37,7 @@ import { cn, getTimeAgo } from "@/lib/utils";
 // Source config
 // ---------------------------------------------------------------------------
 
-type SourceFilter =
-  | "cron"
-  | "email"
-  | "webhook"
-  | "chat"
-  | "linear_chat"
-  | "cli";
+type SourceFilter = "cron" | "email" | "webhook" | "linear_chat" | "manual";
 
 interface SourceConfig {
   label: string;
@@ -73,22 +66,18 @@ const SOURCE_CONFIGS: Record<SourceFilter, SourceConfig> = {
     values: ["webhook"],
     color: "text-violet-500",
   },
-  chat: {
-    label: "Chat",
-    icon: Message01Icon,
-    values: ["chat", "root_chat"],
-    color: "text-emerald-500",
-  },
   linear_chat: {
     label: "Linear",
     icon: LayerIcon,
     values: ["linear_chat"],
     color: "text-indigo-500",
   },
-  cli: {
-    label: "CLI",
-    icon: CommandLineIcon,
-    values: [null],
+  // "manual" catches everything a human started themselves — web UI (chat /
+  // root_chat) or directly from the terminal (null source).
+  manual: {
+    label: "Manual",
+    icon: UserIcon,
+    values: ["chat", "root_chat", null],
     color: "text-muted-foreground",
   },
 };
@@ -102,7 +91,7 @@ function getSourceFilter(source: string | null | undefined): SourceFilter {
       return key as SourceFilter;
     }
   }
-  return "cli";
+  return "manual";
 }
 
 // ---------------------------------------------------------------------------
