@@ -43,13 +43,16 @@ export default function SessionChatPage({
     isStreaming,
     error,
     toolProgress,
+    currentPermissionMode,
   } = useChatStream({
     resume: sessionId,
     cwd: resolved?.path,
     thinking: settings.thinkingEnabled ? "adaptive" : "disabled",
-    permissionMode: settings.bypassPermissions
-      ? "bypassPermissions"
-      : "default",
+    permissionMode: settings.planMode
+      ? "plan"
+      : settings.bypassPermissions
+        ? "bypassPermissions"
+        : "default",
   });
 
   const allMessages = useMemo(() => {
@@ -91,6 +94,7 @@ export default function SessionChatPage({
         settings={settings}
         onSettingsChange={setSettings}
         disabled={isStreaming}
+        currentPermissionMode={currentPermissionMode}
       />
       <ChatInput
         onSend={send}

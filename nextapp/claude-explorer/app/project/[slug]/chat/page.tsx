@@ -36,12 +36,15 @@ function NewChatContent({ slug }: { slug: string }) {
     sessionId,
     error,
     toolProgress,
+    currentPermissionMode,
   } = useChatStream({
     cwd: data?.path,
     thinking: settings.thinkingEnabled ? "adaptive" : "disabled",
-    permissionMode: settings.bypassPermissions
-      ? "bypassPermissions"
-      : "default",
+    permissionMode: settings.planMode
+      ? "plan"
+      : settings.bypassPermissions
+        ? "bypassPermissions"
+        : "default",
   });
 
   // Once the first stream completes, redirect to the canonical session URL.
@@ -79,6 +82,7 @@ function NewChatContent({ slug }: { slug: string }) {
         settings={settings}
         onSettingsChange={setSettings}
         disabled={isStreaming}
+        currentPermissionMode={currentPermissionMode}
       />
       <ChatInput
         onSend={send}

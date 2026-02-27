@@ -34,11 +34,14 @@ function RootNewChatContent() {
     sessionId,
     error,
     toolProgress,
+    currentPermissionMode,
   } = useRootChatStream({
     thinking: settings.thinkingEnabled ? "adaptive" : "disabled",
-    permissionMode: settings.bypassPermissions
-      ? "bypassPermissions"
-      : "default",
+    permissionMode: settings.planMode
+      ? "plan"
+      : settings.bypassPermissions
+        ? "bypassPermissions"
+        : "default",
   });
 
   const setPrimary = useMutation({
@@ -106,6 +109,7 @@ function RootNewChatContent() {
         settings={settings}
         onSettingsChange={setSettings}
         disabled={isStreaming}
+        currentPermissionMode={currentPermissionMode}
       />
       <ChatInput
         onSend={send}

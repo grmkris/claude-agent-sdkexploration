@@ -29,6 +29,7 @@ type UseChatStreamReturn = {
   sessionId: string | null;
   error: string | null;
   toolProgress: Map<string, ToolProgressEntry>;
+  currentPermissionMode: string | null;
 };
 
 export type ChatStreamOpts = {
@@ -48,6 +49,7 @@ export function useChatStream(opts?: ChatStreamOpts): UseChatStreamReturn {
   const [isStreaming, setIsStreaming] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [currentPermissionMode, setCurrentPermissionMode] = useState<string | null>(null);
   const [, setProgressTick] = useState(0);
   const streamingRef = useRef(false);
   const toolProgressRef = useRef<Map<string, ToolProgressEntry>>(new Map());
@@ -136,7 +138,8 @@ export function useChatStream(opts?: ChatStreamOpts): UseChatStreamReturn {
               setError,
               streamingRef,
               toolProgressRef,
-              () => setProgressTick((t) => t + 1)
+              () => setProgressTick((t) => t + 1),
+              setCurrentPermissionMode
             );
           }
 
@@ -164,5 +167,6 @@ export function useChatStream(opts?: ChatStreamOpts): UseChatStreamReturn {
     sessionId,
     error,
     toolProgress: toolProgressRef.current,
+    currentPermissionMode,
   };
 }
