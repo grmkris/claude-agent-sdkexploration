@@ -1,7 +1,6 @@
 "use client";
 
 import type { IconSvgElement } from "@hugeicons/react";
-import type { RecentSession } from "@/lib/types";
 
 import {
   Archive01Icon,
@@ -19,6 +18,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
+
+import type { RecentSession } from "@/lib/types";
 
 import { SessionActionsMenu } from "@/components/session-actions-menu";
 import { SessionStateBadge } from "@/components/session-state-badge";
@@ -188,9 +189,17 @@ function SessionRow({
 
   return (
     <SidebarMenuItem>
-      <div className={cn("group flex items-center", dimmed && "opacity-60 hover:opacity-100 transition-opacity")}>
+      <div
+        className={cn(
+          "group flex items-center",
+          dimmed && "opacity-60 hover:opacity-100 transition-opacity"
+        )}
+      >
         <Link href={sessionUrl} className="min-w-0 flex-1">
-          <SidebarMenuButton isActive={isSelected} tooltip={session.firstPrompt}>
+          <SidebarMenuButton
+            isActive={isSelected}
+            tooltip={session.firstPrompt}
+          >
             <div className="flex min-w-0 flex-1 flex-col">
               <span className="truncate text-sm">{session.firstPrompt}</span>
               <span className="flex items-center gap-1 truncate text-[10px] text-muted-foreground">
@@ -378,31 +387,34 @@ export function SessionsPanel({
         );
 
   // Build groups for grouped view (root view only)
-  const groups: Array<{ key: string; label: string; sessions: RecentSession[] }> =
-    (() => {
-      if (!groupByProject || !isRootView) return [];
+  const groups: Array<{
+    key: string;
+    label: string;
+    sessions: RecentSession[];
+  }> = (() => {
+    if (!groupByProject || !isRootView) return [];
 
-      const map = new Map<string, { label: string; sessions: RecentSession[] }>();
-      for (const session of filtered) {
-        const key = session.projectSlug ?? "__root__";
-        const label = session.projectSlug
-          ? (session.projectPath.split("/").pop() ?? session.projectSlug)
-          : "root";
-        if (!map.has(key)) map.set(key, { label, sessions: [] });
-        map.get(key)!.sessions.push(session);
-      }
+    const map = new Map<string, { label: string; sessions: RecentSession[] }>();
+    for (const session of filtered) {
+      const key = session.projectSlug ?? "__root__";
+      const label = session.projectSlug
+        ? (session.projectPath.split("/").pop() ?? session.projectSlug)
+        : "root";
+      if (!map.has(key)) map.set(key, { label, sessions: [] });
+      map.get(key)!.sessions.push(session);
+    }
 
-      // Sort groups by most recent session (sessions already come ordered by updated_at desc)
-      return Array.from(map.entries())
-        .map(([key, val]) => ({ key, ...val }))
-        .sort((a, b) => {
-          const aLatest =
-            a.sessions[0]?.lastModified ?? a.sessions[0]?.timestamp ?? "";
-          const bLatest =
-            b.sessions[0]?.lastModified ?? b.sessions[0]?.timestamp ?? "";
-          return bLatest.localeCompare(aLatest);
-        });
-    })();
+    // Sort groups by most recent session (sessions already come ordered by updated_at desc)
+    return Array.from(map.entries())
+      .map(([key, val]) => ({ key, ...val }))
+      .sort((a, b) => {
+        const aLatest =
+          a.sessions[0]?.lastModified ?? a.sessions[0]?.timestamp ?? "";
+        const bLatest =
+          b.sessions[0]?.lastModified ?? b.sessions[0]?.timestamp ?? "";
+        return bLatest.localeCompare(aLatest);
+      });
+  })();
 
   // Sort projects for the dropdown by lastActive desc
   const sortedProjects = [...projects].sort((a, b) => {
@@ -536,7 +548,9 @@ export function SessionsPanel({
               key={session.id}
               session={session}
               showProjectLabel={showProjectLabel}
-              onArchive={() => archiveMutation.mutate({ sessionId: session.id })}
+              onArchive={() =>
+                archiveMutation.mutate({ sessionId: session.id })
+              }
             />
           ))}
 

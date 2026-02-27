@@ -21,12 +21,33 @@ if [ -n "$TS_AUTHKEY" ]; then
     done
 
     DESIRED_HOSTNAME="${TS_HOSTNAME:-${INSTANCE_NAME:-claude-explorer}}"
+    TAILSCALE_STATE_DIR="${TS_STATE_DIR:-/home/bun/.claude/tailscale}"
 
+    # Attempt tailscale up with --reset to disconnect stale sessions.
+    # If it fails (e.g. "node already exists"), clear state and retry with --force-reauth.
+    set +e
     tailscale up \
         --authkey="$TS_AUTHKEY" \
         --hostname="$DESIRED_HOSTNAME" \
         --ssh \
-        --accept-dns=false
+        --accept-dns=false \
+        --reset \
+        --timeout=30s 2>/tmp/ts_error.txt
+    TS_EXIT=$?
+    set -e
+
+    if [ $TS_EXIT -ne 0 ]; then
+        echo "[tailscale] WARNING: tailscale up failed (exit $TS_EXIT), clearing state and retrying..."
+        cat /tmp/ts_error.txt
+        rm -rf "${TAILSCALE_STATE_DIR}"/*
+        tailscale up \
+            --authkey="$TS_AUTHKEY" \
+            --hostname="$DESIRED_HOSTNAME" \
+            --ssh \
+            --accept-dns=false \
+            --reset \
+            --force-reauth
+    fi
 
     # Fix hostname conflict: if Tailscale appended a suffix (-1, -2), force the desired name
     ACTUAL_HOSTNAME=$(tailscale status --self --json | jq -r '.Self.HostName // empty')

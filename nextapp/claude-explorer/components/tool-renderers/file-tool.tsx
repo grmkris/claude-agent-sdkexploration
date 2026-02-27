@@ -11,8 +11,59 @@ import {
 import { cn } from "@/lib/utils";
 
 import { str, type ToolRendererProps } from ".";
+import { buildEditDiff, DiffView } from "../diff-view";
 import { FilePreviewPopover } from "../file-preview-popover";
 import { StatusIndicator } from "./bash-tool";
+
+function EditDiff({
+  oldString,
+  newString,
+  filePath,
+}: {
+  oldString: string;
+  newString: string;
+  filePath?: string;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const diff = buildEditDiff(oldString, newString, filePath);
+  const lineCount = diff.split("\n").length;
+  const COLLAPSE_THRESHOLD = 20;
+
+  if (!diff) return null;
+
+  if (lineCount <= COLLAPSE_THRESHOLD) {
+    return (
+      <div className="border-t border-border/30 px-2.5 py-1.5">
+        <DiffView diff={diff} />
+      </div>
+    );
+  }
+
+  return (
+    <Collapsible open={expanded} onOpenChange={setExpanded}>
+      <CollapsibleTrigger className="flex w-full items-center gap-1.5 border-t border-border/30 px-2.5 py-1 text-[10px] text-muted-foreground cursor-pointer hover:text-foreground">
+        <span>{expanded ? "▼" : "▶"}</span>
+        <span>Diff</span>
+        <span className="ml-auto">
+          {(() => {
+            const delta =
+              newString.split("\n").length - oldString.split("\n").length;
+            return (
+              <span className={delta >= 0 ? "text-green-400" : "text-red-400"}>
+                {delta >= 0 ? `+${delta}` : delta} lines
+              </span>
+            );
+          })()}
+        </span>
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <div className="border-t border-border/30 px-2.5 py-1.5">
+          <DiffView diff={diff} />
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
 
 export function FileTool({
   name,
@@ -61,34 +112,11 @@ export function FileTool({
       </div>
 
       {name === "Edit" && !!input.old_string && (
-        <div className="border-t border-border/30 px-2.5 py-1.5 font-mono text-[11px] leading-relaxed">
-          <div className="text-red-400/80">
-            {str(input.old_string)
-              .split("\n")
-              .slice(0, 8)
-              .map((line, i) => (
-                <div key={i}>- {line}</div>
-              ))}
-            {str(input.old_string).split("\n").length > 8 && (
-              <div className="text-muted-foreground">
-                ... ({str(input.old_string).split("\n").length} lines)
-              </div>
-            )}
-          </div>
-          <div className="mt-1 text-green-400/80">
-            {str(input.new_string)
-              .split("\n")
-              .slice(0, 8)
-              .map((line, i) => (
-                <div key={i}>+ {line}</div>
-              ))}
-            {str(input.new_string).split("\n").length > 8 && (
-              <div className="text-muted-foreground">
-                ... ({str(input.new_string).split("\n").length} lines)
-              </div>
-            )}
-          </div>
-        </div>
+        <EditDiff
+          oldString={str(input.old_string)}
+          newString={str(input.new_string)}
+          filePath={filePath}
+        />
       )}
 
       {name === "Write" && !!input.content && (

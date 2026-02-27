@@ -29,14 +29,14 @@ const conversation = query({
       },
       "railway-mcp-server": {
         type: "stdio",
-        command: "npx",
-        args: ["-y", "@railway/mcp-server"],
+        command: "bunx",
+        args: ["@railway/mcp-server"],
         env: {},
       },
     "Linear": {
         type: "stdio",
-        command: "npx",
-        args: ["-y", "mcp-remote", "https://mcp.linear.app/sse"],
+        command: "bunx",
+        args: ["mcp-remote", "https://mcp.linear.app/sse"],
         env: {},
       },
     },

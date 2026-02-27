@@ -9,6 +9,8 @@ import { orpc } from "@/lib/orpc";
 import { client } from "@/lib/orpc-client";
 import { cn } from "@/lib/utils";
 
+import { DiffView } from "../diff-view";
+
 // --- Types ---
 
 type CommitFile = { path: string; additions: number; deletions: number };
@@ -34,34 +36,6 @@ function statusBadge(status: string) {
     );
   return (
     <span className="shrink-0 text-[10px] font-bold text-yellow-400">M</span>
-  );
-}
-
-function DiffView({ diff }: { diff: string }) {
-  return (
-    <pre className="overflow-x-auto whitespace-pre text-[10px] leading-relaxed">
-      {diff.split("\n").map((line, i) => (
-        <span
-          key={i}
-          className={cn(
-            "block",
-            line.startsWith("+") &&
-              !line.startsWith("+++") &&
-              "text-green-400 bg-green-400/10",
-            line.startsWith("-") &&
-              !line.startsWith("---") &&
-              "text-red-400 bg-red-400/10",
-            line.startsWith("@@") && "text-blue-400",
-            !line.startsWith("+") &&
-              !line.startsWith("-") &&
-              !line.startsWith("@@") &&
-              "text-muted-foreground"
-          )}
-        >
-          {line || " "}
-        </span>
-      ))}
-    </pre>
   );
 }
 

@@ -4,38 +4,11 @@ import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { use, useState } from "react";
 
+import { DiffView } from "@/components/diff-view";
 import { orpc } from "@/lib/orpc";
 import { cn } from "@/lib/utils";
 
 type ViewMode = "diff" | "file";
-
-function DiffView({ diff }: { diff: string }) {
-  return (
-    <pre className="overflow-x-auto whitespace-pre text-xs leading-relaxed">
-      {diff.split("\n").map((line, i) => (
-        <span
-          key={i}
-          className={cn(
-            "block px-4",
-            line.startsWith("+") &&
-              !line.startsWith("+++") &&
-              "text-green-400 bg-green-400/10",
-            line.startsWith("-") &&
-              !line.startsWith("---") &&
-              "text-red-400 bg-red-400/10",
-            line.startsWith("@@") && "text-blue-400",
-            !line.startsWith("+") &&
-              !line.startsWith("-") &&
-              !line.startsWith("@@") &&
-              "text-muted-foreground"
-          )}
-        >
-          {line || " "}
-        </span>
-      ))}
-    </pre>
-  );
-}
 
 function FileView({ content }: { content: string }) {
   const lines = content.split("\n");

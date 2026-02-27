@@ -92,7 +92,8 @@ export function ToolUseSummaryGroup({
         >
           <span>{open ? "▼" : "▶"}</span>
           <span>
-            {blocks.length} tool call{blocks.length !== 1 ? "s" : ""}: {namesSummary}
+            {blocks.length} tool call{blocks.length !== 1 ? "s" : ""}:{" "}
+            {namesSummary}
           </span>
         </button>
         {open && (
@@ -101,7 +102,10 @@ export function ToolUseSummaryGroup({
               <span key={i} className="text-[10px] text-muted-foreground/70">
                 {block.toolName}
                 {block.filepath && (
-                  <span className="font-mono"> {block.filepath.split("/").pop()}</span>
+                  <span className="font-mono">
+                    {" "}
+                    {block.filepath.split("/").pop()}
+                  </span>
                 )}
                 {block.summary && <span> - {block.summary}</span>}
               </span>

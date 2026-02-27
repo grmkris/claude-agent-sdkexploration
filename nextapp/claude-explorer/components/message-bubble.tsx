@@ -13,7 +13,11 @@ import {
 
 import { MarkdownContent } from "./markdown-content";
 import { ResultBlock } from "./result-block";
-import { SystemEventBlock, ToolUseSummaryBlock, ToolUseSummaryGroup } from "./system-event-block";
+import {
+  SystemEventBlock,
+  ToolUseSummaryBlock,
+  ToolUseSummaryGroup,
+} from "./system-event-block";
 import { ThinkingBlockView } from "./thinking-block";
 import { ToolUseBlock } from "./tool-use-block";
 
@@ -125,7 +129,9 @@ export function MessageBubble({
     if (allSummaries && content.length > 0) {
       return (
         <ToolUseSummaryGroup
-          blocks={content as Extract<ContentBlock, { type: "tool_use_summary" }>[]}
+          blocks={
+            content as Extract<ContentBlock, { type: "tool_use_summary" }>[]
+          }
         />
       );
     }
