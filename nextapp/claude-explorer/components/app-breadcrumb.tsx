@@ -47,7 +47,7 @@ export function AppBreadcrumb() {
     return (
       <div className="flex items-center gap-1.5 text-xs">
         <Link
-          href={`/project/${slug}`}
+          href="/"
           className={
             hasSubPage
               ? "text-muted-foreground hover:text-foreground transition-colors"

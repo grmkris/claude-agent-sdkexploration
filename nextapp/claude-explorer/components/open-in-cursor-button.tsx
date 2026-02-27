@@ -3,7 +3,7 @@
 import { generateCursorUrl } from "@/lib/cursor-urls";
 
 /** The Cursor editor logo — a stylised cursor arrow. */
-function CursorLogo({ className }: { className?: string }) {
+export function CursorLogo({ className }: { className?: string }) {
   return (
     <svg
       viewBox="0 0 24 24"

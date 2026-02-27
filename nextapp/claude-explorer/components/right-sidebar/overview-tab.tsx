@@ -30,16 +30,10 @@ function IntegrationsSection({ slug }: { slug: string }) {
 
   return (
     <SidebarGroup>
-      <div className="px-2 pb-1 text-[11px] font-medium text-sidebar-foreground/70">
-        Integrations
-      </div>
       <SidebarGroupContent>
         <div className="flex flex-col gap-3 px-2">
           {projectIntegrations.map((integration) => (
             <div key={integration.id}>
-              <div className="mb-1 text-[10px] capitalize text-muted-foreground">
-                {integration.type} · {integration.name}
-              </div>
               <IntegrationWidgets integrationId={integration.id} />
             </div>
           ))}
