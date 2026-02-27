@@ -59,11 +59,11 @@ export function SessionPreviewPopover({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
-        asChild
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
+        render={<div className="contents" />}
       >
-        <div className="contents">{children}</div>
+        {children}
       </PopoverTrigger>
       <PopoverContent
         side="right"
@@ -104,9 +104,7 @@ export function SessionPreviewPopover({
               {data.lastAssistantMessage}
             </p>
           ) : (
-            <p className="text-xs text-muted-foreground italic">
-              No reply yet
-            </p>
+            <p className="text-xs text-muted-foreground italic">No reply yet</p>
           )}
         </div>
 
