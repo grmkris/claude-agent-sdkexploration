@@ -166,10 +166,17 @@ export function FilePreviewPopover({
     staleTime: Number.POSITIVE_INFINITY,
   });
 
+  // Determine whether the path is inside the project root.
+  // When resolved.path is known, an absolute filePath that doesn't start with
+  // the project root is "outside" — we can display it but can't serve it
+  // through the project-scoped API (which would throw a 500).
+  const isOutsideProject =
+    resolved?.path !== undefined && !filePath.startsWith(resolved.path);
+
   const relativePath = resolved?.path
     ? filePath.startsWith(resolved.path)
       ? filePath.slice(resolved.path.length).replace(/^\//, "")
-      : filePath
+      : null // outside project → no relative path
     : null;
 
   const fileName =
@@ -182,7 +189,8 @@ export function FilePreviewPopover({
     ...orpc.projects.readFile.queryOptions({
       input: { slug: projectSlug, path: relativePath ?? "" },
     }),
-    enabled: open && relativePath !== null && needsText,
+    // Don't attempt to read files outside the project root — the API will 500
+    enabled: open && relativePath !== null && !isOutsideProject && needsText,
     staleTime: 30_000,
   });
 
@@ -202,28 +210,37 @@ export function FilePreviewPopover({
         {/* Header */}
         <div className="flex items-center justify-between border-b border-border/50 px-3 py-1.5">
           <code className="truncate font-mono text-[11px] text-muted-foreground">
-            {relativePath ?? filePath}
+            {filePath}
           </code>
-          <Link
-            href={`/project/${projectSlug}?file=${encodeURIComponent(relativePath ?? filePath)}`}
-            className="ml-2 shrink-0 text-[10px] text-primary hover:underline"
-            onClick={() => setOpen(false)}
-          >
-            Open in explorer →
-          </Link>
+          {!isOutsideProject && (
+            <Link
+              href={`/project/${projectSlug}?file=${encodeURIComponent(relativePath ?? filePath)}`}
+              className="ml-2 shrink-0 text-[10px] text-primary hover:underline"
+              onClick={() => setOpen(false)}
+            >
+              Open in explorer →
+            </Link>
+          )}
         </div>
 
         {/* Body */}
         <div className="max-h-80 overflow-auto">
+          {/* File is outside the project root — can't preview via project API */}
+          {isOutsideProject && (
+            <div className="px-3 py-4 text-[11px] text-muted-foreground">
+              This file is outside the project directory and cannot be previewed here.
+            </div>
+          )}
+
           {/* Loading */}
-          {isLoading && (
+          {!isOutsideProject && isLoading && (
             <div className="animate-pulse px-3 py-4 text-[11px] text-muted-foreground">
               Loading…
             </div>
           )}
 
           {/* Error */}
-          {error && (
+          {!isOutsideProject && error && (
             <div className="px-3 py-4 text-[11px] text-destructive">
               {error.message || "Failed to load file"}
             </div>
@@ -264,7 +281,7 @@ export function FilePreviewPopover({
           )}
 
           {/* Image preview */}
-          {previewType === "image" && (
+          {!isOutsideProject && previewType === "image" && (
             <div className="flex items-center justify-center p-3">
               {/* biome-ignore lint/performance/noImgElement: popover preview with dynamic src */}
               <img
@@ -276,7 +293,7 @@ export function FilePreviewPopover({
           )}
 
           {/* Binary / office / media — show hint + download */}
-          {previewType === "binary" && (
+          {!isOutsideProject && previewType === "binary" && (
             <div className="flex items-center gap-3 px-3 py-4">
               <p className="text-[11px] text-muted-foreground">
                 Open in the file explorer for full rendering.

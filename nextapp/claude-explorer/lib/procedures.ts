@@ -680,17 +680,65 @@ const chatProc = os
                 tool: string;
                 prompt: string;
               }>;
-              // Try to read the plan file from cwd
+              // Try to read the plan file. Claude writes plan files to
+              // ~/.claude/plans/<name>.md, NOT to cwd/PLAN.md.
+              // Strategy:
+              //   1. Check if typedInput contains a plan file path directly.
+              //   2. Scan ~/.claude/plans/ for the most recently modified .md
+              //      file (written within the last 60 s, i.e. just now).
+              //   3. Fall back to cwd/PLAN.md for legacy compatibility.
               let planText = "";
-              if (input.cwd) {
-                try {
-                  const { readFile } = await import("node:fs/promises");
+              {
+                const { readFile, readdir, stat: fsStat } = await import(
+                  "node:fs/promises"
+                );
+                const homedir = (await import("node:os")).homedir();
+                const plansDir = join(homedir, ".claude", "plans");
+
+                // 1. Explicit path in tool input
+                const explicitPath =
+                  (typedInput.planFilePath as string | undefined) ??
+                  (typedInput.plan_file_path as string | undefined);
+                if (explicitPath) {
+                  planText = await readFile(explicitPath, "utf-8").catch(
+                    () => ""
+                  );
+                }
+
+                // 2. Most recently modified plan file (written ≤ 60 s ago)
+                if (!planText) {
+                  try {
+                    const now = Date.now();
+                    const files = await readdir(plansDir);
+                    const mdFiles = files.filter((f) => f.endsWith(".md"));
+                    const stats = await Promise.all(
+                      mdFiles.map(async (f) => ({
+                        name: f,
+                        mtimeMs: (await fsStat(join(plansDir, f))).mtimeMs,
+                      }))
+                    );
+                    // Sort newest first
+                    stats.sort((a, b) => b.mtimeMs - a.mtimeMs);
+                    const recent = stats.find(
+                      (s) => now - s.mtimeMs < 60_000
+                    );
+                    if (recent) {
+                      planText = await readFile(
+                        join(plansDir, recent.name),
+                        "utf-8"
+                      ).catch(() => "");
+                    }
+                  } catch {
+                    // ~/.claude/plans/ may not exist — that's fine
+                  }
+                }
+
+                // 3. Legacy cwd/PLAN.md fallback
+                if (!planText && input.cwd) {
                   planText = await readFile(
                     join(input.cwd, "PLAN.md"),
                     "utf-8"
-                  );
-                } catch {
-                  // plan file may not exist yet — that's OK
+                  ).catch(() => "");
                 }
               }
               return new Promise<
@@ -1651,8 +1699,52 @@ const rootChatProc = os
                 tool: string;
                 prompt: string;
               }>;
-              // rootChat has no cwd-based plan file — plan text stays empty
-              const planText = "";
+              // Scan ~/.claude/plans/ for the most recently modified plan file
+              let planText = "";
+              {
+                const { readFile, readdir, stat: fsStat } = await import(
+                  "node:fs/promises"
+                );
+                const homedir = (await import("node:os")).homedir();
+                const plansDir = join(homedir, ".claude", "plans");
+
+                // 1. Explicit path in tool input
+                const explicitPath =
+                  (typedInput.planFilePath as string | undefined) ??
+                  (typedInput.plan_file_path as string | undefined);
+                if (explicitPath) {
+                  planText = await readFile(explicitPath, "utf-8").catch(
+                    () => ""
+                  );
+                }
+
+                // 2. Most recently modified plan file (written ≤ 60 s ago)
+                if (!planText) {
+                  try {
+                    const now = Date.now();
+                    const files = await readdir(plansDir);
+                    const mdFiles = files.filter((f) => f.endsWith(".md"));
+                    const stats = await Promise.all(
+                      mdFiles.map(async (f) => ({
+                        name: f,
+                        mtimeMs: (await fsStat(join(plansDir, f))).mtimeMs,
+                      }))
+                    );
+                    stats.sort((a, b) => b.mtimeMs - a.mtimeMs);
+                    const recent = stats.find(
+                      (s) => now - s.mtimeMs < 60_000
+                    );
+                    if (recent) {
+                      planText = await readFile(
+                        join(plansDir, recent.name),
+                        "utf-8"
+                      ).catch(() => "");
+                    }
+                  } catch {
+                    // ~/.claude/plans/ may not exist — that's fine
+                  }
+                }
+              }
               return new Promise<
                 | { behavior: "allow"; updatedInput?: Record<string, unknown> }
                 | { behavior: "deny"; message: string }
