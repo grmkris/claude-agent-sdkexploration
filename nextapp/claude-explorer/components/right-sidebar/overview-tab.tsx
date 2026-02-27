@@ -1,16 +1,19 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
 
 import { OpenInCursorButton } from "@/components/open-in-cursor-button";
 import { IntegrationWidgets } from "@/components/project-integrations";
 import { WorktreeInfoSection } from "@/components/right-sidebar/worktree-info-section";
 import { TmuxLauncher } from "@/components/tmux-launcher";
 import { TmuxSessionsPanel } from "@/components/tmux-sessions-panel";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { SidebarGroup, SidebarGroupContent } from "@/components/ui/sidebar";
 import { orpc } from "@/lib/orpc";
-import { cn } from "@/lib/utils";
 
 // ── Integration widgets (Railway, Linear, GitHub) ────────────────────────────
 
@@ -66,56 +69,57 @@ function ProjectCursorSection({ slug }: { slug: string }) {
   );
 }
 
-// ── Tmux sessions scoped to this project ─────────────────────────────────────
+// ── Tmux: sessions list + popover launcher ────────────────────────────────────
 
-function ProjectTmuxSection({ slug }: { slug: string }) {
+function TmuxSection({ slug }: { slug: string }) {
   const { data: projects } = useQuery(orpc.projects.list.queryOptions());
   const project = projects?.find((p) => p.slug === slug);
 
-  // TmuxSessionsPanel returns null when there's nothing to show
   return (
     <SidebarGroup>
-      <div className="px-2 pb-1 text-[11px] font-medium text-sidebar-foreground/70">
-        Tmux Sessions
+      {/* Header: label + launch popover trigger */}
+      <div className="flex items-center justify-between px-2 pb-1">
+        <span className="text-[11px] font-medium text-sidebar-foreground/70">
+          Tmux Sessions
+        </span>
+        <Popover>
+          <PopoverTrigger
+            className="rounded p-0.5 text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground"
+            title="Launch new tmux session"
+          >
+            {/* Terminal icon */}
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="h-3.5 w-3.5"
+            >
+              <rect width="20" height="14" x="2" y="3" rx="2" />
+              <path d="m8 10 2 2-2 2" />
+              <path d="M12 14h4" />
+            </svg>
+          </PopoverTrigger>
+          <PopoverContent
+            side="left"
+            align="start"
+            sideOffset={8}
+            className="w-80 p-3"
+          >
+            <div className="mb-2.5 text-xs font-medium">
+              Launch Tmux Session
+            </div>
+            <TmuxLauncher slug={slug} projectPath={project?.path ?? null} />
+          </PopoverContent>
+        </Popover>
       </div>
+
+      {/* Active sessions list — returns null when empty */}
       <SidebarGroupContent>
         <TmuxSessionsPanel filterProjectPath={project?.path} />
       </SidebarGroupContent>
-    </SidebarGroup>
-  );
-}
-
-// ── Tmux session launcher ─────────────────────────────────────────────────────
-
-function TmuxLauncherSection({ slug }: { slug: string }) {
-  const [open, setOpen] = useState(false);
-  const { data: projects } = useQuery(orpc.projects.list.queryOptions());
-  const project = projects?.find((p) => p.slug === slug);
-
-  return (
-    <SidebarGroup>
-      <button
-        onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center justify-between px-2 pb-1 text-[11px] font-medium text-sidebar-foreground/70 transition-colors hover:text-sidebar-foreground"
-      >
-        <span>Launch Tmux Session</span>
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth={2}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          className={cn("h-3 w-3 transition-transform", open && "rotate-180")}
-        >
-          <path d="m6 9 6 6 6-6" />
-        </svg>
-      </button>
-      {open && (
-        <SidebarGroupContent>
-          <TmuxLauncher slug={slug} projectPath={project?.path ?? null} />
-        </SidebarGroupContent>
-      )}
     </SidebarGroup>
   );
 }
@@ -139,11 +143,8 @@ export function OverviewTab({ slug }: { slug: string | null }) {
       {/* Git worktrees (only visible when 2+ worktrees exist) */}
       <WorktreeInfoSection slug={slug} />
 
-      {/* Tmux sessions scoped to this project */}
-      <ProjectTmuxSection slug={slug} />
-
-      {/* Multi-pane tmux session launcher */}
-      <TmuxLauncherSection slug={slug} />
+      {/* Tmux sessions + launch popover */}
+      <TmuxSection slug={slug} />
 
       {/* Integrations */}
       <IntegrationsSection slug={slug} />

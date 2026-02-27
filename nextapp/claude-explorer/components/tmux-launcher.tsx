@@ -15,7 +15,7 @@ import { orpc } from "@/lib/orpc";
 import { generateTmuxCommand, type TmuxLayout } from "@/lib/tmux-command";
 import { cn } from "@/lib/utils";
 
-// ── Inline icons (same pattern as tmux-sessions-panel.tsx) ───────────────────
+// ── Inline icons ──────────────────────────────────────────────────────────────
 
 function CopyIcon({ className }: { className?: string }) {
   return (
@@ -81,9 +81,9 @@ export function TmuxLauncher({
   const [layout, setLayout] = useState<TmuxLayout>("even-horizontal");
   const [resumeIds, setResumeIds] = useState<(string | null)[]>([null]);
   const [skipPermissions, setSkipPermissions] = useState(false);
+  const [ccMode, setCcMode] = useState(false);
   const [model, setModel] = useState("");
   const [sshTarget, setSshTarget] = useState("");
-  const [showOptions, setShowOptions] = useState(false);
   const [copied, setCopied] = useState(false);
 
   const { data: serverConfig } = useQuery(orpc.server.config.queryOptions());
@@ -128,6 +128,7 @@ export function TmuxLauncher({
         skipPermissions,
         model: model || undefined,
         sshTarget: sshTarget || undefined,
+        ccMode,
       })
     : null;
 
@@ -139,13 +140,13 @@ export function TmuxLauncher({
   };
 
   return (
-    <div className="flex flex-col gap-2 px-1">
-      {/* ── Panel count ── */}
+    <div className="flex flex-col gap-2">
+      {/* ── Panels + -CC toggle ── */}
       <div className="flex items-center gap-1.5">
         <span className="w-10 shrink-0 text-[10px] text-muted-foreground">
           Panels
         </span>
-        <div className="flex gap-0.5">
+        <div className="flex flex-1 gap-0.5">
           {([1, 2, 3, 4] as const).map((n) => (
             <button
               key={n}
@@ -161,6 +162,19 @@ export function TmuxLauncher({
             </button>
           ))}
         </div>
+        {/* -CC checkbox: iTerm2 integration mode */}
+        <label
+          className="flex cursor-pointer items-center gap-1"
+          title="tmux -CC (iTerm2 integration)"
+        >
+          <input
+            type="checkbox"
+            checked={ccMode}
+            onChange={(e) => setCcMode(e.target.checked)}
+            className="h-3 w-3 accent-primary"
+          />
+          <span className="text-[10px] text-muted-foreground">-CC</span>
+        </label>
       </div>
 
       {/* ── Layout (only when panelCount > 1) ── */}
@@ -220,82 +234,49 @@ export function TmuxLauncher({
         </div>
       ))}
 
-      {/* ── Options accordion ── */}
-      <button
-        onClick={() => setShowOptions((v) => !v)}
-        className="flex items-center gap-1 text-[10px] text-muted-foreground transition-colors hover:text-foreground"
-      >
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth={2}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          className={cn(
-            "h-3 w-3 transition-transform",
-            showOptions && "rotate-180"
-          )}
-        >
-          <path d="m6 9 6 6 6-6" />
-        </svg>
-        Options
-      </button>
+      {/* ── SSH target (always visible) ── */}
+      <div className="flex items-center gap-1.5">
+        <span className="w-10 shrink-0 text-[10px] text-muted-foreground">
+          SSH
+        </span>
+        <input
+          type="text"
+          value={sshTarget}
+          onChange={(e) => setSshTarget(e.target.value)}
+          placeholder="user@host (optional)"
+          className="h-6 flex-1 rounded bg-muted/50 px-1.5 font-mono text-[10px] text-foreground outline-none placeholder:text-muted-foreground/50 focus:ring-1 focus:ring-ring"
+        />
+      </div>
 
-      {showOptions && (
-        <div className="ml-1 flex flex-col gap-1.5 border-l border-border pl-2">
-          {/* SSH target */}
-          <div className="flex items-center gap-1.5">
-            <span className="w-10 shrink-0 text-[10px] text-muted-foreground">
-              SSH
-            </span>
-            <input
-              type="text"
-              value={sshTarget}
-              onChange={(e) => setSshTarget(e.target.value)}
-              placeholder="user@host"
-              className="h-6 flex-1 rounded bg-muted/50 px-1.5 font-mono text-[10px] text-foreground outline-none placeholder:text-muted-foreground/50 focus:ring-1 focus:ring-ring"
-            />
-          </div>
-
-          {/* Skip permissions */}
-          <div className="flex items-center gap-1.5">
-            <span className="w-10 shrink-0 text-[10px] text-muted-foreground">
-              Flags
-            </span>
-            <label className="flex cursor-pointer items-center gap-1">
-              <input
-                type="checkbox"
-                checked={skipPermissions}
-                onChange={(e) => setSkipPermissions(e.target.checked)}
-                className="h-3 w-3 accent-primary"
-              />
-              <span className="text-[10px] text-foreground">
-                skip-permissions
-              </span>
-            </label>
-          </div>
-
-          {/* Model */}
-          <div className="flex items-center gap-1.5">
-            <span className="w-10 shrink-0 text-[10px] text-muted-foreground">
-              Model
-            </span>
-            <Select value={model} onValueChange={(v) => setModel(v ?? "")}>
-              <SelectTrigger size="sm" className="h-6 flex-1 text-[10px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {MODELS.map((m) => (
-                  <SelectItem key={m.value} value={m.value}>
-                    {m.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+      {/* ── Flags row: skip-permissions + model ── */}
+      <div className="flex items-center gap-1.5">
+        <span className="w-10 shrink-0 text-[10px] text-muted-foreground">
+          Flags
+        </span>
+        <label className="flex cursor-pointer items-center gap-1">
+          <input
+            type="checkbox"
+            checked={skipPermissions}
+            onChange={(e) => setSkipPermissions(e.target.checked)}
+            className="h-3 w-3 accent-primary"
+          />
+          <span className="text-[10px] text-foreground">skip-perms</span>
+        </label>
+        <div className="ml-auto">
+          <Select value={model} onValueChange={(v) => setModel(v ?? "")}>
+            <SelectTrigger size="sm" className="h-6 w-24 text-[10px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {MODELS.map((m) => (
+                <SelectItem key={m.value} value={m.value}>
+                  {m.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
-      )}
+      </div>
 
       {/* ── Command preview ── */}
       {command ? (
