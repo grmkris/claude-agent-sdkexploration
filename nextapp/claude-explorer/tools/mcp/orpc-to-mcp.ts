@@ -8,6 +8,18 @@ import type { router } from "../../lib/procedures";
 /** Only expose these top-level router keys as MCP tools (keeps agent context small) */
 const INCLUDE_PREFIXES = new Set(["crons", "webhooks", "email", "projects"]);
 
+/** Specific tool names (flattened path) to exclude even if their prefix is included */
+const EXCLUDE_TOOLS = new Set([
+  "projects_gitStatus",
+  "projects_gitLog",
+  "projects_gitDiff",
+  "projects_gitPull",
+  "projects_gitStageAll",
+  "projects_gitCommitFiles",
+  "projects_gitCommitDiff",
+  "projects_gitWorktrees",
+]);
+
 /** Tool descriptions keyed by flattened path (e.g. "crons_create") */
 const DESCRIPTIONS: Record<string, string> = {
   // Crons
@@ -87,6 +99,7 @@ export function registerAllTools(
       const prefix = path[0];
 
       if (!prefix || !INCLUDE_PREFIXES.has(prefix)) return;
+      if (EXCLUDE_TOOLS.has(toolName)) return;
 
       const def = (contract as any)["~orpc"];
       const inputSchema = def.inputSchema ?? undefined;
