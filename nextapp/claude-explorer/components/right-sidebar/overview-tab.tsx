@@ -49,39 +49,17 @@ function IntegrationsSection({ slug }: { slug: string }) {
   );
 }
 
-// ── Open in Cursor ───────────────────────────────────────────────────────────
-
-function ProjectCursorSection({ slug }: { slug: string }) {
-  const { data: projects } = useQuery(orpc.projects.list.queryOptions());
-  const { data: serverConfig } = useQuery(orpc.server.config.queryOptions());
-
-  const project = projects?.find((p) => p.slug === slug);
-  if (!project?.path) return null;
-
-  return (
-    <div className="px-2">
-      <OpenInCursorButton
-        path={project.path}
-        sshHost={serverConfig?.sshHost}
-        className="w-full justify-center"
-      />
-    </div>
-  );
-}
-
-// ── Tmux: sessions list + popover launcher ────────────────────────────────────
+// ── Tmux: sessions list + popover launcher + Cursor icon ─────────────────────
 
 function TmuxSection({ slug }: { slug: string }) {
   const { data: projects } = useQuery(orpc.projects.list.queryOptions());
+  const { data: serverConfig } = useQuery(orpc.server.config.queryOptions());
   const project = projects?.find((p) => p.slug === slug);
 
   return (
     <SidebarGroup>
-      {/* Header: label + launch popover trigger */}
-      <div className="flex items-center justify-between px-2 pb-1">
-        <span className="text-[11px] font-medium text-sidebar-foreground/70">
-          Tmux Sessions
-        </span>
+      {/* Header: tmux launch popover trigger + open-in-cursor icon */}
+      <div className="flex items-center gap-1 px-2 pb-1">
         <Popover>
           <PopoverTrigger
             className="rounded p-0.5 text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground"
@@ -114,6 +92,14 @@ function TmuxSection({ slug }: { slug: string }) {
             <TmuxLauncher slug={slug} projectPath={project?.path ?? null} />
           </PopoverContent>
         </Popover>
+
+        {project?.path && (
+          <OpenInCursorButton
+            path={project.path}
+            sshHost={serverConfig?.sshHost}
+            showLabel={false}
+          />
+        )}
       </div>
 
       {/* Active sessions list — returns null when empty */}
@@ -137,9 +123,6 @@ export function OverviewTab({ slug }: { slug: string | null }) {
 
   return (
     <div className="flex flex-col gap-2 py-2">
-      {/* Open in Cursor */}
-      <ProjectCursorSection slug={slug} />
-
       {/* Git worktrees (only visible when 2+ worktrees exist) */}
       <WorktreeInfoSection slug={slug} />
 
