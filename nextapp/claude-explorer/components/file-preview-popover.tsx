@@ -194,8 +194,34 @@ export function FilePreviewPopover({
     staleTime: 30_000,
   });
 
-  const lines = data?.content.split("\n").slice(0, PREVIEW_LINES) ?? [];
-  const truncated = data && data.content.split("\n").length > PREVIEW_LINES;
+  // For files outside the project root (e.g. ~/.claude/plans/*.md), fetch via
+  // the absolute-file endpoint which is restricted to paths under homedir().
+  const {
+    data: absoluteData,
+    isLoading: absoluteIsLoading,
+    error: absoluteError,
+  } = useQuery({
+    queryKey: ["absolute-file", filePath],
+    queryFn: async () => {
+      const res = await fetch(
+        `/api/absolute-file?path=${encodeURIComponent(filePath)}`
+      );
+      if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+      return res.json() as Promise<{ content: string; size: number }>;
+    },
+    enabled: open && isOutsideProject && needsText,
+    staleTime: 30_000,
+  });
+
+  // Merge: prefer project-scoped data, fall back to absolute fetch
+  const effectiveData = data ?? absoluteData;
+  const effectiveIsLoading = isLoading || absoluteIsLoading;
+  const effectiveError = error ?? absoluteError;
+
+  const lines =
+    effectiveData?.content.split("\n").slice(0, PREVIEW_LINES) ?? [];
+  const truncated =
+    effectiveData && effectiveData.content.split("\n").length > PREVIEW_LINES;
   const previewContent = lines.join("\n");
 
   const fileSrc = `/api/files?slug=${encodeURIComponent(projectSlug)}&path=${encodeURIComponent(relativePath ?? filePath)}`;
@@ -225,8 +251,8 @@ export function FilePreviewPopover({
 
         {/* Body */}
         <div className="max-h-80 overflow-auto">
-          {/* File is outside the project root — can't preview via project API */}
-          {isOutsideProject && (
+          {/* File is outside the project root and not a text/markdown type — can't preview */}
+          {isOutsideProject && !needsText && (
             <div className="px-3 py-4 text-[11px] text-muted-foreground">
               This file is outside the project directory and cannot be previewed
               here.
@@ -234,21 +260,21 @@ export function FilePreviewPopover({
           )}
 
           {/* Loading */}
-          {!isOutsideProject && isLoading && (
+          {effectiveIsLoading && needsText && (
             <div className="animate-pulse px-3 py-4 text-[11px] text-muted-foreground">
               Loading…
             </div>
           )}
 
           {/* Error */}
-          {!isOutsideProject && error && (
+          {effectiveError && !effectiveData && needsText && (
             <div className="px-3 py-4 text-[11px] text-destructive">
-              {error.message || "Failed to load file"}
+              {(effectiveError as Error).message || "Failed to load file"}
             </div>
           )}
 
           {/* Markdown preview */}
-          {previewType === "markdown" && data && (
+          {previewType === "markdown" && effectiveData && (
             <div className="px-3 py-2 text-xs">
               <MarkdownContent isStreaming={false}>
                 {previewContent}
@@ -262,7 +288,7 @@ export function FilePreviewPopover({
           )}
 
           {/* Code with syntax highlighting */}
-          {previewType === "code" && data && (
+          {previewType === "code" && effectiveData && (
             <div className="overflow-x-auto">
               <ShikiHighlighter
                 language={extToLang(fileName)}
