@@ -7,7 +7,6 @@ import type { LiveSession } from "@/components/resume-session-popover";
 
 import { ArchiveChatButton } from "@/components/archive-chat-button";
 import { getSessionUrl } from "@/components/resume-session-popover";
-import { RightSidebarTrigger } from "@/components/ui/right-sidebar-trigger";
 import { orpc } from "@/lib/orpc";
 
 import { AgentTabItem } from "./agent-tab-item";
@@ -125,7 +124,6 @@ export function AgentTabBar() {
       {/* Right action zone — sticky so it stays visible during horizontal tab scroll */}
       <div className="sticky right-0 flex shrink-0 items-center gap-0.5 border-l border-border/50 bg-background px-1.5">
         <ArchiveChatButton />
-        <RightSidebarTrigger />
       </div>
     </div>
   );
