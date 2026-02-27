@@ -10,6 +10,7 @@ import {
   type ChatSettings,
 } from "@/components/chat-settings-bar";
 import { ChatView } from "@/components/chat-view";
+import { SessionFirstMessageBanner } from "@/components/session-first-message-banner";
 import { useRootChatStream } from "@/hooks/use-root-chat-stream";
 import { orpc } from "@/lib/orpc";
 
@@ -68,6 +69,7 @@ export default function RootSessionChatPage({
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
+      <SessionFirstMessageBanner sessionId={sessionId} slug="root" />
       <ChatView
         messages={allMessages}
         isStreaming={

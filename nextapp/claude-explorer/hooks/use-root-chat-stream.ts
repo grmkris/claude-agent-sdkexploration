@@ -189,6 +189,11 @@ export function useRootChatStream(
         approved,
         feedback,
       });
+      if (approved) {
+        // Optimistically update the permission mode badge — ExitPlanMode approval
+        // transitions the session from "plan" to "default" mode.
+        setCurrentPermissionMode("default");
+      }
       if (result.needsResume) {
         // SSE stream died before approval arrived — trigger a resume stream so
         // the agent can re-ask for plan approval with a fresh connection.

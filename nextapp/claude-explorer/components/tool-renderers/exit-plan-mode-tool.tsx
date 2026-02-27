@@ -27,7 +27,10 @@ export function ExitPlanModeTool({
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
-  // Fetch plan text from server when mounted and not yet resolved
+  // Fetch plan text from server when mounted and not yet resolved.
+  // Retries up to ~5 s with exponential back-off to handle the race where the
+  // component mounts before the server-side canUseTool has stored the DB row
+  // (e.g. SSE reconnect arrives before the pending entry is written).
   useEffect(() => {
     if (isResolved || !toolUseId || !sessionId) {
       setLoading(false);
@@ -35,19 +38,29 @@ export function ExitPlanModeTool({
     }
     let cancelled = false;
     void (async () => {
-      try {
-        const result = await client.getPendingPlan({
-          sessionId,
-          toolUseId,
-        });
-        if (!cancelled) {
-          setPlanText(result?.planText ?? "");
-          setLoading(false);
+      const delays = [200, 400, 800, 1600, 2000];
+      for (let attempt = 0; attempt <= delays.length; attempt++) {
+        if (cancelled) return;
+        try {
+          const result = await client.getPendingPlan({ sessionId, toolUseId });
+          if (cancelled) return;
+          if (result?.planText) {
+            setPlanText(result.planText);
+            setLoading(false);
+            return;
+          }
+        } catch {
+          if (cancelled) return;
         }
-      } catch {
-        if (!cancelled) {
-          setPlanText("");
-          setLoading(false);
+        // If we got null/empty and there are retries left, wait and try again
+        if (attempt < delays.length) {
+          await new Promise((r) => setTimeout(r, delays[attempt]));
+        } else {
+          // All retries exhausted — show empty state
+          if (!cancelled) {
+            setPlanText("");
+            setLoading(false);
+          }
         }
       }
     })();
