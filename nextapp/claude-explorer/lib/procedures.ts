@@ -492,7 +492,7 @@ const pendingAnswers = new Map<
 >();
 
 // Module-level map of pending ExitPlanMode tool calls awaiting user approval.
-// Key: toolUseId. Value: { resolve, sessionId, planText, allowedPrompts, toolInput }.
+// Key: toolUseId. Value: { resolve, sessionId, planText, planFilePath, allowedPrompts, toolInput }.
 const pendingExitPlanMode = new Map<
   string,
   {
@@ -503,6 +503,7 @@ const pendingExitPlanMode = new Map<
     ) => void;
     sessionId: string;
     planText: string;
+    planFilePath: string;
     allowedPrompts: Array<{ tool: string; prompt: string }>;
     toolInput: Record<string, unknown>;
   }
@@ -547,6 +548,25 @@ function buildPromptArg(
   resume: string | undefined,
   images: { base64: string; mediaType: string }[] | undefined
 ): string | AsyncIterable<SDKUserMessage> {
+  // Resume-only ping (empty prompt, no images): reattach the stream without
+  // injecting a real user turn into the conversation. isSynthetic:true tells
+  // the SDK to record the message in the transcript but NOT send it to the
+  // Anthropic API, so Claude never sees a blank or junk user message.
+  if (!prompt.trim() && !images?.length && resume) {
+    return (async function* () {
+      yield {
+        type: "user" as const,
+        message: {
+          role: "user" as const,
+          content: [{ type: "text" as const, text: "." }],
+        },
+        parent_tool_use_id: null,
+        isSynthetic: true,
+        session_id: resume,
+      } satisfies SDKUserMessage;
+    })();
+  }
+
   if (!images?.length) return prompt;
 
   const sessionId = resume ?? crypto.randomUUID();
@@ -748,6 +768,7 @@ const chatProc = os
               //      file (written within the last 60 s, i.e. just now).
               //   3. Fall back to cwd/PLAN.md for legacy compatibility.
               let planText = storedPlan?.planText ?? "";
+              let planFilePath = storedPlan?.planFilePath ?? "";
               if (!planText) {
                 const {
                   readFile,
@@ -765,6 +786,7 @@ const chatProc = os
                   planText = await readFile(explicitPath, "utf-8").catch(
                     () => ""
                   );
+                  if (planText) planFilePath = explicitPath;
                 }
 
                 // 2. Most recently modified plan file (written ≤ 60 s ago)
@@ -783,10 +805,11 @@ const chatProc = os
                     stats.sort((a, b) => b.mtimeMs - a.mtimeMs);
                     const recent = stats.find((s) => now - s.mtimeMs < 60_000);
                     if (recent) {
-                      planText = await readFile(
-                        join(plansDir, recent.name),
-                        "utf-8"
-                      ).catch(() => "");
+                      const resolvedPath = join(plansDir, recent.name);
+                      planText = await readFile(resolvedPath, "utf-8").catch(
+                        () => ""
+                      );
+                      if (planText) planFilePath = resolvedPath;
                     }
                   } catch {
                     // ~/.claude/plans/ may not exist — that's fine
@@ -795,10 +818,11 @@ const chatProc = os
 
                 // 3. Legacy cwd/PLAN.md fallback
                 if (!planText && input.cwd) {
-                  planText = await readFile(
-                    join(input.cwd, "PLAN.md"),
-                    "utf-8"
-                  ).catch(() => "");
+                  const legacyPath = join(input.cwd, "PLAN.md");
+                  planText = await readFile(legacyPath, "utf-8").catch(
+                    () => ""
+                  );
+                  if (planText) planFilePath = legacyPath;
                 }
               }
 
@@ -808,6 +832,7 @@ const chatProc = os
                 sessionId!,
                 typedInput,
                 planText,
+                planFilePath,
                 allowedPrompts
               );
 
@@ -819,6 +844,7 @@ const chatProc = os
                   resolve,
                   sessionId: sessionId!,
                   planText,
+                  planFilePath,
                   allowedPrompts,
                   toolInput: typedInput,
                 });
@@ -1065,6 +1091,7 @@ const getPendingPlanProc = os
     z
       .object({
         planText: z.string(),
+        planFilePath: z.string(),
         allowedPrompts: z.array(
           z.object({ tool: z.string(), prompt: z.string() })
         ),
@@ -1077,6 +1104,7 @@ const getPendingPlanProc = os
     if (pending && pending.sessionId === input.sessionId) {
       return {
         planText: pending.planText,
+        planFilePath: pending.planFilePath,
         allowedPrompts: pending.allowedPrompts,
       };
     }
@@ -1085,6 +1113,7 @@ const getPendingPlanProc = os
     if (!stored || stored.sessionId !== input.sessionId) return null;
     return {
       planText: stored.planText,
+      planFilePath: stored.planFilePath,
       allowedPrompts: stored.allowedPrompts,
     };
   });
@@ -1731,6 +1760,7 @@ const rootChatProc = os
               // Scan ~/.claude/plans/ for the most recently modified plan file,
               // or reuse persisted plan text if this is a resume.
               let planText = storedPlan?.planText ?? "";
+              let planFilePath = storedPlan?.planFilePath ?? "";
               if (!planText) {
                 const {
                   readFile,
@@ -1748,6 +1778,7 @@ const rootChatProc = os
                   planText = await readFile(explicitPath, "utf-8").catch(
                     () => ""
                   );
+                  if (planText) planFilePath = explicitPath;
                 }
 
                 // 2. Most recently modified plan file (written ≤ 60 s ago)
@@ -1765,10 +1796,11 @@ const rootChatProc = os
                     stats.sort((a, b) => b.mtimeMs - a.mtimeMs);
                     const recent = stats.find((s) => now - s.mtimeMs < 60_000);
                     if (recent) {
-                      planText = await readFile(
-                        join(plansDir, recent.name),
-                        "utf-8"
-                      ).catch(() => "");
+                      const resolvedPath = join(plansDir, recent.name);
+                      planText = await readFile(resolvedPath, "utf-8").catch(
+                        () => ""
+                      );
+                      if (planText) planFilePath = resolvedPath;
                     }
                   } catch {
                     // ~/.claude/plans/ may not exist — that's fine
@@ -1782,6 +1814,7 @@ const rootChatProc = os
                 sessionId!,
                 typedInput,
                 planText,
+                planFilePath,
                 allowedPrompts
               );
 
@@ -1793,6 +1826,7 @@ const rootChatProc = os
                   resolve,
                   sessionId: sessionId!,
                   planText,
+                  planFilePath,
                   allowedPrompts,
                   toolInput: typedInput,
                 });
