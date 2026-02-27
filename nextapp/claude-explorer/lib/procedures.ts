@@ -441,14 +441,17 @@ const ImageInputSchema = z.object({
 });
 
 // Module-level map of pending AskUserQuestion tool calls awaiting user answers.
-// Key: toolUseId. Value: { resolve, sessionId }.
+// Key: toolUseId. Value: { resolve, sessionId, toolInput }.
 const pendingAnswers = new Map<
   string,
   {
     resolve: (
-      result: { behavior: "allow" } | { behavior: "deny"; message: string }
+      result:
+        | { behavior: "allow"; updatedInput?: Record<string, unknown> }
+        | { behavior: "deny"; message: string }
     ) => void;
     sessionId: string;
+    toolInput: Record<string, unknown>;
   }
 >();
 
@@ -580,16 +583,18 @@ const chatProc = os
           // Intercept AskUserQuestion to pause and wait for user input
           canUseTool: async (
             toolName: string,
-            _toolInput: unknown,
+            toolInput: unknown,
             opts: { toolUseID: string }
           ) => {
             if (toolName === "AskUserQuestion" && sessionId) {
               return new Promise<
-                { behavior: "allow" } | { behavior: "deny"; message: string }
+                | { behavior: "allow"; updatedInput?: Record<string, unknown> }
+                | { behavior: "deny"; message: string }
               >((resolve) => {
                 pendingAnswers.set(opts.toolUseID, {
                   resolve,
                   sessionId: sessionId!,
+                  toolInput: (toolInput as Record<string, unknown>) ?? {},
                 });
               });
             }
@@ -669,7 +674,32 @@ const answerQuestionProc = os
   .handler(async ({ input }) => {
     const pending = pendingAnswers.get(input.toolUseId);
     if (!pending) return { success: false };
-    pending.resolve({ behavior: "allow" });
+
+    // Convert answers from { [header]: string[] } to { [questionText]: string }
+    // to match the AskUserQuestionOutput.answers schema expected by the SDK.
+    const questions = (pending.toolInput.questions ?? []) as Array<{
+      question: string;
+      header: string;
+    }>;
+    const headerToQuestion: Record<string, string> = {};
+    for (const q of questions) {
+      headerToQuestion[q.header] = q.question;
+    }
+    const convertedAnswers: Record<string, string> = {};
+    for (const [header, labelArray] of Object.entries(input.answers)) {
+      const questionText = headerToQuestion[header] ?? header;
+      convertedAnswers[questionText] = labelArray.join(", ");
+    }
+
+    // Resolve with the answers in updatedInput so the SDK delivers them
+    // as the AskUserQuestion tool result back to Claude.
+    pending.resolve({
+      behavior: "allow",
+      updatedInput: {
+        ...pending.toolInput,
+        answers: convertedAnswers,
+      },
+    });
     pendingAnswers.delete(input.toolUseId);
     return { success: true };
   });
@@ -1352,16 +1382,18 @@ const rootChatProc = os
           ...(thinkingConfig ? { thinking: thinkingConfig } : {}),
           canUseTool: async (
             toolName: string,
-            _toolInput: unknown,
+            toolInput: unknown,
             opts: { toolUseID: string }
           ) => {
             if (toolName === "AskUserQuestion" && sessionId) {
               return new Promise<
-                { behavior: "allow" } | { behavior: "deny"; message: string }
+                | { behavior: "allow"; updatedInput?: Record<string, unknown> }
+                | { behavior: "deny"; message: string }
               >((resolve) => {
                 pendingAnswers.set(opts.toolUseID, {
                   resolve,
                   sessionId: sessionId!,
+                  toolInput: (toolInput as Record<string, unknown>) ?? {},
                 });
               });
             }
