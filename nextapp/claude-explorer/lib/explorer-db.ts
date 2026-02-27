@@ -373,7 +373,12 @@ export function upsertPendingQuestion(
        VALUES (?, ?, ?, NULL, ?)
        ON CONFLICT(tool_use_id) DO NOTHING`
     )
-    .run(toolUseId, sessionId, JSON.stringify(toolInput), new Date().toISOString());
+    .run(
+      toolUseId,
+      sessionId,
+      JSON.stringify(toolInput),
+      new Date().toISOString()
+    );
 }
 
 export function setPrefilledAnswers(

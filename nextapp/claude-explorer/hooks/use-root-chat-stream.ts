@@ -50,7 +50,9 @@ export function useRootChatStream(
   const [isStreaming, setIsStreaming] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [currentPermissionMode, setCurrentPermissionMode] = useState<string | null>(null);
+  const [currentPermissionMode, setCurrentPermissionMode] = useState<
+    string | null
+  >(null);
   const [, setProgressTick] = useState(0);
   const streamingRef = useRef(false);
   const toolProgressRef = useRef<Map<string, ToolProgressEntry>>(new Map());
@@ -153,7 +155,11 @@ export function useRootChatStream(
   const answerQuestion = useCallback(
     async (toolUseId: string, answers: Record<string, string[]>) => {
       if (!sessionId) return;
-      const result = await client.answerQuestion({ sessionId, toolUseId, answers });
+      const result = await client.answerQuestion({
+        sessionId,
+        toolUseId,
+        answers,
+      });
       if (result.needsResume) {
         // Server was restarted — the in-memory promise is gone but pre-filled
         // answers were stored to DB. Trigger a resume stream so canUseTool fires

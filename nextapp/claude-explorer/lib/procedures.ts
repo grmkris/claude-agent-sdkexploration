@@ -712,7 +712,9 @@ const answerQuestionProc = os
       answers: z.record(z.string(), z.array(z.string())),
     })
   )
-  .output(z.object({ success: z.boolean(), needsResume: z.boolean().optional() }))
+  .output(
+    z.object({ success: z.boolean(), needsResume: z.boolean().optional() })
+  )
   .handler(async ({ input }) => {
     const pending = pendingAnswers.get(input.toolUseId);
 
