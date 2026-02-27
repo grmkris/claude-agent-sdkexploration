@@ -65,6 +65,35 @@ function EditDiff({
   );
 }
 
+function WriteDiff({
+  content,
+  filePath,
+}: {
+  content: string;
+  filePath?: string;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const lineCount = content.split("\n").length;
+  const diff = buildEditDiff("", content, filePath);
+
+  if (!diff) return null;
+
+  return (
+    <Collapsible open={expanded} onOpenChange={setExpanded}>
+      <CollapsibleTrigger className="flex w-full items-center gap-1.5 border-t border-border/30 px-2.5 py-1 text-[10px] text-muted-foreground cursor-pointer hover:text-foreground">
+        <span>{expanded ? "▼" : "▶"}</span>
+        <span>Content</span>
+        <span className="ml-auto text-green-400">+{lineCount} lines</span>
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <div className="max-h-60 overflow-auto border-t border-border/30 px-2.5 py-1.5">
+          <DiffView diff={diff} />
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
+
 export function FileTool({
   name,
   input,
@@ -120,9 +149,7 @@ export function FileTool({
       )}
 
       {name === "Write" && !!input.content && (
-        <div className="border-t border-border/30 px-2.5 py-1 text-[10px] text-muted-foreground">
-          {str(input.content).split("\n").length} lines written
-        </div>
+        <WriteDiff content={str(input.content)} filePath={filePath} />
       )}
 
       {output !== undefined && (

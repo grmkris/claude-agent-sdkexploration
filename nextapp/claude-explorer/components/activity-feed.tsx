@@ -15,6 +15,7 @@ import type {
 import { CommitItem } from "@/components/activity-items/commit-item";
 import { DeploymentItem } from "@/components/activity-items/deployment-item";
 import { TicketItem } from "@/components/activity-items/ticket-item";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import {
   buildCommitContextPrompt,
   buildDeploymentContextPrompt,
@@ -372,6 +373,93 @@ export function ActivityFeed({ slug }: { slug: string }) {
     );
   }, [gitLog, railwayData, linearData]);
 
+  // ── Correlation maps ──────────────────────────────────────────────────────
+  // Computed once from allItems; no extra fetch needed.
+
+  const {
+    commitToDeployments,
+    deploymentToCommit,
+    commitToTickets,
+    ticketToCommits,
+  } = useMemo(() => {
+    const commits = allItems
+      .filter((i) => i.type === "commit")
+      .map((i) => i.raw as CommitRaw);
+    const deployments = allItems
+      .filter((i) => i.type === "deployment")
+      .map((i) => i.raw as DeploymentRaw);
+    const tickets = allItems
+      .filter((i) => i.type === "ticket")
+      .map((i) => i.raw as TicketRaw);
+
+    // ── Commit ↔ Deployment ─────────────────────────────────────────────────
+    // Match by commit hash prefix (handles both full-SHA and 7-char short hashes
+    // that Railway may return).
+
+    const commitToDeployments = new Map<string, DeploymentRaw[]>();
+    const deploymentToCommit = new Map<string, CommitRaw>();
+
+    for (const deployment of deployments) {
+      if (!deployment.commitHash) continue;
+      const depHash = deployment.commitHash.toLowerCase();
+
+      for (const commit of commits) {
+        const fullHash = commit.hash.toLowerCase();
+        const shortHash = commit.shortHash.toLowerCase();
+
+        const matches =
+          fullHash.startsWith(depHash) ||
+          depHash.startsWith(fullHash) ||
+          shortHash === depHash;
+
+        if (matches) {
+          const existing = commitToDeployments.get(commit.hash) ?? [];
+          commitToDeployments.set(commit.hash, [...existing, deployment]);
+          if (!deploymentToCommit.has(deployment.id)) {
+            deploymentToCommit.set(deployment.id, commit);
+          }
+          break;
+        }
+      }
+    }
+
+    // ── Commit ↔ Ticket ─────────────────────────────────────────────────────
+    // Scan commit subject + body for ticket identifier patterns (e.g. ENG-123).
+
+    const TICKET_RE = /\b([A-Z]{2,10}-\d+)\b/g;
+
+    const commitToTickets = new Map<string, TicketRaw[]>();
+    const ticketToCommits = new Map<string, CommitRaw[]>();
+
+    const ticketByIdentifier = new Map<string, TicketRaw>();
+    for (const ticket of tickets) {
+      ticketByIdentifier.set(ticket.identifier.toUpperCase(), ticket);
+    }
+
+    for (const commit of commits) {
+      const searchText = `${commit.subject} ${commit.body ?? ""}`;
+      const found = new Set<string>();
+      TICKET_RE.lastIndex = 0;
+      let match: RegExpExecArray | null;
+      while ((match = TICKET_RE.exec(searchText)) !== null) {
+        found.add(match[1].toUpperCase());
+      }
+
+      for (const identifier of found) {
+        const ticket = ticketByIdentifier.get(identifier);
+        if (!ticket) continue;
+
+        const existingTickets = commitToTickets.get(commit.hash) ?? [];
+        commitToTickets.set(commit.hash, [...existingTickets, ticket]);
+
+        const existingCommits = ticketToCommits.get(identifier) ?? [];
+        ticketToCommits.set(identifier, [...existingCommits, commit]);
+      }
+    }
+
+    return { commitToDeployments, deploymentToCommit, commitToTickets, ticketToCommits };
+  }, [allItems]);
+
   // ── Available filter options ─────────────────────────────────────────────
 
   const availableTypes = useMemo(
@@ -560,61 +648,75 @@ export function ActivityFeed({ slug }: { slug: string }) {
       </div>
 
       {/* Feed */}
-      <div className="flex-1 overflow-y-auto">
-        {isLoading && allItems.length === 0 ? (
-          <div className="flex flex-col gap-0">
-            {Array.from({ length: 8 }).map((_, i) => (
-              <div
-                key={i}
-                className="flex items-start gap-2.5 border-b border-border/50 px-3 py-2.5"
-              >
-                <div className="mt-0.5 h-5 w-5 rounded-full bg-muted animate-pulse shrink-0" />
-                <div className="flex-1 space-y-1.5">
-                  <div className="h-2.5 w-24 rounded bg-muted animate-pulse" />
-                  <div className="h-2.5 w-48 rounded bg-muted animate-pulse" />
-                  <div className="h-2 w-20 rounded bg-muted animate-pulse" />
+      <TooltipProvider delay={400}>
+        <div className="flex-1 overflow-y-auto">
+          {isLoading && allItems.length === 0 ? (
+            <div className="flex flex-col gap-0">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <div
+                  key={i}
+                  className="flex items-start gap-2.5 border-b border-border/50 px-3 py-2.5"
+                >
+                  <div className="mt-0.5 h-5 w-5 rounded-full bg-muted animate-pulse shrink-0" />
+                  <div className="flex-1 space-y-1.5">
+                    <div className="h-2.5 w-24 rounded bg-muted animate-pulse" />
+                    <div className="h-2.5 w-48 rounded bg-muted animate-pulse" />
+                    <div className="h-2 w-20 rounded bg-muted animate-pulse" />
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        ) : filteredItems.length === 0 ? (
-          <EmptyState hasIntegrations={hasIntegrations} />
-        ) : (
-          groupedItems.map(({ date, items }) => (
-            <div key={date}>
-              <SectionDivider date={date} />
-              {items.map((item) => {
-                switch (item.type) {
-                  case "commit":
-                    return (
-                      <CommitItem
-                        key={item.id}
-                        raw={item.raw as CommitRaw}
-                        onStartChat={() => handleStartChat(item)}
-                      />
-                    );
-                  case "deployment":
-                    return (
-                      <DeploymentItem
-                        key={item.id}
-                        raw={item.raw as DeploymentRaw}
-                        onStartChat={() => handleStartChat(item)}
-                      />
-                    );
-                  case "ticket":
-                    return (
-                      <TicketItem
-                        key={item.id}
-                        raw={item.raw as TicketRaw}
-                        onStartChat={() => handleStartChat(item)}
-                      />
-                    );
-                }
-              })}
+              ))}
             </div>
-          ))
-        )}
-      </div>
+          ) : filteredItems.length === 0 ? (
+            <EmptyState hasIntegrations={hasIntegrations} />
+          ) : (
+            groupedItems.map(({ date, items }) => (
+              <div key={date}>
+                <SectionDivider date={date} />
+                {items.map((item) => {
+                  switch (item.type) {
+                    case "commit": {
+                      const raw = item.raw as CommitRaw;
+                      return (
+                        <CommitItem
+                          key={item.id}
+                          raw={raw}
+                          onStartChat={() => handleStartChat(item)}
+                          relatedDeployments={commitToDeployments.get(raw.hash)}
+                          relatedTickets={commitToTickets.get(raw.hash)}
+                        />
+                      );
+                    }
+                    case "deployment": {
+                      const raw = item.raw as DeploymentRaw;
+                      return (
+                        <DeploymentItem
+                          key={item.id}
+                          raw={raw}
+                          onStartChat={() => handleStartChat(item)}
+                          relatedCommit={deploymentToCommit.get(raw.id)}
+                        />
+                      );
+                    }
+                    case "ticket": {
+                      const raw = item.raw as TicketRaw;
+                      return (
+                        <TicketItem
+                          key={item.id}
+                          raw={raw}
+                          onStartChat={() => handleStartChat(item)}
+                          relatedCommits={ticketToCommits.get(
+                            raw.identifier.toUpperCase()
+                          )}
+                        />
+                      );
+                    }
+                  }
+                })}
+              </div>
+            ))
+          )}
+        </div>
+      </TooltipProvider>
     </div>
   );
 }

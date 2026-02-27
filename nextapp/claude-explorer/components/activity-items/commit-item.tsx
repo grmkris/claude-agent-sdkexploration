@@ -1,19 +1,28 @@
 "use client";
 
-import type { CommitRaw } from "@/lib/activity-types";
+import type { CommitRaw, DeploymentRaw, TicketRaw } from "@/lib/activity-types";
 
 import { cn } from "@/lib/utils";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface CommitItemProps {
   raw: CommitRaw;
   onStartChat: () => void;
   onViewExternal?: () => void;
+  relatedDeployments?: DeploymentRaw[];
+  relatedTickets?: TicketRaw[];
 }
 
 export function CommitItem({
   raw,
   onStartChat,
   onViewExternal,
+  relatedDeployments,
+  relatedTickets,
 }: CommitItemProps) {
   return (
     <div className="group border-b border-border/50 last:border-0">
@@ -39,18 +48,99 @@ export function CommitItem({
         {/* Content */}
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5 flex-wrap">
-            <span className="shrink-0 font-mono text-[10px] text-muted-foreground bg-muted px-1 py-0.5 rounded">
-              {raw.shortHash}
-            </span>
+            {/* Hash badge with full hash tooltip */}
+            <Tooltip>
+              <TooltipTrigger>
+                <span className="shrink-0 font-mono text-[10px] text-muted-foreground bg-muted px-1 py-0.5 rounded cursor-default">
+                  {raw.shortHash}
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="top">
+                <span className="font-mono">{raw.hash}</span>
+              </TooltipContent>
+            </Tooltip>
             {raw.branch && (
               <span className="shrink-0 text-[10px] text-violet-400 bg-violet-500/10 px-1 py-0.5 rounded font-medium">
                 {raw.branch}
               </span>
             )}
           </div>
-          <p className="mt-0.5 text-xs text-foreground leading-snug line-clamp-2">
-            {raw.subject}
-          </p>
+
+          {/* Subject with full message tooltip */}
+          <Tooltip>
+            <TooltipTrigger>
+              <p className="mt-0.5 text-xs text-foreground leading-snug line-clamp-2 text-left cursor-default">
+                {raw.subject}
+              </p>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="max-w-sm whitespace-pre-wrap">
+              <span className="font-medium">{raw.subject}</span>
+              {raw.body?.trim() && (
+                <>
+                  {"\n"}
+                  <span className="opacity-70 whitespace-pre-wrap">{raw.body.trim()}</span>
+                </>
+              )}
+            </TooltipContent>
+          </Tooltip>
+
+          {/* Correlation badges: deployments + tickets */}
+          {((relatedDeployments && relatedDeployments.length > 0) ||
+            (relatedTickets && relatedTickets.length > 0)) && (
+            <div className="mt-1 flex flex-wrap gap-1">
+              {relatedDeployments?.map((dep) => {
+                const isFailed =
+                  dep.status === "FAILED" || dep.status === "CRASHED";
+                const isLive = dep.status === "SUCCESS";
+                const isBuilding =
+                  dep.status === "DEPLOYING" || dep.status === "BUILDING";
+                return (
+                  <Tooltip key={dep.id}>
+                    <TooltipTrigger>
+                      <span
+                        className={cn(
+                          "inline-flex items-center gap-1 text-[10px] px-1 py-0.5 rounded font-medium cursor-default",
+                          isFailed && "bg-red-500/10 text-red-400",
+                          isLive && "bg-green-500/10 text-green-400",
+                          isBuilding && "bg-yellow-500/10 text-yellow-400",
+                          !isFailed &&
+                            !isLive &&
+                            !isBuilding &&
+                            "bg-muted text-muted-foreground"
+                        )}
+                      >
+                        <span
+                          className={cn(
+                            "h-1.5 w-1.5 rounded-full bg-current shrink-0",
+                            isBuilding && "animate-pulse"
+                          )}
+                        />
+                        {dep.serviceName}
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">
+                      Deployed to {dep.serviceName}: {dep.status}
+                    </TooltipContent>
+                  </Tooltip>
+                );
+              })}
+              {relatedTickets?.map((ticket) => (
+                <Tooltip key={ticket.identifier}>
+                  <TooltipTrigger>
+                    <span
+                      className="inline-flex items-center text-[10px] font-mono px-1 py-0.5 rounded bg-blue-500/10 text-blue-400 font-medium cursor-default"
+                    >
+                      {ticket.identifier}
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="max-w-xs">
+                    {ticket.title}
+                  </TooltipContent>
+                </Tooltip>
+              ))}
+            </div>
+          )}
+
           <p className="mt-0.5 text-[10px] text-muted-foreground">
             {raw.author} · {relativeTime(raw.date)}
           </p>

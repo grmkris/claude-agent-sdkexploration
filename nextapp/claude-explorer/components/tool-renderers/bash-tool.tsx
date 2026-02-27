@@ -10,6 +10,7 @@ import {
 import { cn } from "@/lib/utils";
 
 import { str, type ToolRendererProps } from ".";
+import { DiffView, looksLikeDiff } from "../diff-view";
 
 export function BashTool({
   input,
@@ -48,16 +49,28 @@ export function BashTool({
             <span>Output</span>
           </CollapsibleTrigger>
           <CollapsibleContent>
-            <pre
-              className={cn(
-                "max-h-60 overflow-auto border-t border-border/30 px-2.5 py-1.5 font-mono text-[11px] leading-relaxed",
-                is_error ? "text-destructive" : "text-muted-foreground"
-              )}
-            >
-              {output.length > 3000
-                ? output.slice(0, 3000) + "\n... (truncated)"
-                : output}
-            </pre>
+            {!is_error && looksLikeDiff(output) ? (
+              <div className="max-h-60 overflow-auto border-t border-border/30 px-2.5 py-1.5">
+                <DiffView
+                  diff={
+                    output.length > 5000
+                      ? output.slice(0, 5000) + "\n... (truncated)"
+                      : output
+                  }
+                />
+              </div>
+            ) : (
+              <pre
+                className={cn(
+                  "max-h-60 overflow-auto border-t border-border/30 px-2.5 py-1.5 font-mono text-[11px] leading-relaxed",
+                  is_error ? "text-destructive" : "text-muted-foreground"
+                )}
+              >
+                {output.length > 3000
+                  ? output.slice(0, 3000) + "\n... (truncated)"
+                  : output}
+              </pre>
+            )}
           </CollapsibleContent>
         </Collapsible>
       )}

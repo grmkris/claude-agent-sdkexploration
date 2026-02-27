@@ -1,12 +1,18 @@
 "use client";
 
-import type { DeploymentRaw } from "@/lib/activity-types";
+import type { CommitRaw, DeploymentRaw } from "@/lib/activity-types";
 
 import { cn } from "@/lib/utils";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface DeploymentItemProps {
   raw: DeploymentRaw;
   onStartChat: () => void;
+  relatedCommit?: CommitRaw;
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -18,7 +24,7 @@ const STATUS_LABEL: Record<string, string> = {
   REMOVED: "Removed",
 };
 
-export function DeploymentItem({ raw, onStartChat }: DeploymentItemProps) {
+export function DeploymentItem({ raw, onStartChat, relatedCommit }: DeploymentItemProps) {
   const isFailed = raw.status === "FAILED" || raw.status === "CRASHED";
   const isLive = raw.status === "SUCCESS";
   const isBuilding = raw.status === "DEPLOYING" || raw.status === "BUILDING";
@@ -85,16 +91,68 @@ export function DeploymentItem({ raw, onStartChat }: DeploymentItemProps) {
             </span>
           </div>
 
+          {/* Commit message with full-text tooltip */}
           {raw.commitMessage && (
-            <p className="mt-0.5 text-[10px] text-muted-foreground truncate">
-              {raw.commitHash && (
-                <span className="font-mono mr-1">
-                  {raw.commitHash.slice(0, 7)}
-                </span>
-              )}
-              {raw.commitMessage}
-            </p>
+            <Tooltip>
+              <TooltipTrigger>
+                <p className="mt-0.5 text-[10px] text-muted-foreground truncate cursor-default text-left">
+                  {raw.commitHash && (
+                    <span className="font-mono mr-1">
+                      {raw.commitHash.slice(0, 7)}
+                    </span>
+                  )}
+                  {raw.commitMessage}
+                </p>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="whitespace-pre-wrap max-w-sm">
+                {raw.commitHash && (
+                  <span className="font-mono opacity-70 block mb-0.5">
+                    {raw.commitHash}
+                  </span>
+                )}
+                {raw.commitMessage}
+              </TooltipContent>
+            </Tooltip>
           )}
+
+          {/* Correlated commit badge */}
+          {relatedCommit && (
+            <div className="mt-1">
+              <Tooltip>
+                <TooltipTrigger>
+                  <span className="inline-flex items-center gap-1 text-[10px] font-mono px-1 py-0.5 rounded bg-violet-500/10 text-violet-400 font-medium cursor-default">
+                    <svg
+                      width="8"
+                      height="8"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <circle cx="12" cy="12" r="3" />
+                      <line x1="3" y1="12" x2="9" y2="12" />
+                      <line x1="15" y1="12" x2="21" y2="12" />
+                    </svg>
+                    {relatedCommit.shortHash}
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="max-w-xs whitespace-pre-wrap">
+                  <span className="font-medium">{relatedCommit.subject}</span>
+                  {relatedCommit.body?.trim() && (
+                    <>
+                      {"\n"}
+                      <span className="opacity-70 whitespace-pre-wrap">
+                        {relatedCommit.body.trim()}
+                      </span>
+                    </>
+                  )}
+                </TooltipContent>
+              </Tooltip>
+            </div>
+          )}
+
           <p className="mt-0.5 text-[10px] text-muted-foreground">
             {relativeTime(raw.createdAt)}
           </p>

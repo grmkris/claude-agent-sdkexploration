@@ -35,6 +35,16 @@ export function DiffView({ diff }: { diff: string }) {
 }
 
 /**
+ * Heuristic: does this string look like unified diff output?
+ * Requires at least one @@ hunk header — avoids false positives on
+ * markdown "---" horizontal rules, YAML front matter, etc.
+ */
+export function looksLikeDiff(text: string): boolean {
+  if (!text || text.length < 10) return false;
+  return /^@@ -\d+/m.test(text);
+}
+
+/**
  * Builds a simple unified diff string from old and new string content.
  * Produces a line-by-line diff with context lines.
  */

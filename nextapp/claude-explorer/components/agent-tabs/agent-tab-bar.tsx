@@ -6,7 +6,6 @@ import * as React from "react";
 
 import type { LiveSession } from "@/components/resume-session-popover";
 
-import { ArchiveChatButton } from "@/components/archive-chat-button";
 import { StateBadgeInline } from "@/components/session-state-badge";
 import {
   Popover,
@@ -314,10 +313,9 @@ export function AgentTabBar() {
         </PopoverContent>
       </Popover>
 
-      {/* RIGHT: archive + right sidebar trigger (trigger is mobile only; desktop uses the one inside the right sidebar header) */}
-      <div className="flex shrink-0 items-center gap-0.5 border-l border-border/50 px-1.5">
-        <ArchiveChatButton />
-        <RightSidebarTrigger className="md:hidden" />
+      {/* RIGHT: right sidebar trigger (mobile only; desktop uses the one inside the right sidebar header) */}
+      <div className="flex shrink-0 items-center gap-0.5 border-l border-border/50 px-1.5 md:hidden">
+        <RightSidebarTrigger />
       </div>
     </div>
   );

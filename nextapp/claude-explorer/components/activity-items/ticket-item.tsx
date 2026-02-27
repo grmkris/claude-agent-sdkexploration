@@ -1,12 +1,18 @@
 "use client";
 
-import type { TicketRaw } from "@/lib/activity-types";
+import type { CommitRaw, TicketRaw } from "@/lib/activity-types";
 
 import { cn } from "@/lib/utils";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface TicketItemProps {
   raw: TicketRaw;
   onStartChat: () => void;
+  relatedCommits?: CommitRaw[];
 }
 
 const PRIORITY_ICON: Record<number, { icon: string; className: string }> = {
@@ -16,7 +22,7 @@ const PRIORITY_ICON: Record<number, { icon: string; className: string }> = {
   4: { icon: "↓", className: "text-muted-foreground" }, // Low
 };
 
-export function TicketItem({ raw, onStartChat }: TicketItemProps) {
+export function TicketItem({ raw, onStartChat, relatedCommits }: TicketItemProps) {
   const priority =
     raw.priority !== undefined ? PRIORITY_ICON[raw.priority] : null;
 
@@ -52,9 +58,67 @@ export function TicketItem({ raw, onStartChat }: TicketItemProps) {
               </span>
             )}
           </div>
-          <p className="mt-0.5 text-xs text-foreground leading-snug line-clamp-2">
-            {raw.title}
-          </p>
+
+          {/* Title with full title + description tooltip */}
+          <Tooltip>
+            <TooltipTrigger>
+              <p className="mt-0.5 text-xs text-foreground leading-snug line-clamp-2 text-left cursor-default">
+                {raw.title}
+              </p>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="max-w-sm whitespace-pre-wrap">
+              <span className="font-medium">{raw.title}</span>
+              {raw.description?.trim() && (
+                <>
+                  {"\n"}
+                  <span className="opacity-70 whitespace-pre-wrap">
+                    {raw.description.trim()}
+                  </span>
+                </>
+              )}
+            </TooltipContent>
+          </Tooltip>
+
+          {/* Correlated commit badges */}
+          {relatedCommits && relatedCommits.length > 0 && (
+            <div className="mt-1 flex flex-wrap gap-1">
+              {relatedCommits.map((commit) => (
+                <Tooltip key={commit.hash}>
+                  <TooltipTrigger>
+                    <span className="inline-flex items-center gap-1 text-[10px] font-mono px-1 py-0.5 rounded bg-violet-500/10 text-violet-400 font-medium cursor-default">
+                      <svg
+                        width="8"
+                        height="8"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <circle cx="12" cy="12" r="3" />
+                        <line x1="3" y1="12" x2="9" y2="12" />
+                        <line x1="15" y1="12" x2="21" y2="12" />
+                      </svg>
+                      {commit.shortHash}
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="max-w-xs whitespace-pre-wrap">
+                    <span className="font-medium">{commit.subject}</span>
+                    {commit.body?.trim() && (
+                      <>
+                        {"\n"}
+                        <span className="opacity-70 whitespace-pre-wrap">
+                          {commit.body.trim()}
+                        </span>
+                      </>
+                    )}
+                  </TooltipContent>
+                </Tooltip>
+              ))}
+            </div>
+          )}
+
           <p className="mt-0.5 text-[10px] text-muted-foreground">
             {raw.status}
             {raw.assignee && ` · ${raw.assignee}`}

@@ -5,7 +5,6 @@ import * as React from "react";
 
 import type { LiveSession } from "@/components/resume-session-popover";
 
-import { ArchiveChatButton } from "@/components/archive-chat-button";
 import { StateBadgeInline } from "@/components/session-state-badge";
 import { RightSidebarTrigger } from "@/components/ui/right-sidebar-trigger";
 import {
@@ -105,9 +104,8 @@ export function AgentTabMobile({
             <span>Conversations</span>
           )}
         </button>
-        {/* RIGHT: archive + right sidebar trigger (recent sessions) */}
+        {/* RIGHT: right sidebar trigger (recent sessions) */}
         <div className="flex shrink-0 items-center gap-0.5 border-l border-border/50 px-1.5">
-          <ArchiveChatButton />
           <RightSidebarTrigger />
         </div>
       </div>

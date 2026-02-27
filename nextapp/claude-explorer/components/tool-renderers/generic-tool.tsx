@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 
 import type { ToolRendererProps } from ".";
 
+import { DiffView, looksLikeDiff } from "../diff-view";
 import { StatusIndicator } from "./bash-tool";
 
 export function GenericTool({
@@ -43,18 +44,30 @@ export function GenericTool({
           {JSON.stringify(input, null, 2)}
         </pre>
         {output !== undefined && (
-          <pre
-            className={cn(
-              "mt-1 max-h-60 overflow-auto rounded p-2 text-[11px] font-mono leading-relaxed",
-              is_error
-                ? "bg-destructive/10 text-destructive"
-                : "bg-background/30"
-            )}
-          >
-            {output.length > 2000
-              ? output.slice(0, 2000) + "\n... (truncated)"
-              : output}
-          </pre>
+          !is_error && looksLikeDiff(output) ? (
+            <div className="mt-1 max-h-60 overflow-auto rounded bg-background/30 p-2">
+              <DiffView
+                diff={
+                  output.length > 5000
+                    ? output.slice(0, 5000) + "\n... (truncated)"
+                    : output
+                }
+              />
+            </div>
+          ) : (
+            <pre
+              className={cn(
+                "mt-1 max-h-60 overflow-auto rounded p-2 text-[11px] font-mono leading-relaxed",
+                is_error
+                  ? "bg-destructive/10 text-destructive"
+                  : "bg-background/30"
+              )}
+            >
+              {output.length > 2000
+                ? output.slice(0, 2000) + "\n... (truncated)"
+                : output}
+            </pre>
+          )
         )}
       </CollapsibleContent>
     </Collapsible>
