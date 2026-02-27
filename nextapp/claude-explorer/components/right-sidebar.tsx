@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { SessionsPanel } from "@/components/sessions-panel";
 import { Button } from "@/components/ui/button";
 import { useRightSidebar } from "@/components/ui/right-sidebar-context";
+import { RightSidebarTrigger } from "@/components/ui/right-sidebar-trigger";
 import {
   Sheet,
   SheetContent,
@@ -36,9 +37,10 @@ function RightSidebarInner() {
 
   return (
     <div className="bg-sidebar flex size-full flex-col">
-      <SidebarHeader className="border-b px-3 py-2">
-        <div className="flex items-center justify-between">
-          <span className="text-sm font-semibold">Sessions</span>
+      <SidebarHeader className="border-b px-2 py-0">
+        <div className="flex h-9 items-center gap-1.5">
+          <RightSidebarTrigger className="-ml-0.5 shrink-0" />
+          <span className="flex-1 text-sm font-semibold">Sessions</span>
           <Button
             size="sm"
             variant="outline"

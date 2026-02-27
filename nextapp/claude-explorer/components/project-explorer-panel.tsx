@@ -42,12 +42,6 @@ const TABS = [
 export function ProjectExplorerPanel({ slug }: { slug: string }) {
   const [activeTab, setActiveTab] = useState<TabValue>("overview");
 
-  const { data: projects } = useQuery(orpc.projects.list.queryOptions());
-  const project = projects?.find((p) => p.slug === slug);
-  const projectName = project
-    ? (project.path.split("/").at(-1) ?? slug)
-    : slug.replace(/-/g, " ");
-
   const { data: gitStatus } = useQuery({
     ...orpc.projects.gitStatus.queryOptions({ input: { slug } }),
     refetchInterval: 15_000,
@@ -61,9 +55,6 @@ export function ProjectExplorerPanel({ slug }: { slug: string }) {
       className="flex flex-1 flex-col"
     >
       <SidebarHeader className="border-b p-0">
-        <div className="px-3 py-2 text-xs font-semibold text-sidebar-foreground truncate group-data-[collapsible=icon]:hidden">
-          {projectName}
-        </div>
         <TabsList
           variant="line"
           className="h-10 w-full rounded-none px-1 gap-0"
