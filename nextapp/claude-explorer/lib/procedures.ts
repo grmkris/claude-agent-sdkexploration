@@ -45,6 +45,14 @@ import {
   readProjectEnv,
   writeProjectEnv,
   findProjectPathForSession,
+  getGitStatus,
+  getGitFileDiff,
+  gitPull,
+  gitStageAll,
+  getGitLog,
+  getGitCommitFiles,
+  getGitCommitDiff,
+  getGitWorktrees,
 } from "./claude-fs";
 import { sendEmail } from "./email";
 import {
@@ -2947,6 +2955,122 @@ const projectSessionsProc = os
     getDbProjectSessions(input.projectPath, input.limit ?? 20)
   );
 
+// --- Git procedures ---
+
+const gitStatusProc = os
+  .input(z.object({ slug: z.string() }))
+  .output(
+    z.object({
+      isRepo: z.boolean(),
+      branch: z.string(),
+      changes: z.array(z.object({ path: z.string(), status: z.string() })),
+    })
+  )
+  .handler(async ({ input }) => {
+    const projectPath = await resolveSlugToPath(input.slug);
+    return getGitStatus(projectPath);
+  });
+
+const gitLogProc = os
+  .input(z.object({ slug: z.string(), limit: z.number().optional() }))
+  .output(
+    z.object({
+      commits: z.array(
+        z.object({
+          hash: z.string(),
+          shortHash: z.string(),
+          subject: z.string(),
+          body: z.string(),
+          author: z.string(),
+          date: z.string(),
+        })
+      ),
+    })
+  )
+  .handler(async ({ input }) => {
+    const projectPath = await resolveSlugToPath(input.slug);
+    const commits = await getGitLog(projectPath, input.limit ?? 20);
+    return { commits };
+  });
+
+const gitDiffProc = os
+  .input(z.object({ slug: z.string(), path: z.string() }))
+  .output(
+    z
+      .object({
+        diff: z.string(),
+        additions: z.number(),
+        deletions: z.number(),
+      })
+      .nullable()
+  )
+  .handler(async ({ input }) => {
+    const projectPath = await resolveSlugToPath(input.slug);
+    return getGitFileDiff(projectPath, input.path);
+  });
+
+const gitPullProc = os
+  .input(z.object({ slug: z.string() }))
+  .output(z.object({ success: z.boolean(), output: z.string() }))
+  .handler(async ({ input }) => {
+    const projectPath = await resolveSlugToPath(input.slug);
+    return gitPull(projectPath);
+  });
+
+const gitStageAllProc = os
+  .input(z.object({ slug: z.string() }))
+  .output(z.object({ success: z.boolean(), output: z.string() }))
+  .handler(async ({ input }) => {
+    const projectPath = await resolveSlugToPath(input.slug);
+    return gitStageAll(projectPath);
+  });
+
+const gitCommitFilesProc = os
+  .input(z.object({ slug: z.string(), hash: z.string() }))
+  .output(
+    z.object({
+      files: z.array(
+        z.object({
+          path: z.string(),
+          additions: z.number(),
+          deletions: z.number(),
+        })
+      ),
+    })
+  )
+  .handler(async ({ input }) => {
+    const projectPath = await resolveSlugToPath(input.slug);
+    const files = await getGitCommitFiles(projectPath, input.hash);
+    return { files };
+  });
+
+const gitCommitDiffProc = os
+  .input(z.object({ slug: z.string(), hash: z.string(), path: z.string() }))
+  .output(z.object({ diff: z.string() }))
+  .handler(async ({ input }) => {
+    const projectPath = await resolveSlugToPath(input.slug);
+    const diff = await getGitCommitDiff(projectPath, input.hash, input.path);
+    return { diff };
+  });
+
+const gitWorktreesProc = os
+  .input(z.object({ slug: z.string() }))
+  .output(
+    z.array(
+      z.object({
+        path: z.string(),
+        head: z.string(),
+        branch: z.string(),
+        isMain: z.boolean(),
+        isCurrent: z.boolean(),
+      })
+    )
+  )
+  .handler(async ({ input }) => {
+    const projectPath = await resolveSlugToPath(input.slug);
+    return getGitWorktrees(projectPath);
+  });
+
 export const router = {
   projects: {
     list: listProjectsProc,
@@ -2958,6 +3082,14 @@ export const router = {
     create: createProjectProc,
     getEnv: getProjectEnvProc,
     setEnv: setProjectEnvProc,
+    gitStatus: gitStatusProc,
+    gitLog: gitLogProc,
+    gitDiff: gitDiffProc,
+    gitPull: gitPullProc,
+    gitStageAll: gitStageAllProc,
+    gitCommitFiles: gitCommitFilesProc,
+    gitCommitDiff: gitCommitDiffProc,
+    gitWorktrees: gitWorktreesProc,
   },
   user: { config: userConfigProc },
   mcpServers: {
