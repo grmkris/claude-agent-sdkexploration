@@ -37,7 +37,8 @@ export function handleSDKMessage(
   setError: (v: string | null) => void,
   streamingRef: React.MutableRefObject<boolean>,
   toolProgressRef: React.MutableRefObject<Map<string, ToolProgressEntry>>,
-  bumpProgressTick: () => void
+  bumpProgressTick: () => void,
+  setCurrentPermissionMode?: (mode: string) => void
 ) {
   switch ((msg as { type: string }).type) {
     case "system": {
@@ -45,9 +46,13 @@ export function handleSDKMessage(
         subtype: string;
         session_id?: string;
         message?: string;
+        permissionMode?: string;
       };
       if (sysMsg.subtype === "init") {
         setSessionId(sysMsg.session_id!);
+        if (setCurrentPermissionMode && sysMsg.permissionMode) {
+          setCurrentPermissionMode(sysMsg.permissionMode);
+        }
       } else if (
         sysMsg.subtype === "status" ||
         sysMsg.subtype === "compact_boundary"
