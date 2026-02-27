@@ -116,7 +116,9 @@ export function ProjectSidebar() {
                   <SidebarMenuItem key={href}>
                     <Link href={href}>
                       <SidebarMenuButton
-                        isActive={href === "/" ? pathname === "/" : pathname === href}
+                        isActive={
+                          href === "/" ? pathname === "/" : pathname === href
+                        }
                         tooltip={tooltip}
                       >
                         <HugeiconsIcon icon={icon} size={15} strokeWidth={2} />
