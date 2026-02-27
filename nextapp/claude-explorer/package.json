@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.47",
+    "@anthropic-ai/sdk": "^0.77.0",
     "@base-ui/react": "^1.2.0",
     "@chat-adapter/linear": "^4.14.0",
     "@chat-adapter/state-memory": "^4.14.0",
