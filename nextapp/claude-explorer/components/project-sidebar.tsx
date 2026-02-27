@@ -3,6 +3,7 @@
 import {
   Analytics01Icon,
   ComputerTerminal01Icon,
+  ComputerTerminal02Icon,
   Home01Icon,
   Key01Icon,
   Mail01Icon,
@@ -32,12 +33,6 @@ import {
 } from "@/components/ui/sidebar";
 
 const GLOBAL_NAV = [
-  {
-    href: "/",
-    label: "Home",
-    tooltip: "Home",
-    icon: Home01Icon,
-  },
   {
     href: "/analytics",
     label: "Analytics",
@@ -80,6 +75,12 @@ const GLOBAL_NAV = [
     tooltip: "Tmux Sessions",
     icon: ComputerTerminal01Icon,
   },
+  {
+    href: "/terminal",
+    label: "Terminal",
+    tooltip: "Container Terminal",
+    icon: ComputerTerminal02Icon,
+  },
 ] as const;
 
 /** Extract project slug from paths like /project/[slug] or /project/[slug]/chat/[id] */
@@ -104,6 +105,28 @@ export function ProjectSidebar() {
       </SidebarHeader>
 
       <SidebarContent>
+        {/* ── Home row: always visible ────────────────────── */}
+        <SidebarGroup className="py-1">
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <Link href="/">
+                  <SidebarMenuButton isActive={pathname === "/"} tooltip="Home">
+                    <HugeiconsIcon
+                      icon={Home01Icon}
+                      size={15}
+                      strokeWidth={2}
+                    />
+                    <span className="group-data-[collapsible=icon]:hidden">
+                      Home
+                    </span>
+                  </SidebarMenuButton>
+                </Link>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
         {projectSlug ? (
           /* ── Project view: 5-tab explorer ──────────────── */
           <ProjectExplorerPanel key={projectSlug} slug={projectSlug} />
@@ -116,7 +139,7 @@ export function ProjectSidebar() {
                   <SidebarMenuItem key={href}>
                     <Link href={href}>
                       <SidebarMenuButton
-                        isActive={href === "/" ? pathname === "/" : pathname === href}
+                        isActive={pathname === href}
                         tooltip={tooltip}
                       >
                         <HugeiconsIcon icon={icon} size={15} strokeWidth={2} />

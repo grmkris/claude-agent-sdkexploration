@@ -141,16 +141,19 @@ cd /app
 su bun -c "bun cron-worker.ts" &
 CRON_PID=$!
 
+su bun -c "bun server/index.ts" &
+WS_PID=$!
+
 su bun -c "bun --bun next start -p ${PORT:-3000}" &
 NEXT_PID=$!
 
 # Trap signals to shut down all
-trap "kill $TS_PID $CRON_PID $NEXT_PID 2>/dev/null; exit 0" SIGTERM SIGINT
+trap "kill $TS_PID $CRON_PID $WS_PID $NEXT_PID 2>/dev/null; exit 0" SIGTERM SIGINT
 
 # Wait for either to exit
-wait -n $CRON_PID $NEXT_PID
+wait -n $CRON_PID $WS_PID $NEXT_PID
 EXIT_CODE=$?
 
 # If one dies, kill the other
-kill $TS_PID $CRON_PID $NEXT_PID 2>/dev/null
+kill $TS_PID $CRON_PID $WS_PID $NEXT_PID 2>/dev/null
 exit $EXIT_CODE
