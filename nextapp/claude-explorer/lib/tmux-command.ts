@@ -79,20 +79,31 @@ export function generateTmuxCommand(config: TmuxLaunchConfig): string {
   if (panelCount === 1) {
     tmuxCmd = `${tmuxBin} new-session -s ${safeName} -c ${safePath} '${panelCmd(0)}'`;
   } else {
-    const tmuxParts: string[] = [
-      `${tmuxBin} new-session -d -s ${safeName} -c ${safePath} '${panelCmd(0)}'`,
+    // Always use plain 'tmux' for the setup chain (new-session -d + splits).
+    // tmux -CC (iTerm2 control mode) must only be applied to the final attach
+    // call — using -CC on 'new-session -d' causes the control-mode handshake
+    // to fire on a detached session, which breaks over SSH ("connection closed").
+    const setupParts: string[] = [
+      `tmux new-session -d -s ${safeName} -c ${safePath} '${panelCmd(0)}'`,
     ];
 
     for (let i = 1; i < panelCount; i++) {
       const dir =
         layout === "even-vertical" || layout === "main-vertical" ? "-v" : "-h";
-      tmuxParts.push(`split-window ${dir} -c ${safePath} '${panelCmd(i)}'`);
+      setupParts.push(`split-window ${dir} -c ${safePath} '${panelCmd(i)}'`);
     }
 
-    tmuxParts.push(`select-layout ${layout}`);
-    tmuxParts.push("attach");
+    setupParts.push(`select-layout ${layout}`);
 
-    tmuxCmd = tmuxParts.join(" \\; \\\n  ");
+    if (ccMode) {
+      // Separate attach so -CC is only activated at attach time
+      tmuxCmd =
+        setupParts.join(" \\; \\\n  ") +
+        ` && \\\n  tmux -CC attach -t ${safeName}`;
+    } else {
+      setupParts.push("attach");
+      tmuxCmd = setupParts.join(" \\; \\\n  ");
+    }
   }
 
   if (sshTarget) {

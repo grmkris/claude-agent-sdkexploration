@@ -37,7 +37,7 @@ export function SshBadge() {
     const innerCmd = safePath
       ? `tmux new-session -s ${sessionName} -c ${safePath} 'claude --resume ${sessionId}'`
       : `tmux new-session -s ${sessionName} 'claude --resume ${sessionId}'`;
-    command = `ssh -t ${data.sshHost} '${innerCmd}'`;
+    command = `ssh -t ${data.sshHost} '${innerCmd.replace(/'/g, "'\\''")}'`;
     label = `tmux new-session ${sessionName}`;
   } else {
     command = `ssh ${data.sshHost}`;
