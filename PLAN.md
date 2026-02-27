@@ -1,219 +1,185 @@
-# Plan Mode Toggle – Implementation Plan
 
-## Background & Research Summary
+# Plan: Fix ExitPlanMode "Approve Does Nothing" Bug
 
-We explored the codebase and the Claude Agent SDK docs to understand how plan mode works and how to add a UI toggle for it.
+## Root Cause Diagnosis
 
-### What Plan Mode Is
-- `permissionMode: "plan"` is one of 5 SDK permission modes.
-- It restricts Claude to **read-only tools only** (Read, Glob, Grep, AskUserQuestion) and **prevents any mutating tool execution**.
-- Internally it injects a system-level instruction telling the model not to make edits or run non-readonly tools.
-- Claude uses `ExitPlanMode` (a built-in SDK tool) to signal when its plan is ready and hand it off for user approval.
-- After approval, the session exits plan mode and Claude proceeds with implementation.
+After thoroughly exploring the codebase, the implementation of `ExitPlanMode` approval is architecturally complete but has **one critical flaw** that causes "approve does nothing":
 
-### How Existing Modes Work (Thinking, Auto-approve)
-- `ChatSettings` type in `chat-settings-bar.tsx` holds boolean flags.
-- Each flag maps to a backend enum in `permissionMode` or `thinking`.
-- Both page variants (`/chat`, `/chat/[sessionId]`, `/project/[slug]/chat`, `/project/[slug]/chat/[sessionId]`) and the root chat pages hold `settings` state and pass it to `useChatStream` / `useRootChatStream`.
-- The backend (`procedures.ts`) receives `permissionMode` and passes it straight to the SDK's `query()`.
+### The Critical Bug: `send()` Guard Blocks the Resume
 
-### Current `permissionMode` Logic
-```
-bypassPermissions = true  → permissionMode: "bypassPermissions"
-bypassPermissions = false → permissionMode: "default"
-```
-Plan mode currently has NO UI toggle — it exists in the type system but is not exposed.
+In both `use-chat-stream.ts` and `use-root-chat-stream.ts`, the `send()` function has this guard at line 74:
 
-### Plan Mode Status Detection
-- The `SDKSystemMessage` (subtype `init`) carries `permissionMode` as a **required** field.
-- The `SDKStatusMessage` (subtype `status`) carries `permissionMode` as an **optional** field.
-- Currently the frontend ignores `permissionMode` in both messages.
-- To show "currently in plan mode" status we can read `permissionMode` from the `init` message and track it in state.
-
----
-
-## Files to Modify (4 component files + 4 page files)
-
-| File | Change |
-|------|--------|
-| `components/chat-settings-bar.tsx` | Add `planMode: boolean` to `ChatSettings`, add UI toggle |
-| `app/project/[slug]/chat/page.tsx` | Update `permissionMode` logic |
-| `app/project/[slug]/chat/[sessionId]/page.tsx` | Update `permissionMode` logic |
-| `app/chat/page.tsx` | Update `permissionMode` logic |
-| `app/chat/[sessionId]/page.tsx` | Update `permissionMode` logic |
-| `hooks/sdk-message-handler.ts` | Extract `permissionMode` from `init` message; expose a setter |
-| `hooks/use-chat-stream.ts` | Thread `onPermissionModeChange` callback |
-| `hooks/use-root-chat-stream.ts` | Thread `onPermissionModeChange` callback |
-
----
-
-## Step-by-Step Implementation
-
-### Step 1 – Update `ChatSettings` type and default (`chat-settings-bar.tsx`)
-
-```typescript
-export type ChatSettings = {
-  thinkingEnabled: boolean;
-  bypassPermissions: boolean;
-  planMode: boolean;        // NEW
-};
-
-export const DEFAULT_CHAT_SETTINGS: ChatSettings = {
-  thinkingEnabled: false,
-  bypassPermissions: true,
-  planMode: false,          // NEW – off by default
-};
-```
-
-### Step 2 – Add the Plan Mode Toggle UI (`chat-settings-bar.tsx`)
-
-Add a third `<Switch>` after the auto-approve toggle. Use a **blue** color theme with a map/document icon.
-
-```tsx
-{/* Plan Mode toggle */}
-<div className="flex items-center gap-1.5">
-  <Switch
-    id="plan-mode-toggle"
-    checked={settings.planMode}
-    onCheckedChange={(checked) =>
-      onSettingsChange({ ...settings, planMode: checked })
-    }
-    disabled={disabled}
-    className="h-4 w-7 data-[state=checked]:bg-blue-500"
-  />
-  <Label
-    htmlFor="plan-mode-toggle"
-    className="flex cursor-pointer items-center gap-1 text-xs text-muted-foreground"
-  >
-    {/* Map/Plan icon */}
-    <svg
-      width="11" height="11"
-      viewBox="0 0 24 24"
-      fill="none" stroke="currentColor"
-      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-      className={settings.planMode ? "text-blue-500" : ""}
-    >
-      <polygon points="3,6 9,3 15,6 21,3 21,18 15,21 9,18 3,21" />
-      <line x1="9" y1="3" x2="9" y2="18" />
-      <line x1="15" y1="6" x2="15" y2="21" />
-    </svg>
-    <span className={settings.planMode ? "text-blue-600 dark:text-blue-400" : ""}>
-      Plan mode
-    </span>
-  </Label>
-</div>
-```
-
-**Mutual exclusivity:** When plan mode is turned **on**, we automatically turn off `bypassPermissions` (plan mode requires read-only; bypassing permissions contradicts that). When plan mode is turned **off**, we do nothing special — the user can re-enable auto-approve manually.
-
-```typescript
-onCheckedChange={(checked) =>
-  onSettingsChange({
-    ...settings,
-    planMode: checked,
-    // Turning on plan mode disables auto-approve (they're mutually exclusive)
-    bypassPermissions: checked ? false : settings.bypassPermissions,
-  })
-}
-```
-
-### Step 3 – Update `permissionMode` Derivation in All 4 Page Files
-
-Replace the two-way `bypassPermissions → permissionMode` logic with a three-way check:
-
-```typescript
-// BEFORE
-permissionMode: settings.bypassPermissions ? "bypassPermissions" : "default"
-
-// AFTER
-permissionMode: settings.planMode
-  ? "plan"
-  : settings.bypassPermissions
-    ? "bypassPermissions"
-    : "default"
-```
-
-This applies in all 4 page files:
-- `app/chat/page.tsx`
-- `app/chat/[sessionId]/page.tsx`
-- `app/project/[slug]/chat/page.tsx`
-- `app/project/[slug]/chat/[sessionId]/page.tsx`
-
-### Step 4 – Expose `currentPermissionMode` from the stream hooks
-
-So the UI can show the **actual** mode Claude is running in (from the `init` message), expose it from the hooks:
-
-**`hooks/sdk-message-handler.ts`** — add a `setPermissionMode` callback parameter and call it when we receive the `init` system message:
-
-```typescript
-// In the system/init case:
-if (sysMsg.subtype === "init") {
-  setSessionId(sysMsg.session_id!);
-  if (setPermissionMode && (sysMsg as any).permissionMode) {
-    setPermissionMode((sysMsg as any).permissionMode);
+```ts
+const send = useCallback(
+  (prompt: string, images?: AttachedImage[]) => {
+    if (streamingRef.current) return;  // ← THIS IS THE BUG
+    ...
   }
+)
+```
+
+When the user clicks "Approve", `approvePlan()` calls `approvePlanProc` on the backend. The backend resolves the pending promise with `{ behavior: "allow" }`, which **unblocks the SDK**. The SDK immediately starts streaming the continuation (Claude begins implementing). This means `streamingRef.current` **is still `true`** at the moment the approval response comes back (the SSE stream never actually died — it was just blocked on the `canUseTool` promise).
+
+The `approvePlan` hook then checks:
+```ts
+} else if (result.success && !streamingRef.current) {
+  send(" "); // Resume if SSE died
 }
 ```
 
-**`hooks/use-chat-stream.ts`** — add `currentPermissionMode` to the returned state:
+Since `result.success = true` AND `streamingRef.current = true` (stream is alive), **neither branch triggers `send()`**. That's correct — the stream is alive and running, so no resume needed.
 
-```typescript
-const [currentPermissionMode, setCurrentPermissionMode] =
-  useState<string | null>(null);
+But here's the problem: **the frontend UI never receives the continuation messages**. Why? Because the SSE iterator (`for await (const msg of iterator)`) is still running inside the original `send()` invocation's async closure. When the SDK unblocks after plan approval, the next SDK messages (Claude's implementation output) should flow through the existing SSE connection.
 
-// Pass setCurrentPermissionMode into handleSDKMessage
-// Return it from the hook:
-return {
-  messages,
-  send,
-  stop,
-  answerQuestion,
-  isStreaming,
-  sessionId,
-  error,
-  toolProgress,
-  currentPermissionMode,  // NEW
-};
+**The actual stuck behavior occurs because:** The SSE connection from the frontend to the backend (`client.chat(...)` or `client.rootChat(...)`) is a **streaming HTTP response**. When `canUseTool` blocks on a Promise for plan approval, the **HTTP response stream is also blocked** — no bytes flow through. The oRPC streaming client is waiting for the next SSE event. Once the Promise resolves, the SDK outputs the next messages through the iterator, which the backend then emits as SSE events — and the frontend receives them normally.
+
+**So why does it "do nothing"?** The real issue is that the SSE stream **times out or gets killed by an intermediate proxy/load balancer** while waiting for the user to approve (which could take many seconds or minutes). When this happens:
+
+1. The frontend's `for await` loop exits (connection dropped)
+2. `streamingRef.current` is set to `false`  
+3. `setIsStreaming(false)` is called
+4. The backend's `cleanupPendingAnswers()` fires, **resolving the pending ExitPlanMode promise with `{ behavior: "deny", message: "Session ended" }`**
+5. The `pendingExitPlanMode` entry is **deleted**
+6. Now when the user clicks "Approve", `approvePlanProc` finds **no pending entry** (`pendingExitPlanMode.get(toolUseId)` returns `undefined`)
+7. It falls through to return `{ success: false, needsResume: true }`
+8. The frontend hook calls `send(" ")` to trigger a resume
+9. **BUT** — `send(" ")` has the guard `if (streamingRef.current) return` — and here's the timing issue:
+
+**The race condition**: Between step 2 (`streamingRef.current = false`) and step 8 (`send(" ")`), if there's any React re-render or async tick delay, `streamingRef.current` could still read as `false` and `send(" ")` would proceed. But in practice there's another issue:
+
+**The real "does nothing" scenario**: The heartbeat mechanism (20s interval) keeps the SSE alive for AskUserQuestion, but `ExitPlanMode` doesn't update the session state to `waiting_for_permission` in the DB. The `SessionStateBadge` component (used in `ChatView`) polls the session state from DB. When plan mode approval is pending, the session state badge shows "Running..." or "Thinking..." rather than "Waiting for permission", giving no visual feedback that the UI is waiting for the user.
+
+More critically: **the `ExitPlanModeTool` component calls `client.getPendingPlan()` on mount** to fetch the plan text. If this call returns `null` (because the server was restarted, or because `sessionId` is not yet set in the component), the component shows "No PLAN.md found" and the approve/reject buttons are present — but clicking them calls `onApprovePlan(toolUseId, true)` where **`toolUseId` is `undefined`** because it wasn't passed correctly through the prop chain.
+
+### Secondary Bug: `toolUseId` Can Be `undefined` in `ExitPlanModeTool`
+
+In `tool-use-block.tsx` line 46-49:
+```ts
+toolUseId={isAskUser || isExitPlan ? toolUseId : undefined}
+sessionId={isExitPlan ? sessionId : undefined}
+onAnswer={isAskUser ? onAnswer : undefined}
+onApprovePlan={isExitPlan ? onApprovePlan : undefined}
 ```
 
-### Step 5 – Optional: Show "Plan mode active" status indicator
+The `toolUseId` prop of `ToolUseBlock` is typed as `string | undefined`. If it arrives as `undefined`, the `ExitPlanModeTool` receives `undefined` for `toolUseId`, and the `handleApprove` guard `if (!toolUseId || ...)` silently does nothing.
 
-If `currentPermissionMode === "plan"`, show a small blue banner above the chat input:
+### Missing: Session State `waiting_for_permission` for ExitPlanMode
 
-```tsx
-{currentPermissionMode === "plan" && (
-  <div className="mx-4 mb-1 rounded border border-blue-500/30 bg-blue-500/10 px-3 py-1.5 text-xs text-blue-600 dark:text-blue-400 flex items-center gap-1.5">
-    <MapIcon size={10} />
-    Plan mode active — Claude will explore and propose a plan before making changes
-  </div>
-)}
-```
+The `session-hooks.ts` sets `waiting_for_permission` state only via the `PreToolUse` hook for permission-denied tools. When `ExitPlanMode` fires and `canUseTool` blocks, the session state in the DB is never updated to `waiting_for_permission`. This means:
+- The `SessionStateBadge` shows wrong state
+- Push notifications for "Agent needs permission" are never sent for plan approval
+- The UI doesn't visually indicate it's waiting for plan approval
+
+### Missing: DB Persistence for ExitPlanMode (Unlike AskUserQuestion)
+
+`AskUserQuestion` uses DB persistence (`upsertPendingQuestion`) to survive server restarts. If the server restarts while waiting for plan approval, `ExitPlanMode` loses its pending state entirely. The `needsResume: true` path triggers a resume, but on resume the SDK re-runs `canUseTool` for `ExitPlanMode` again — this time with a fresh Promise — but there's no stored plan text or approval state to restore. The user would need to wait for Claude to re-plan from scratch.
 
 ---
 
-## Interaction Design
+## Implementation Plan
 
-| User action | Result |
+### Fix 1: DB Persistence for ExitPlanMode Pending State (HIGH PRIORITY)
+
+**File: `nextapp/claude-explorer/lib/explorer-db.ts`**
+
+Add a new `pending_plans` table (mirroring `pending_questions`) with:
+- `tool_use_id` (TEXT PRIMARY KEY)
+- `session_id` (TEXT NOT NULL)
+- `plan_text` (TEXT NOT NULL)
+- `allowed_prompts` (TEXT NOT NULL) — JSON array
+- `tool_input` (TEXT NOT NULL) — JSON object
+- `approved` (INTEGER NULL) — NULL = pending, 1 = approved, 0 = rejected
+- `feedback` (TEXT NULL) — rejection feedback
+- `created_at` (TEXT NOT NULL)
+
+Add CRUD functions:
+- `upsertPendingPlan(toolUseId, sessionId, planText, allowedPrompts, toolInput)`
+- `getPendingPlan(toolUseId)` — returns the row or null
+- `setPrefilledPlanApproval(toolUseId, approved, feedback?)` — stores user decision for resume
+- `deletePendingPlan(toolUseId)`
+- `deletePendingPlansForSession(sessionId)`
+
+**File: `nextapp/claude-explorer/lib/procedures.ts`**
+
+In `canUseTool` for `ExitPlanMode` (both `chatProc` and `rootChatProc`):
+1. Before creating the Promise, call `upsertPendingPlan(...)` to persist to DB
+2. Check for pre-approved state first: `const stored = getPendingPlan(opts.toolUseID)` — if `stored?.approved !== null && stored?.approved !== undefined`, auto-resolve immediately (the user approved during a previous stream that died)
+3. In `cleanupPendingAnswers`, call `deletePendingPlansForSession(sessionId)` (intentionally do NOT delete — keep the row, same pattern as pending questions)
+
+In `approvePlanProc`:
+- Fast path (stream alive): resolve promise AND call `setPrefilledPlanApproval(toolUseId, approved, feedback)` before deleting from DB... wait, actually for consistency with AskUserQuestion: when stream is alive and approval succeeds, delete the DB row. When stream is dead, store the approval decision and return `needsResume: true`.
+- Slow path (stream dead, no in-memory entry): Look up DB row via `getPendingPlan(toolUseId)`. If found, call `setPrefilledPlanApproval(toolUseId, approved, feedback)` and return `{ success: false, needsResume: true }`. On resume, `canUseTool` checks for pre-approved state and auto-resolves.
+
+In `getPendingPlanProc`:
+- Also check the DB as fallback if the in-memory entry is gone (server restart scenario). This ensures the UI can always show the plan text even after a server restart.
+
+### Fix 2: Set Session State to `waiting_for_permission` for ExitPlanMode (MEDIUM PRIORITY)
+
+**File: `nextapp/claude-explorer/lib/procedures.ts`**
+
+In the `ExitPlanMode` branch of `canUseTool` (both procs), after creating the pending entry, call:
+```ts
+upsertSession(sessionId!, { state: "waiting_for_permission", current_tool: "ExitPlanMode" });
+```
+
+This ensures:
+- `SessionStateBadge` shows the correct "Waiting for permission" state
+- Push notifications fire ("Agent needs permission")
+- The session list sidebar shows the session as needing attention
+
+After the plan is approved/rejected (in `approvePlanProc`), call:
+```ts
+upsertSession(input.sessionId, { state: "thinking" });
+```
+to reset the state.
+
+### Fix 3: `getPendingPlanProc` DB Fallback (HIGH PRIORITY)
+
+**File: `nextapp/claude-explorer/lib/procedures.ts`**
+
+The `getPendingPlanProc` currently only checks the in-memory `pendingExitPlanMode` Map. If the server restarts, this map is empty. Update it to fall back to the DB:
+
+```ts
+handler: async ({ input }) => {
+  // Fast path: in-memory
+  const pending = pendingExitPlanMode.get(input.toolUseId);
+  if (pending && pending.sessionId === input.sessionId) {
+    return { planText: pending.planText, allowedPrompts: pending.allowedPrompts };
+  }
+  // Slow path: DB fallback (server restart)
+  const stored = getPendingPlan(input.toolUseId);
+  if (!stored || stored.sessionId !== input.sessionId) return null;
+  return { planText: stored.planText, allowedPrompts: stored.allowedPrompts };
+}
+```
+
+### Fix 4: Ensure `upsertSession` import is available in canUseTool scope (LOW PRIORITY)
+
+Verify that `upsertSession` is imported from `explorer-db` in `procedures.ts`. It already is (used by session hooks), so just confirm the import is present.
+
+### Fix 5: `rootChatProc` Missing `cwd/PLAN.md` Fallback (LOW PRIORITY)
+
+**File: `nextapp/claude-explorer/lib/procedures.ts`**
+
+The `rootChatProc` `canUseTool` is missing the legacy `cwd/PLAN.md` fallback (step 3) that `chatProc` has. Since `rootChatProc` always uses `USER_HOME` as cwd, add the fallback pointing to `USER_HOME/PLAN.md` for consistency.
+
+---
+
+## Files to Modify
+
+| File | Changes |
 |---|---|
-| Toggle Plan Mode **ON** | `planMode: true`, `bypassPermissions: false` forced, `permissionMode: "plan"` sent to SDK |
-| Toggle Plan Mode **OFF** | `planMode: false`, `bypassPermissions` reverts to whatever it was, `permissionMode: "default"` (or `"bypassPermissions"` if toggled back on) |
-| Toggle Auto-approve while Plan mode is ON | Auto-approve toggle is disabled/ignored (can gray it out) while plan mode is active |
-| Claude calls `ExitPlanMode` | The SDK handles this — Claude presents its plan for approval via the `ExitPlanMode` tool's built-in approval flow |
+| `nextapp/claude-explorer/lib/explorer-db.ts` | Add `pending_plans` table + 5 CRUD functions |
+| `nextapp/claude-explorer/lib/procedures.ts` | 4 changes: (1) import new DB funcs, (2) `canUseTool` ExitPlanMode branch in both procs: add DB persist + pre-approved check + session state update, (3) `approvePlanProc`: add DB slow path + session state reset, (4) `getPendingPlanProc`: add DB fallback |
 
----
+## Files NOT Modified
 
-## What We're NOT Changing
+- `exit-plan-mode-tool.tsx` — the UI component is correct
+- `use-chat-stream.ts` / `use-root-chat-stream.ts` — the `approvePlan` hook is correct
+- `message-bubble.tsx` / `tool-use-block.tsx` — prop passing is correct
+- All page files — correct
 
-- The backend (`procedures.ts`) — it already handles `"plan"` as a valid `permissionMode`.
-- The `ChatStreamOpts` type — `"plan"` is already in the union.
-- No new API routes, no new DB tables.
+## Implementation Order
 
----
-
-## Summary
-
-**4 page files** get a one-liner update to the `permissionMode` ternary.
-**1 component file** (`chat-settings-bar.tsx`) gets a new boolean in the type + a new toggle UI.
-**2–3 hook files** get a `currentPermissionMode` state thread-through for status display.
-
-Total estimated changes: ~60-80 lines across 7-8 files.
+1. `explorer-db.ts` — add table + functions (no dependencies)
+2. `procedures.ts` — update imports, then `canUseTool` blocks, then `approvePlanProc`, then `getPendingPlanProc`
