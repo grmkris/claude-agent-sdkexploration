@@ -83,7 +83,11 @@ function TmuxInCard({ panes }: { panes: TmuxPane[] }) {
   );
 }
 
-function NewProjectForm({ onCreated }: { onCreated: (slug: string) => void }) {
+function NewProjectForm({
+  onCreated,
+}: {
+  onCreated: (slug: string, sessionId?: string) => void;
+}) {
   const { data: serverConfig } = useQuery(orpc.server.config.queryOptions());
   const defaultParent = serverConfig
     ? `${serverConfig.homeDir}/projects`
@@ -112,7 +116,8 @@ function NewProjectForm({ onCreated }: { onCreated: (slug: string) => void }) {
         ...(initialPrompt ? { initialPrompt } : {}),
         ...(selectedMcps.length ? { mcps: selectedMcps } : {}),
       }),
-    onSuccess: (result) => onCreated(result.slug),
+    onSuccess: (result) =>
+      onCreated(result.slug, result.sessionId ?? undefined),
   });
 
   return (
@@ -151,7 +156,7 @@ function NewProjectForm({ onCreated }: { onCreated: (slug: string) => void }) {
         Will be created in: {defaultParent}
       </p>
       <textarea
-        placeholder="Initial prompt (optional) — starts a Claude session to register the project"
+        placeholder="Initial prompt (optional)"
         value={initialPrompt}
         onChange={(e) => setInitialPrompt(e.target.value)}
         rows={2}
@@ -239,11 +244,15 @@ function UnifiedProjectGrid() {
         </div>
         {showNewProject && (
           <NewProjectForm
-            onCreated={(slug) => {
+            onCreated={(slug, sessionId) => {
               void queryClient.invalidateQueries({
                 queryKey: orpc.projects.list.queryOptions().queryKey,
               });
-              router.push(`/project/${slug}`);
+              router.push(
+                sessionId
+                  ? `/project/${slug}/chat/${sessionId}`
+                  : `/project/${slug}`
+              );
             }}
           />
         )}
@@ -286,12 +295,16 @@ function UnifiedProjectGrid() {
       {showNewProject && (
         <div className="mb-3">
           <NewProjectForm
-            onCreated={(slug) => {
+            onCreated={(slug, sessionId) => {
               setShowNewProject(false);
               void queryClient.invalidateQueries({
                 queryKey: orpc.projects.list.queryOptions().queryKey,
               });
-              router.push(`/project/${slug}`);
+              router.push(
+                sessionId
+                  ? `/project/${slug}/chat/${sessionId}`
+                  : `/project/${slug}`
+              );
             }}
           />
         </div>

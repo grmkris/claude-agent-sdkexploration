@@ -850,7 +850,13 @@ const createProjectProc = os
       skills: z.array(z.string()).optional(),
     })
   )
-  .output(z.object({ slug: z.string(), path: z.string() }))
+  .output(
+    z.object({
+      slug: z.string(),
+      path: z.string(),
+      sessionId: z.string().optional(),
+    })
+  )
   .handler(async ({ input }) => {
     const parentStat = await stat(input.parentDir).catch(() => null);
     if (!parentStat?.isDirectory()) {
@@ -891,30 +897,39 @@ const createProjectProc = os
       }
     }
 
-    if (input.initialPrompt) {
-      try {
-        const conversation = query({
-          prompt: input.initialPrompt,
-          options: {
-            model: "claude-sonnet-4-6",
-            executable: "bun",
-            permissionMode: "bypassPermissions",
-            allowDangerouslySkipPermissions: true,
-            env: cleanEnv,
-            cwd: projectPath,
-          },
-        });
-        for await (const msg of conversation) {
-          if ("type" in msg && msg.type === "assistant") break;
+    // Always run a real Claude session in the project directory so that the
+    // Claude SDK naturally registers the project in ~/.claude/.claude.json
+    // (populating lastSessionId, cost, tokens, etc.).  We capture the
+    // sessionId so the frontend can navigate directly to the first chat.
+    let sessionId: string | undefined;
+    try {
+      const conversation = query({
+        prompt: input.initialPrompt ?? "",
+        options: {
+          model: "claude-sonnet-4-6",
+          executable: "bun",
+          permissionMode: "bypassPermissions",
+          allowDangerouslySkipPermissions: true,
+          env: cleanEnv,
+          cwd: projectPath,
+          hooks: createSessionHooks("chat"),
+        },
+      });
+      for await (const msg of conversation) {
+        // Capture session_id from the SDK init message and persist it so
+        // it shows up in the project's conversation list.
+        if ("type" in msg && msg.type === "system" && "session_id" in msg) {
+          sessionId = (msg as { session_id: string }).session_id;
+          upsertSession(sessionId, { project_path: projectPath });
         }
-      } catch {
-        // Claude session failed — project dir still created, return slug anyway
       }
+    } catch {
+      // Claude session failed — project dir still created, return slug anyway
     }
 
     invalidateSlugCache();
     const slug = await resolveSlugForCwd(projectPath);
-    return { slug, path: projectPath };
+    return { slug, path: projectPath, sessionId };
   });
 
 const listDirProc = os
