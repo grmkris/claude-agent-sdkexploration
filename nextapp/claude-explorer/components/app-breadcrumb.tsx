@@ -24,9 +24,27 @@ export function AppBreadcrumb() {
       ? project.path.split("/").at(-1)
       : slug.replace(/-/g, " ");
 
-    // Detect file viewer: /project/[slug]/file/[...path]
+    // Detect sub-pages
     const fileMatch = pathname.match(/^\/project\/[^/]+\/file\/(.+)$/);
     const filePath = fileMatch?.[1] ?? null;
+
+    const sectionMatch = pathname.match(
+      /^\/project\/[^/]+\/(overview|git|skills|files|automations|crons|webhooks|email|diff)(?:\/|$)/
+    );
+    const sectionName = sectionMatch?.[1] ?? null;
+    const sectionLabel: Record<string, string> = {
+      overview: "Overview",
+      git: "Git",
+      skills: "Skills & MCPs",
+      files: "Files",
+      automations: "Automations",
+      crons: "Crons",
+      webhooks: "Webhooks",
+      email: "Email",
+      diff: "Diff",
+    };
+
+    const hasSubPage = !!filePath || !!sectionName;
 
     return (
       <div className="flex items-center gap-1.5 text-xs">
@@ -40,13 +58,21 @@ export function AppBreadcrumb() {
         <Link
           href={`/project/${slug}`}
           className={
-            filePath
+            hasSubPage
               ? "text-muted-foreground hover:text-foreground transition-colors"
               : "text-foreground font-medium hover:text-foreground/80 transition-colors"
           }
         >
           {name}
         </Link>
+        {sectionName && (
+          <>
+            <span className="text-muted-foreground/50">/</span>
+            <span className="text-foreground font-medium capitalize">
+              {sectionLabel[sectionName] ?? sectionName}
+            </span>
+          </>
+        )}
         {filePath && (
           <>
             <span className="text-muted-foreground/50">/</span>
