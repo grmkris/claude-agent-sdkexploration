@@ -147,8 +147,8 @@ export function AgentTabBar() {
       data-slot="agent-tab-bar"
       className="flex h-9 shrink-0 items-stretch border-b bg-background"
     >
-      {/* LEFT: sidebar trigger */}
-      <div className="flex shrink-0 items-center gap-0.5 border-r border-border/50 px-1.5">
+      {/* LEFT: sidebar trigger (mobile only; desktop uses the trigger inside the sidebar header) */}
+      <div className="flex shrink-0 items-center gap-0.5 border-r border-border/50 px-1.5 md:hidden">
         <SidebarTrigger />
       </div>
 
@@ -243,10 +243,10 @@ export function AgentTabBar() {
         )}
       </Popover>
 
-      {/* RIGHT: archive + right sidebar trigger */}
+      {/* RIGHT: archive + right sidebar trigger (trigger is mobile only; desktop uses the one inside the right sidebar header) */}
       <div className="flex shrink-0 items-center gap-0.5 border-l border-border/50 px-1.5">
         <ArchiveChatButton />
-        <RightSidebarTrigger />
+        <RightSidebarTrigger className="md:hidden" />
       </div>
     </div>
   );
