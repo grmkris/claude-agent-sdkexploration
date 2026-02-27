@@ -49,6 +49,9 @@ import {
   gitStageAll,
   gitCommit,
   gitCommitAndPush,
+  getGitLog,
+  getGitCommitFiles,
+  getGitCommitDiff,
   findProjectPathForSession,
   getGitWorktrees,
 } from "./claude-fs";
@@ -819,6 +822,49 @@ const gitCommitPushProc = os
     return gitCommitAndPush(projectPath, input.message);
   });
 
+// --- Git Log / History ---
+
+const GitLogEntrySchema = z.object({
+  hash: z.string(),
+  shortHash: z.string(),
+  subject: z.string(),
+  body: z.string(),
+  author: z.string(),
+  date: z.string(),
+});
+
+const GitCommitFileSchema = z.object({
+  path: z.string(),
+  additions: z.number(),
+  deletions: z.number(),
+});
+
+const gitLogProc = os
+  .input(z.object({ slug: z.string(), limit: z.number().optional() }))
+  .output(z.object({ commits: z.array(GitLogEntrySchema) }))
+  .handler(async ({ input }) => {
+    const projectPath = await resolveSlugToPath(input.slug);
+    const commits = await getGitLog(projectPath, input.limit ?? 20);
+    return { commits };
+  });
+
+const gitCommitFilesProc = os
+  .input(z.object({ slug: z.string(), hash: z.string() }))
+  .output(z.object({ files: z.array(GitCommitFileSchema) }))
+  .handler(async ({ input }) => {
+    const projectPath = await resolveSlugToPath(input.slug);
+    const files = await getGitCommitFiles(projectPath, input.hash);
+    return { files };
+  });
+
+const gitCommitDiffProc = os
+  .input(z.object({ slug: z.string(), hash: z.string(), path: z.string() }))
+  .output(z.object({ diff: z.string() }))
+  .handler(async ({ input }) => {
+    const projectPath = await resolveSlugToPath(input.slug);
+    const diff = await getGitCommitDiff(projectPath, input.hash, input.path);
+    return { diff };
+  });
 
 const SkillInfoSchema = z.object({
   name: z.string(),
@@ -2318,6 +2364,9 @@ export const router = {
     gitCommit: gitCommitProc,
     gitCommitPush: gitCommitPushProc,
     gitWorktrees: gitWorktreesProc,
+    gitLog: gitLogProc,
+    gitCommitFiles: gitCommitFilesProc,
+    gitCommitDiff: gitCommitDiffProc,
     getEnv: getProjectEnvProc,
     setEnv: setProjectEnvProc,
   },

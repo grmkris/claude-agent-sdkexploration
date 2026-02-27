@@ -1,14 +1,17 @@
 /// <reference lib="webworker" />
 
-declare const self: ServiceWorkerGlobalScope;
+// The tsconfig 'dom' lib and the webworker lib both declare 'self' with
+// different types, which causes a "Cannot redeclare" conflict if we use
+// 'declare const self'. Cast to the correct type instead.
+const sw = self as unknown as ServiceWorkerGlobalScope;
 
 // Skip waiting and take control immediately
-self.addEventListener("install", () => {
-  self.skipWaiting();
+sw.addEventListener("install", () => {
+  sw.skipWaiting();
 });
 
-self.addEventListener("activate", (event: ExtendableEvent) => {
-  event.waitUntil(self.clients.claim());
+sw.addEventListener("activate", (event: ExtendableEvent) => {
+  event.waitUntil(sw.clients.claim());
 });
 
 // --- Push Notifications ---
@@ -20,11 +23,11 @@ interface PushData {
   tag?: string;
 }
 
-self.addEventListener("push", (event: PushEvent) => {
+sw.addEventListener("push", (event: PushEvent) => {
   const data: PushData = event.data?.json() ?? {};
 
   event.waitUntil(
-    self.registration.showNotification(data.title ?? "Claude Explorer", {
+    sw.registration.showNotification(data.title ?? "Claude Explorer", {
       body: data.body ?? "",
       icon: "/icons/icon-192.png",
       badge: "/icons/badge-72.png",
@@ -36,13 +39,13 @@ self.addEventListener("push", (event: PushEvent) => {
 
 // --- Notification Click ---
 
-self.addEventListener("notificationclick", (event: NotificationEvent) => {
+sw.addEventListener("notificationclick", (event: NotificationEvent) => {
   event.notification.close();
 
   const url: string = (event.notification.data as { url?: string })?.url ?? "/";
 
   event.waitUntil(
-    self.clients
+    sw.clients
       .matchAll({ type: "window", includeUncontrolled: true })
       .then((clientList) => {
         for (const client of clientList) {
@@ -50,7 +53,9 @@ self.addEventListener("notificationclick", (event: NotificationEvent) => {
             return (client as WindowClient).focus();
           }
         }
-        return self.clients.openWindow(url);
+        return sw.clients.openWindow(url);
       })
   );
 });
+
+export {};

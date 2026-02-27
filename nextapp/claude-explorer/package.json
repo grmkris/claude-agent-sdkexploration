@@ -37,6 +37,7 @@
     "graphql": "^16.12.0",
     "graphql-request": "^7.4.0",
     "inboundemail": "^0.20.0",
+    "lucide-react": "^0.575.0",
     "next": "16.1.6",
     "react": "19.2.3",
     "react-dom": "19.2.3",

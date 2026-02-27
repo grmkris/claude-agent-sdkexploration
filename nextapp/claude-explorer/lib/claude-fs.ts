@@ -345,6 +345,106 @@ export async function gitFullDiff(projectPath: string): Promise<string> {
   }
 }
 
+// --- Git Log / History ---
+
+export type GitLogEntry = {
+  hash: string;
+  shortHash: string;
+  subject: string;
+  body: string;
+  author: string;
+  date: string;
+};
+
+export type GitCommitFile = {
+  path: string;
+  additions: number;
+  deletions: number;
+};
+
+export async function getGitLog(
+  projectPath: string,
+  limit = 20
+): Promise<GitLogEntry[]> {
+  try {
+    // Use ASCII US (0x1f) as field separator and RS (0x1e) as record separator
+    const SEP_F = "\x1f";
+    const SEP_R = "\x1e";
+    const fmt = `--format=%H${SEP_F}%s${SEP_F}%aN${SEP_F}%aI${SEP_F}%b${SEP_R}`;
+    const raw = await Bun.$`git -C ${projectPath} log ${`--max-count=${limit}`} ${fmt}`
+      .quiet()
+      .text();
+
+    const records = raw
+      .split(SEP_R)
+      .map((r) => r.trim())
+      .filter(Boolean);
+    const entries: GitLogEntry[] = [];
+
+    for (const record of records) {
+      const parts = record.split(SEP_F);
+      if (parts.length < 4) continue;
+      const [hash, subject, author, date, ...rest] = parts;
+      const body = rest.join(SEP_F).trim();
+      if (!hash?.trim()) continue;
+      entries.push({
+        hash: hash.trim(),
+        shortHash: hash.trim().slice(0, 7),
+        subject: subject?.trim() ?? "",
+        body,
+        author: author?.trim() ?? "",
+        date: date?.trim() ?? "",
+      });
+    }
+    return entries;
+  } catch {
+    return [];
+  }
+}
+
+export async function getGitCommitFiles(
+  projectPath: string,
+  hash: string
+): Promise<GitCommitFile[]> {
+  try {
+    // --numstat outputs: additions\tdeletions\tpath
+    const out = await Bun.$`git -C ${projectPath} show ${"--format="} --numstat ${hash}`
+      .quiet()
+      .text();
+    return out
+      .trim()
+      .split("\n")
+      .filter(Boolean)
+      .map((line) => {
+        const parts = line.split("\t");
+        if (parts.length < 3) return null;
+        const [addStr, delStr, path] = parts;
+        return {
+          path: path.trim(),
+          additions: addStr === "-" ? 0 : parseInt(addStr, 10) || 0,
+          deletions: delStr === "-" ? 0 : parseInt(delStr, 10) || 0,
+        };
+      })
+      .filter((x): x is GitCommitFile => x !== null);
+  } catch {
+    return [];
+  }
+}
+
+export async function getGitCommitDiff(
+  projectPath: string,
+  hash: string,
+  filePath: string
+): Promise<string> {
+  try {
+    return await Bun.$`git -C ${projectPath} show ${hash} -- ${filePath}`
+      .quiet()
+      .text();
+  } catch {
+    return "";
+  }
+}
+
 export type GitWorktree = {
   path: string;
   head: string;

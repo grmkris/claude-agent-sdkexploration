@@ -8,6 +8,7 @@ import Script from "next/script";
 
 import { AgentTabBar } from "@/components/agent-tabs/agent-tab-bar";
 import { AppBreadcrumb } from "@/components/app-breadcrumb";
+import { ArchiveChatButton } from "@/components/archive-chat-button";
 import { ProjectSidebar } from "@/components/project-sidebar";
 import { RightSidebar } from "@/components/right-sidebar";
 import { SshBadge } from "@/components/ssh-badge";
@@ -81,6 +82,7 @@ export default async function RootLayout({
                     <AppBreadcrumb />
                     <SshBadge />
                     <div className="flex-1" />
+                    <ArchiveChatButton />
                     <RightSidebarTrigger />
                   </header>
                   <AgentTabBar />
