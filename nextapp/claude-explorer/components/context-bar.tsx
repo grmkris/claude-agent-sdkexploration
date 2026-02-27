@@ -43,7 +43,15 @@ const ACTIVE_STATES = new Set([
   "waiting_for_permission",
 ]);
 
-export function ContextBar({ sessionId }: { sessionId: string }) {
+export function ContextBar({
+  sessionId,
+  onCompact,
+  isStreaming,
+}: {
+  sessionId: string;
+  onCompact?: () => void;
+  isStreaming?: boolean;
+}) {
   const { data } = useQuery(
     orpc.liveState.session.queryOptions({ input: { sessionId } })
   );
@@ -73,6 +81,10 @@ export function ContextBar({ sessionId }: { sessionId: string }) {
   // Only show the bar if we have at least some data worth showing
   const hasAnyData = hasContext || inputTokens || costUsd || model;
   if (!hasAnyData) return null;
+
+  // Compact button is available when session is idle (not actively streaming)
+  // and a send callback is provided
+  const canCompact = onCompact && !isStreaming && !isActive;
 
   return (
     <div className="flex items-center gap-3 border-b border-border/50 bg-background/80 px-4 py-1.5 text-[11px] text-muted-foreground backdrop-blur-sm">
@@ -142,6 +154,25 @@ export function ContextBar({ sessionId }: { sessionId: string }) {
           <span className="text-border">·</span>
           <span className="tabular-nums">{formatElapsed(data.started_at)}</span>
         </>
+      )}
+
+      {/* Manual compact button — pushed to the right */}
+      {onCompact && (
+        <div className="ml-auto">
+          <button
+            onClick={onCompact}
+            disabled={!canCompact}
+            title={
+              canCompact
+                ? "Compact context (summarise history to free up context window)"
+                : "Cannot compact while session is active"
+            }
+            className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] transition-colors disabled:cursor-not-allowed disabled:opacity-40 enabled:hover:bg-muted enabled:hover:text-foreground"
+          >
+            <span>⟳</span>
+            <span>Compact</span>
+          </button>
+        </div>
       )}
     </div>
   );

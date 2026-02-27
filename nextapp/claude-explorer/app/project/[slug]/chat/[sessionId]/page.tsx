@@ -88,6 +88,7 @@ export default function SessionChatPage({
         onRefresh={() => refetch()}
         onAnswer={answerQuestion}
         onApprovePlan={approvePlan}
+        onCompact={() => send("/compact")}
       />
       {error && (
         <div className="mx-4 mb-2 rounded border border-destructive/50 bg-destructive/10 px-3 py-2 text-xs text-destructive">
