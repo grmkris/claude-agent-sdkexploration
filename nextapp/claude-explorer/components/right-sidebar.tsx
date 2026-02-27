@@ -90,16 +90,23 @@ function CollapsedRightSidebar({ activeSlug }: { activeSlug: string | null }) {
       <Tooltip>
         <TooltipTrigger
           render={
-            <Button
-              size="icon-sm"
-              variant="ghost"
-              onClick={() =>
-                router.push(
-                  activeSlug
-                    ? `/project/${activeSlug}/chat?_new=${Date.now()}`
-                    : "/chat"
-                )
+            <Link
+              href={
+                activeSlug
+                  ? `/project/${activeSlug}/chat?_new=${Date.now()}`
+                  : "/chat"
               }
+              onClick={(e) => {
+                if (!e.metaKey && !e.ctrlKey) {
+                  e.preventDefault();
+                  router.push(
+                    activeSlug
+                      ? `/project/${activeSlug}/chat?_new=${Date.now()}`
+                      : "/chat"
+                  );
+                }
+              }}
+              className="flex size-7 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
             />
           }
         >
@@ -185,10 +192,24 @@ function RightSidebarInner() {
             size="sm"
             variant="outline"
             className="h-6 gap-1 px-2 text-xs"
-            onClick={() =>
-              activeSlug
-                ? router.push(`/project/${activeSlug}/chat?_new=${Date.now()}`)
-                : router.push("/chat")
+            render={
+              <Link
+                href={
+                  activeSlug
+                    ? `/project/${activeSlug}/chat?_new=${Date.now()}`
+                    : "/chat"
+                }
+                onClick={(e) => {
+                  if (!e.metaKey && !e.ctrlKey) {
+                    e.preventDefault();
+                    router.push(
+                      activeSlug
+                        ? `/project/${activeSlug}/chat?_new=${Date.now()}`
+                        : "/chat"
+                    );
+                  }
+                }}
+              />
             }
           >
             New Conversation

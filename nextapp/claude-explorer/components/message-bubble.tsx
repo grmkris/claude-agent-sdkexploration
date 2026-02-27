@@ -196,7 +196,8 @@ export function MessageBubble({
 
   // Collapsible tool state
   const anyRunning = content.some(
-    (b) => b.type === "tool_use" && toolProgress?.has((b as ToolUseContentBlock).id)
+    (b) =>
+      b.type === "tool_use" && toolProgress?.has((b as ToolUseContentBlock).id)
   );
   const collapsibleToolCount = content.filter(
     (b) =>
