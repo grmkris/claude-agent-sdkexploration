@@ -24,7 +24,7 @@ type UseRootChatStreamReturn = {
   answerQuestion: (
     toolUseId: string,
     answers: Record<string, string[]>
-  ) => void;
+  ) => Promise<void>;
   isStreaming: boolean;
   sessionId: string | null;
   error: string | null;
@@ -62,14 +62,6 @@ export function useRootChatStream(
     setIsStreaming(false);
     streamingRef.current = false;
   }, []);
-
-  const answerQuestion = useCallback(
-    (toolUseId: string, answers: Record<string, string[]>) => {
-      if (!sessionId) return;
-      void client.answerQuestion({ sessionId, toolUseId, answers });
-    },
-    [sessionId]
-  );
 
   const send = useCallback(
     (prompt: string, images?: AttachedImage[]) => {
@@ -156,6 +148,20 @@ export function useRootChatStream(
       })();
     },
     [sessionId, opts?.resume, opts?.thinking, opts?.permissionMode]
+  );
+
+  const answerQuestion = useCallback(
+    async (toolUseId: string, answers: Record<string, string[]>) => {
+      if (!sessionId) return;
+      const result = await client.answerQuestion({ sessionId, toolUseId, answers });
+      if (result.needsResume) {
+        // Server was restarted — the in-memory promise is gone but pre-filled
+        // answers were stored to DB. Trigger a resume stream so canUseTool fires
+        // again with those stored answers, which auto-resolves immediately.
+        send(" ");
+      }
+    },
+    [sessionId, send]
   );
 
   return {

@@ -90,6 +90,15 @@ function getDB(): Database {
     CREATE INDEX IF NOT EXISTS idx_sessions_state ON sessions(state);
     CREATE INDEX IF NOT EXISTS idx_sessions_updated ON sessions(updated_at);
     CREATE INDEX IF NOT EXISTS idx_sessions_project ON sessions(project_path);
+
+    CREATE TABLE IF NOT EXISTS pending_questions (
+      tool_use_id        TEXT PRIMARY KEY,
+      session_id         TEXT NOT NULL,
+      tool_input         TEXT NOT NULL,
+      prefilled_answers  TEXT,
+      created_at         TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_pq_session ON pending_questions(session_id);
   `);
 
   // Migration: add git_branch column to existing DBs
@@ -341,4 +350,73 @@ export function cleanOldSessions(maxAgeMs: number): void {
       "DELETE FROM sessions WHERE state IN ('done', 'stopped', 'error') AND is_archived = 0 AND updated_at < ?"
     )
     .run(cutoff);
+}
+
+// --- Pending Questions (AskUserQuestion resilience across restarts) ---
+
+export interface PendingQuestionRow {
+  tool_use_id: string;
+  session_id: string;
+  tool_input: string; // JSON
+  prefilled_answers: string | null; // JSON
+  created_at: string;
+}
+
+export function upsertPendingQuestion(
+  toolUseId: string,
+  sessionId: string,
+  toolInput: Record<string, unknown>
+): void {
+  getDB()
+    .query(
+      `INSERT INTO pending_questions (tool_use_id, session_id, tool_input, prefilled_answers, created_at)
+       VALUES (?, ?, ?, NULL, ?)
+       ON CONFLICT(tool_use_id) DO NOTHING`
+    )
+    .run(toolUseId, sessionId, JSON.stringify(toolInput), new Date().toISOString());
+}
+
+export function setPrefilledAnswers(
+  toolUseId: string,
+  answers: Record<string, string>
+): void {
+  getDB()
+    .query(
+      "UPDATE pending_questions SET prefilled_answers = ? WHERE tool_use_id = ?"
+    )
+    .run(JSON.stringify(answers), toolUseId);
+}
+
+export function getPendingQuestion(toolUseId: string): {
+  toolUseId: string;
+  sessionId: string;
+  toolInput: Record<string, unknown>;
+  prefilledAnswers: Record<string, string> | null;
+} | null {
+  const row = getDB()
+    .query<PendingQuestionRow, [string]>(
+      "SELECT * FROM pending_questions WHERE tool_use_id = ?"
+    )
+    .get(toolUseId);
+  if (!row) return null;
+  return {
+    toolUseId: row.tool_use_id,
+    sessionId: row.session_id,
+    toolInput: JSON.parse(row.tool_input) as Record<string, unknown>,
+    prefilledAnswers: row.prefilled_answers
+      ? (JSON.parse(row.prefilled_answers) as Record<string, string>)
+      : null,
+  };
+}
+
+export function deletePendingQuestion(toolUseId: string): void {
+  getDB()
+    .query("DELETE FROM pending_questions WHERE tool_use_id = ?")
+    .run(toolUseId);
+}
+
+export function deletePendingQuestionsForSession(sessionId: string): void {
+  getDB()
+    .query("DELETE FROM pending_questions WHERE session_id = ?")
+    .run(sessionId);
 }

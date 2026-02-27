@@ -63,6 +63,11 @@ import {
   getActiveSessions as getDbActiveSessions,
   getProjectSessions as getDbProjectSessions,
   getAllRecentSessions as getDbAllRecentSessions,
+  upsertPendingQuestion,
+  setPrefilledAnswers,
+  getPendingQuestion,
+  deletePendingQuestion,
+  deletePendingQuestionsForSession,
 } from "./explorer-db";
 import {
   getFavorites,
@@ -478,8 +483,12 @@ function cleanupPendingAnswers(sessionId: string) {
     if (entry.sessionId === sessionId) {
       entry.resolve({ behavior: "deny", message: "Session ended" });
       pendingAnswers.delete(toolUseId);
+      deletePendingQuestion(toolUseId);
     }
   }
+  // Also clean up any DB rows for this session that lost their in-memory promise
+  // (e.g. orphaned rows from a previous server run).
+  deletePendingQuestionsForSession(sessionId);
 }
 
 function buildPromptArg(
@@ -605,6 +614,21 @@ const chatProc = os
             opts: { toolUseID: string }
           ) => {
             if (toolName === "AskUserQuestion" && sessionId) {
+              const typedInput = (toolInput as Record<string, unknown>) ?? {};
+              // Check for pre-filled answers stored during a restart scenario
+              const stored = getPendingQuestion(opts.toolUseID);
+              if (stored?.prefilledAnswers) {
+                deletePendingQuestion(opts.toolUseID);
+                return {
+                  behavior: "allow" as const,
+                  updatedInput: {
+                    ...typedInput,
+                    answers: stored.prefilledAnswers,
+                  },
+                };
+              }
+              // Normal flow: persist to DB then pause for user input
+              upsertPendingQuestion(opts.toolUseID, sessionId!, typedInput);
               return new Promise<
                 | { behavior: "allow"; updatedInput?: Record<string, unknown> }
                 | { behavior: "deny"; message: string }
@@ -612,7 +636,7 @@ const chatProc = os
                 pendingAnswers.set(opts.toolUseID, {
                   resolve,
                   sessionId: sessionId!,
-                  toolInput: (toolInput as Record<string, unknown>) ?? {},
+                  toolInput: typedInput,
                 });
               });
             }
@@ -688,38 +712,55 @@ const answerQuestionProc = os
       answers: z.record(z.string(), z.array(z.string())),
     })
   )
-  .output(z.object({ success: z.boolean() }))
+  .output(z.object({ success: z.boolean(), needsResume: z.boolean().optional() }))
   .handler(async ({ input }) => {
     const pending = pendingAnswers.get(input.toolUseId);
-    if (!pending) return { success: false };
 
-    // Convert answers from { [header]: string[] } to { [questionText]: string }
-    // to match the AskUserQuestionOutput.answers schema expected by the SDK.
-    const questions = (pending.toolInput.questions ?? []) as Array<{
-      question: string;
-      header: string;
-    }>;
-    const headerToQuestion: Record<string, string> = {};
-    for (const q of questions) {
-      headerToQuestion[q.header] = q.question;
-    }
-    const convertedAnswers: Record<string, string> = {};
-    for (const [header, labelArray] of Object.entries(input.answers)) {
-      const questionText = headerToQuestion[header] ?? header;
-      convertedAnswers[questionText] = labelArray.join(", ");
+    // Helper: convert { [header]: string[] } → { [questionText]: string }
+    function convertAnswers(
+      toolInput: Record<string, unknown>
+    ): Record<string, string> {
+      const questions = (toolInput.questions ?? []) as Array<{
+        question: string;
+        header: string;
+      }>;
+      const headerToQuestion: Record<string, string> = {};
+      for (const q of questions) {
+        headerToQuestion[q.header] = q.question;
+      }
+      const converted: Record<string, string> = {};
+      for (const [header, labelArray] of Object.entries(input.answers)) {
+        const questionText = headerToQuestion[header] ?? header;
+        converted[questionText] = labelArray.join(", ");
+      }
+      return converted;
     }
 
-    // Resolve with the answers in updatedInput so the SDK delivers them
-    // as the AskUserQuestion tool result back to Claude.
-    pending.resolve({
-      behavior: "allow",
-      updatedInput: {
-        ...pending.toolInput,
-        answers: convertedAnswers,
-      },
-    });
-    pendingAnswers.delete(input.toolUseId);
-    return { success: true };
+    if (pending) {
+      // Fast path — server is still running, in-memory promise is live
+      const convertedAnswers = convertAnswers(pending.toolInput);
+      pending.resolve({
+        behavior: "allow",
+        updatedInput: {
+          ...pending.toolInput,
+          answers: convertedAnswers,
+        },
+      });
+      pendingAnswers.delete(input.toolUseId);
+      deletePendingQuestion(input.toolUseId);
+      return { success: true };
+    }
+
+    // Slow path — server was restarted, promise is gone but DB row may exist.
+    const stored = getPendingQuestion(input.toolUseId);
+    if (!stored) return { success: false };
+
+    // Persist pre-filled answers so canUseTool can auto-resolve on resume.
+    const convertedAnswers = convertAnswers(stored.toolInput);
+    setPrefilledAnswers(input.toolUseId, convertedAnswers);
+
+    // Signal the frontend to trigger a session resume stream.
+    return { success: false, needsResume: true };
   });
 
 // --- Webhooks ---
@@ -1404,6 +1445,21 @@ const rootChatProc = os
             opts: { toolUseID: string }
           ) => {
             if (toolName === "AskUserQuestion" && sessionId) {
+              const typedInput = (toolInput as Record<string, unknown>) ?? {};
+              // Check for pre-filled answers stored during a restart scenario
+              const stored = getPendingQuestion(opts.toolUseID);
+              if (stored?.prefilledAnswers) {
+                deletePendingQuestion(opts.toolUseID);
+                return {
+                  behavior: "allow" as const,
+                  updatedInput: {
+                    ...typedInput,
+                    answers: stored.prefilledAnswers,
+                  },
+                };
+              }
+              // Normal flow: persist to DB then pause for user input
+              upsertPendingQuestion(opts.toolUseID, sessionId!, typedInput);
               return new Promise<
                 | { behavior: "allow"; updatedInput?: Record<string, unknown> }
                 | { behavior: "deny"; message: string }
@@ -1411,7 +1467,7 @@ const rootChatProc = os
                 pendingAnswers.set(opts.toolUseID, {
                   resolve,
                   sessionId: sessionId!,
-                  toolInput: (toolInput as Record<string, unknown>) ?? {},
+                  toolInput: typedInput,
                 });
               });
             }
