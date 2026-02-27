@@ -30,6 +30,7 @@ function RootNewChatContent() {
     send,
     stop,
     answerQuestion,
+    approvePlan,
     isStreaming,
     sessionId,
     error,
@@ -99,6 +100,7 @@ function RootNewChatContent() {
         projectSlug="__root__"
         sessionId={sessionId}
         onAnswer={answerQuestion}
+        onApprovePlan={approvePlan}
       />
       {error && (
         <div className="mx-4 mb-2 rounded border border-destructive/50 bg-destructive/10 px-3 py-2 text-xs text-destructive">

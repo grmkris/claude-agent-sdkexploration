@@ -478,12 +478,36 @@ const pendingAnswers = new Map<
   }
 >();
 
+// Module-level map of pending ExitPlanMode tool calls awaiting user approval.
+// Key: toolUseId. Value: { resolve, sessionId, planText, allowedPrompts, toolInput }.
+const pendingExitPlanMode = new Map<
+  string,
+  {
+    resolve: (
+      result:
+        | { behavior: "allow"; updatedInput?: Record<string, unknown> }
+        | { behavior: "deny"; message: string }
+    ) => void;
+    sessionId: string;
+    planText: string;
+    allowedPrompts: Array<{ tool: string; prompt: string }>;
+    toolInput: Record<string, unknown>;
+  }
+>();
+
 function cleanupPendingAnswers(sessionId: string) {
   for (const [toolUseId, entry] of pendingAnswers.entries()) {
     if (entry.sessionId === sessionId) {
       entry.resolve({ behavior: "deny", message: "Session ended" });
       pendingAnswers.delete(toolUseId);
       deletePendingQuestion(toolUseId);
+    }
+  }
+  // Also clean up pending ExitPlanMode calls for this session
+  for (const [toolUseId, entry] of pendingExitPlanMode.entries()) {
+    if (entry.sessionId === sessionId) {
+      entry.resolve({ behavior: "deny", message: "Session ended" });
+      pendingExitPlanMode.delete(toolUseId);
     }
   }
   // Also clean up any DB rows for this session that lost their in-memory promise
@@ -607,7 +631,7 @@ const chatProc = os
             console.error("[chat] stderr:", data);
           },
           ...(thinkingConfig ? { thinking: thinkingConfig } : {}),
-          // Intercept AskUserQuestion to pause and wait for user input
+          // Intercept AskUserQuestion and ExitPlanMode to pause for user input
           canUseTool: async (
             toolName: string,
             toolInput: unknown,
@@ -640,6 +664,41 @@ const chatProc = os
                 });
               });
             }
+
+            if (toolName === "ExitPlanMode" && sessionId) {
+              const typedInput = (toolInput as Record<string, unknown>) ?? {};
+              const allowedPrompts = (typedInput.allowedPrompts ??
+                []) as Array<{
+                tool: string;
+                prompt: string;
+              }>;
+              // Try to read the plan file from cwd
+              let planText = "";
+              if (input.cwd) {
+                try {
+                  const { readFile } = await import("node:fs/promises");
+                  planText = await readFile(
+                    join(input.cwd, "PLAN.md"),
+                    "utf-8"
+                  );
+                } catch {
+                  // plan file may not exist yet — that's OK
+                }
+              }
+              return new Promise<
+                | { behavior: "allow"; updatedInput?: Record<string, unknown> }
+                | { behavior: "deny"; message: string }
+              >((resolve) => {
+                pendingExitPlanMode.set(opts.toolUseID, {
+                  resolve,
+                  sessionId: sessionId!,
+                  planText,
+                  allowedPrompts,
+                  toolInput: typedInput,
+                });
+              });
+            }
+
             return { behavior: "allow" as const };
           },
           mcpServers: {
@@ -763,6 +822,63 @@ const answerQuestionProc = os
 
     // Signal the frontend to trigger a session resume stream.
     return { success: false, needsResume: true };
+  });
+
+// Procedure for approving or rejecting a pending ExitPlanMode tool call
+const approvePlanProc = os
+  .input(
+    z.object({
+      sessionId: z.string(),
+      toolUseId: z.string(),
+      /** true = approve, false = reject */
+      approved: z.boolean(),
+      /** Optional feedback message when rejecting */
+      feedback: z.string().optional(),
+    })
+  )
+  .output(z.object({ success: z.boolean() }))
+  .handler(async ({ input }) => {
+    const pending = pendingExitPlanMode.get(input.toolUseId);
+    if (!pending) return { success: false };
+
+    if (input.approved) {
+      pending.resolve({
+        behavior: "allow" as const,
+        updatedInput: pending.toolInput,
+      });
+    } else {
+      pending.resolve({
+        behavior: "deny" as const,
+        message:
+          input.feedback?.trim() ||
+          "User rejected the plan. Please revise and try again.",
+      });
+    }
+
+    pendingExitPlanMode.delete(input.toolUseId);
+    return { success: true };
+  });
+
+// Procedure to fetch the current pending plan (for restoring UI state)
+const getPendingPlanProc = os
+  .input(z.object({ sessionId: z.string(), toolUseId: z.string() }))
+  .output(
+    z
+      .object({
+        planText: z.string(),
+        allowedPrompts: z.array(
+          z.object({ tool: z.string(), prompt: z.string() })
+        ),
+      })
+      .nullable()
+  )
+  .handler(async ({ input }) => {
+    const pending = pendingExitPlanMode.get(input.toolUseId);
+    if (!pending || pending.sessionId !== input.sessionId) return null;
+    return {
+      planText: pending.planText,
+      allowedPrompts: pending.allowedPrompts,
+    };
   });
 
 // --- Webhooks ---
@@ -1488,6 +1604,30 @@ const rootChatProc = os
                 });
               });
             }
+
+            if (toolName === "ExitPlanMode" && sessionId) {
+              const typedInput = (toolInput as Record<string, unknown>) ?? {};
+              const allowedPrompts = (typedInput.allowedPrompts ??
+                []) as Array<{
+                tool: string;
+                prompt: string;
+              }>;
+              // rootChat has no cwd-based plan file — plan text stays empty
+              const planText = "";
+              return new Promise<
+                | { behavior: "allow"; updatedInput?: Record<string, unknown> }
+                | { behavior: "deny"; message: string }
+              >((resolve) => {
+                pendingExitPlanMode.set(opts.toolUseID, {
+                  resolve,
+                  sessionId: sessionId!,
+                  planText,
+                  allowedPrompts,
+                  toolInput: typedInput,
+                });
+              });
+            }
+
             return { behavior: "allow" as const };
           },
           systemPrompt: {
@@ -2715,6 +2855,8 @@ export const router = {
   },
   chat: chatProc,
   answerQuestion: answerQuestionProc,
+  approvePlan: approvePlanProc,
+  getPendingPlan: getPendingPlanProc,
   root: {
     primarySession: rootPrimarySessionProc,
     setPrimary: rootSetPrimaryProc,

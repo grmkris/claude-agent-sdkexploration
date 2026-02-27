@@ -25,6 +25,11 @@ type UseChatStreamReturn = {
     toolUseId: string,
     answers: Record<string, string[]>
   ) => Promise<void>;
+  approvePlan: (
+    toolUseId: string,
+    approved: boolean,
+    feedback?: string
+  ) => Promise<void>;
   isStreaming: boolean;
   sessionId: string | null;
   error: string | null;
@@ -170,11 +175,20 @@ export function useChatStream(opts?: ChatStreamOpts): UseChatStreamReturn {
     [sessionId, send]
   );
 
+  const approvePlan = useCallback(
+    async (toolUseId: string, approved: boolean, feedback?: string) => {
+      if (!sessionId) return;
+      await client.approvePlan({ sessionId, toolUseId, approved, feedback });
+    },
+    [sessionId]
+  );
+
   return {
     messages,
     send,
     stop,
     answerQuestion,
+    approvePlan,
     isStreaming,
     sessionId,
     error,

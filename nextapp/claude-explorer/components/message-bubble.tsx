@@ -23,12 +23,20 @@ function ToolGroup({
   blocks,
   toolProgress,
   projectSlug,
+  sessionId,
   onAnswer,
+  onApprovePlan,
 }: {
   blocks: ToolUseContentBlock[];
   toolProgress?: Map<string, ToolProgressEntry>;
   projectSlug?: string;
+  sessionId?: string;
   onAnswer?: (toolUseId: string, answers: Record<string, string[]>) => void;
+  onApprovePlan?: (
+    toolUseId: string,
+    approved: boolean,
+    feedback?: string
+  ) => void;
 }) {
   const anyRunning = blocks.some((b) => toolProgress?.has(b.id));
   const doneCount = blocks.filter((b) => b.output !== undefined).length;
@@ -74,8 +82,10 @@ function ToolGroup({
               elapsed={elapsed}
               isRunning={isRunning}
               projectSlug={projectSlug}
+              sessionId={sessionId}
               toolUseId={block.id}
               onAnswer={onAnswer}
+              onApprovePlan={onApprovePlan}
             />
           );
         })}
@@ -91,7 +101,9 @@ export function MessageBubble({
   isStreaming,
   toolProgress,
   projectSlug,
+  sessionId,
   onAnswer,
+  onApprovePlan,
 }: {
   role: "user" | "assistant" | "system";
   content: ContentBlock[];
@@ -99,7 +111,13 @@ export function MessageBubble({
   isStreaming?: boolean;
   toolProgress?: Map<string, ToolProgressEntry>;
   projectSlug?: string;
+  sessionId?: string;
   onAnswer?: (toolUseId: string, answers: Record<string, string[]>) => void;
+  onApprovePlan?: (
+    toolUseId: string,
+    approved: boolean,
+    feedback?: string
+  ) => void;
 }) {
   if (role === "system") {
     return (
@@ -177,7 +195,7 @@ export function MessageBubble({
   const isLastAssistantStreaming = isStreaming && hasText;
 
   // Build render segments.
-  // AskUserQuestion blocks are always standalone (never grouped).
+  // AskUserQuestion and ExitPlanMode blocks are always standalone (never grouped).
   // Other consecutive tool_use blocks are grouped when ≥ 3.
   type Segment =
     | { kind: "block"; block: ContentBlock; index: number }
@@ -202,8 +220,8 @@ export function MessageBubble({
     const block = content[i];
     if (block.type === "tool_use") {
       const tb = block as ToolUseContentBlock;
-      if (tb.name === "AskUserQuestion") {
-        // Always render AskUserQuestion standalone — flush any pending group first
+      if (tb.name === "AskUserQuestion" || tb.name === "ExitPlanMode") {
+        // Always render these standalone — flush any pending group first
         flushToolRun();
         segments.push({ kind: "block", block, index: i });
       } else {
@@ -233,7 +251,9 @@ export function MessageBubble({
                 blocks={seg.blocks}
                 toolProgress={toolProgress}
                 projectSlug={projectSlug}
+                sessionId={sessionId}
                 onAnswer={onAnswer}
+                onApprovePlan={onApprovePlan}
               />
             );
           }
@@ -286,8 +306,10 @@ export function MessageBubble({
                 elapsed={elapsed}
                 isRunning={isRunning}
                 projectSlug={projectSlug}
+                sessionId={sessionId}
                 toolUseId={tb.id}
                 onAnswer={onAnswer}
+                onApprovePlan={onApprovePlan}
               />
             );
           }

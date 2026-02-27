@@ -10,8 +10,10 @@ export function ToolUseBlock({
   elapsed,
   isRunning,
   projectSlug,
+  sessionId,
   toolUseId,
   onAnswer,
+  onApprovePlan,
 }: {
   name: string;
   input: Record<string, unknown>;
@@ -20,10 +22,18 @@ export function ToolUseBlock({
   elapsed?: number;
   isRunning?: boolean;
   projectSlug?: string;
+  sessionId?: string;
   toolUseId?: string;
   onAnswer?: (toolUseId: string, answers: Record<string, string[]>) => void;
+  onApprovePlan?: (
+    toolUseId: string,
+    approved: boolean,
+    feedback?: string
+  ) => void;
 }) {
   const Renderer = getToolRenderer(name);
+  const isAskUser = name === "AskUserQuestion";
+  const isExitPlan = name === "ExitPlanMode";
   return (
     <Renderer
       name={name}
@@ -33,8 +43,10 @@ export function ToolUseBlock({
       elapsed={elapsed}
       isRunning={isRunning}
       projectSlug={projectSlug}
-      toolUseId={name === "AskUserQuestion" ? toolUseId : undefined}
-      onAnswer={name === "AskUserQuestion" ? onAnswer : undefined}
+      toolUseId={isAskUser || isExitPlan ? toolUseId : undefined}
+      sessionId={isExitPlan ? sessionId : undefined}
+      onAnswer={isAskUser ? onAnswer : undefined}
+      onApprovePlan={isExitPlan ? onApprovePlan : undefined}
     />
   );
 }

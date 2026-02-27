@@ -21,6 +21,7 @@ export function ChatView({
   sessionId,
   onRefresh,
   onAnswer,
+  onApprovePlan,
 }: {
   messages: ParsedMessage[];
   isStreaming?: boolean;
@@ -29,6 +30,11 @@ export function ChatView({
   sessionId?: string | null;
   onRefresh?: () => void;
   onAnswer?: (toolUseId: string, answers: Record<string, string[]>) => void;
+  onApprovePlan?: (
+    toolUseId: string,
+    approved: boolean,
+    feedback?: string
+  ) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const stickToBottom = useRef(true);
@@ -97,7 +103,9 @@ export function ChatView({
                 isStreaming={isLastAssistant && isStreaming}
                 toolProgress={toolProgress}
                 projectSlug={projectSlug}
+                sessionId={sessionId ?? undefined}
                 onAnswer={onAnswer}
+                onApprovePlan={onApprovePlan}
               />
             );
           })}

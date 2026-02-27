@@ -36,6 +36,7 @@ export default function RootSessionChatPage({
     send,
     stop,
     answerQuestion,
+    approvePlan,
     isStreaming,
     error,
     toolProgress,
@@ -79,6 +80,7 @@ export default function RootSessionChatPage({
         sessionId={sessionId}
         onRefresh={() => refetch()}
         onAnswer={answerQuestion}
+        onApprovePlan={approvePlan}
       />
       {error && (
         <div className="mx-4 mb-2 rounded border border-destructive/50 bg-destructive/10 px-3 py-2 text-xs text-destructive">
