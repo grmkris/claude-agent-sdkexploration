@@ -5,13 +5,13 @@ import { useEffect, useState } from "react";
 
 import { orpc } from "@/lib/orpc";
 
-function formatTokens(n: number): string {
+export function formatTokens(n: number): string {
   if (n < 1000) return String(n);
   if (n < 1_000_000) return `${(n / 1000).toFixed(1)}k`;
   return `${(n / 1_000_000).toFixed(2)}M`;
 }
 
-function formatCost(usd: number): string {
+export function formatCost(usd: number): string {
   if (usd < 0.001) return `$${usd.toFixed(5)}`;
   if (usd < 0.01) return `$${usd.toFixed(4)}`;
   return `$${usd.toFixed(2)}`;
@@ -28,13 +28,13 @@ function formatElapsed(startedAt: string): string {
 }
 
 /** Derive bar color from fill percentage */
-function barColor(pct: number): string {
+export function barColor(pct: number): string {
   if (pct >= 0.9) return "bg-red-500";
   if (pct >= 0.7) return "bg-yellow-500";
   return "bg-green-500";
 }
 
-const ACTIVE_STATES = new Set([
+export const ACTIVE_STATES = new Set([
   "initializing",
   "thinking",
   "tool_running",

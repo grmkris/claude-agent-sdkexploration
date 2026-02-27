@@ -10,7 +10,6 @@ import { useEffect, useRef, useCallback, useState } from "react";
 import type { ToolProgressEntry } from "@/hooks/use-chat-stream";
 import type { ParsedMessage } from "@/lib/types";
 
-import { ContextBar } from "./context-bar";
 import { MessageBubble } from "./message-bubble";
 import { SessionStateBadge } from "./session-state-badge";
 
@@ -23,7 +22,6 @@ export function ChatView({
   onRefresh,
   onAnswer,
   onApprovePlan,
-  onCompact,
 }: {
   messages: ParsedMessage[];
   isStreaming?: boolean;
@@ -37,7 +35,6 @@ export function ChatView({
     approved: boolean,
     feedback?: string
   ) => void;
-  onCompact?: () => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const stickToBottom = useRef(true);
@@ -87,13 +84,6 @@ export function ChatView({
 
   return (
     <div className="relative flex-1 flex flex-col overflow-hidden">
-      {sessionId && (
-        <ContextBar
-          sessionId={sessionId}
-          onCompact={onCompact}
-          isStreaming={isStreaming}
-        />
-      )}
       <div ref={containerRef} className="flex-1 overflow-y-auto">
         <div className="flex flex-col gap-3 p-4">
           {messages.length === 0 && (

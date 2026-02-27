@@ -5,6 +5,7 @@ import { useState } from "react";
 
 import { AgentTabProvider } from "@/components/agent-tabs/tab-context";
 import { useLiveUpdates } from "@/hooks/use-live-updates";
+import { CompactProvider } from "@/lib/session-compact-context";
 
 function LiveUpdatesProvider({ children }: { children: React.ReactNode }) {
   useLiveUpdates();
@@ -33,7 +34,7 @@ export function Providers({
     <QueryClientProvider client={queryClient}>
       <LiveUpdatesProvider>
         <AgentTabProvider defaultVisible={tabBarVisible}>
-          {children}
+          <CompactProvider>{children}</CompactProvider>
         </AgentTabProvider>
       </LiveUpdatesProvider>
     </QueryClientProvider>

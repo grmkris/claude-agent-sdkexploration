@@ -14,6 +14,7 @@ import { ChatView } from "@/components/chat-view";
 import { useRootChatStream } from "@/hooks/use-root-chat-stream";
 import { orpc } from "@/lib/orpc";
 import { client } from "@/lib/orpc-client";
+import { useRegisterCompact } from "@/lib/session-compact-context";
 
 const ONBOARD_PROMPT =
   "Introduce yourself briefly. What can you help me with in this workspace? List a few practical things I can ask you to do.";
@@ -98,6 +99,12 @@ function RootNewChatContent() {
     }
   }, [sessionId]);
 
+  // Register compact callback when a session id becomes known
+  useRegisterCompact(
+    sessionId ?? "",
+    sessionId ? () => send("/compact") : undefined
+  );
+
   // Once the first stream completes, redirect to the canonical session URL.
   // This keeps /chat always a blank slate, so starting a new conversation
   // always forces a full component remount with fresh state.
@@ -123,7 +130,6 @@ function RootNewChatContent() {
         sessionId={sessionId}
         onAnswer={answerQuestion}
         onApprovePlan={approvePlan}
-        onCompact={() => send("/compact")}
       />
       {error && (
         <div className="mx-4 mb-2 rounded border border-destructive/50 bg-destructive/10 px-3 py-2 text-xs text-destructive">

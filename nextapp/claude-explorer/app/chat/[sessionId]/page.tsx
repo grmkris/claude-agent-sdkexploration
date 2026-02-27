@@ -10,9 +10,9 @@ import {
   type ChatSettings,
 } from "@/components/chat-settings-bar";
 import { ChatView } from "@/components/chat-view";
-import { SessionFirstMessageBanner } from "@/components/session-first-message-banner";
 import { useRootChatStream } from "@/hooks/use-root-chat-stream";
 import { orpc } from "@/lib/orpc";
+import { useRegisterCompact } from "@/lib/session-compact-context";
 
 export default function RootSessionChatPage({
   params,
@@ -52,6 +52,9 @@ export default function RootSessionChatPage({
         : "default",
   });
 
+  // Register compact callback so the AgentTabBar can trigger it
+  useRegisterCompact(sessionId, () => send("/compact"));
+
   const allMessages = useMemo(() => {
     if (streamMessages.length === 0) return history ?? [];
     const streamUuids = new Set(streamMessages.map((m) => m.uuid));
@@ -69,7 +72,6 @@ export default function RootSessionChatPage({
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
-      <SessionFirstMessageBanner sessionId={sessionId} slug="root" />
       <ChatView
         messages={allMessages}
         isStreaming={
@@ -83,7 +85,6 @@ export default function RootSessionChatPage({
         onRefresh={() => refetch()}
         onAnswer={answerQuestion}
         onApprovePlan={approvePlan}
-        onCompact={() => send("/compact")}
       />
       {error && (
         <div className="mx-4 mb-2 rounded border border-destructive/50 bg-destructive/10 px-3 py-2 text-xs text-destructive">
