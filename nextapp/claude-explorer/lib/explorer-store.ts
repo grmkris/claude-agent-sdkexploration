@@ -687,13 +687,15 @@ export async function removePushSubscription(endpoint: string): Promise<void> {
 
 export async function getSavedPrompts(): Promise<SavedPrompt[]> {
   const store = await readStore();
-  return (store as any).savedPrompts ?? [];
+  return store.savedPrompts ?? [];
 }
 
-export async function addSavedPrompt(prompt: SavedPrompt): Promise<SavedPrompt> {
+export async function addSavedPrompt(
+  prompt: SavedPrompt
+): Promise<SavedPrompt> {
   const store = await readStore();
-  if (!(store as any).savedPrompts) (store as any).savedPrompts = [];
-  (store as any).savedPrompts.push(prompt);
+  if (!store.savedPrompts) store.savedPrompts = [];
+  store.savedPrompts.push(prompt);
   await writeStore(store);
   return prompt;
 }
@@ -703,7 +705,7 @@ export async function updateSavedPrompt(
   updates: { title?: string; content?: string }
 ): Promise<SavedPrompt | null> {
   const store = await readStore();
-  const prompts = ((store as any).savedPrompts ?? []) as SavedPrompt[];
+  const prompts = store.savedPrompts ?? [];
   const prompt = prompts.find((p) => p.id === id);
   if (!prompt) return null;
   if (updates.title !== undefined) prompt.title = updates.title;
@@ -715,11 +717,11 @@ export async function updateSavedPrompt(
 
 export async function removeSavedPrompt(id: string): Promise<boolean> {
   const store = await readStore();
-  const prompts = ((store as any).savedPrompts ?? []) as SavedPrompt[];
+  const prompts = store.savedPrompts ?? [];
   const idx = prompts.findIndex((p) => p.id === id);
   if (idx < 0) return false;
   prompts.splice(idx, 1);
-  (store as any).savedPrompts = prompts;
+  store.savedPrompts = prompts;
   await writeStore(store);
   return true;
 }

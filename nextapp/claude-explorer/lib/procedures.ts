@@ -3340,7 +3340,9 @@ const updateSavedPromptProc = os
 const deleteSavedPromptProc = os
   .input(z.object({ id: z.string() }))
   .output(z.object({ success: z.boolean() }))
-  .handler(async ({ input }) => ({ success: await removeSavedPrompt(input.id) }));
+  .handler(async ({ input }) => ({
+    success: await removeSavedPrompt(input.id),
+  }));
 
 export const router = {
   projects: {

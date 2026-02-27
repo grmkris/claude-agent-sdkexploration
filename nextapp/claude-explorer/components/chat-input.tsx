@@ -12,6 +12,7 @@ import { useState, useRef, useCallback } from "react";
 
 import type { AttachedImage } from "@/lib/types";
 
+import { PromptStorePopover } from "@/components/prompt-store-popover";
 import { Button } from "@/components/ui/button";
 import { useInputDraft } from "@/hooks/use-input-draft";
 import { useSpeechToText } from "@/hooks/use-speech-to-text";
@@ -107,6 +108,21 @@ export function ChatInput({
       startListening();
     }
   }, [isListening, startListening, stopListening]);
+
+  const handlePromptInsert = useCallback(
+    (promptContent: string) => {
+      const trimmedPrev = value.trimEnd();
+      const next = trimmedPrev
+        ? `${trimmedPrev}\n${promptContent}`
+        : promptContent;
+      setValue(next);
+      requestAnimationFrame(() => {
+        autoGrow();
+        textareaRef.current?.focus();
+      });
+    },
+    [value, setValue, autoGrow]
+  );
 
   const addImages = useCallback((incoming: (AttachedImage | null)[]) => {
     const valid = incoming.filter((img): img is AttachedImage => img !== null);
@@ -272,6 +288,9 @@ export function ChatInput({
         >
           <HugeiconsIcon icon={Attachment01Icon} size={18} />
         </Button>
+
+        {/* Prompt store button */}
+        <PromptStorePopover onInsert={handlePromptInsert} />
 
         {/* Mic button — only rendered when Web Speech API is available */}
         {isSpeechSupported && (
