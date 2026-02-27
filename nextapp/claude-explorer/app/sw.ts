@@ -6,8 +6,8 @@
 const sw = self as unknown as ServiceWorkerGlobalScope;
 
 // Skip waiting and take control immediately
-sw.addEventListener("install", () => {
-  sw.skipWaiting();
+sw.addEventListener("install", (event: ExtendableEvent) => {
+  event.waitUntil(sw.skipWaiting());
 });
 
 sw.addEventListener("activate", (event: ExtendableEvent) => {

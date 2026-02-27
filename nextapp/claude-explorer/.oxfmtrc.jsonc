@@ -18,4 +18,11 @@
     "newlinesBetween": true,
     "order": "asc",
   },
+  "ignorePatterns": [
+    "**/*.json",
+    "**/*.jsonc",
+    "**/*.css",
+    "**/*.md",
+    "**/*.webmanifest",
+  ],
 }
