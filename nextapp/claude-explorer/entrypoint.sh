@@ -125,7 +125,7 @@ export RPC_INTERNAL_TOKEN=$(head -c 32 /dev/urandom | base64 | tr -d '/+=' | hea
 MCP_NAME="${INSTANCE_NAME:-claude-explorer}"
 su bun -c "claude mcp remove -s user $MCP_NAME" 2>/dev/null || true
 su bun -c "claude mcp add -s user $MCP_NAME \
-  -e EXPLORER_BASE_URL=http://localhost:3000 \
+  -e EXPLORER_BASE_URL=http://localhost:${PORT:-3000} \
   -e RPC_INTERNAL_TOKEN=${RPC_INTERNAL_TOKEN} \
   -- bun /app/tools/explorer-server.ts" 2>/dev/null || true
 
@@ -141,22 +141,16 @@ cd /app
 su bun -c "bun cron-worker.ts" &
 CRON_PID=$!
 
-# Next.js always runs on internal port 3000
-su bun -c "bun --bun next start -p 3000" &
+su bun -c "bun --bun next start -p ${PORT:-3000}" &
 NEXT_PID=$!
 
-# Public-facing reverse proxy on $PORT (default 8080):
-# proxies HTTP → Next.js:3000 and handles /api/terminal-ws WebSocket → PTY
-su bun -c "bun server/index.ts" &
-PROXY_PID=$!
-
 # Trap signals to shut down all
-trap "kill $TS_PID $CRON_PID $NEXT_PID $PROXY_PID 2>/dev/null; exit 0" SIGTERM SIGINT
+trap "kill $TS_PID $CRON_PID $NEXT_PID 2>/dev/null; exit 0" SIGTERM SIGINT
 
-# Wait for any of the main processes to exit
-wait -n $CRON_PID $NEXT_PID $PROXY_PID
+# Wait for either to exit
+wait -n $CRON_PID $NEXT_PID
 EXIT_CODE=$?
 
-# If one dies, kill the others
-kill $TS_PID $CRON_PID $NEXT_PID $PROXY_PID 2>/dev/null
+# If one dies, kill the other
+kill $TS_PID $CRON_PID $NEXT_PID 2>/dev/null
 exit $EXIT_CODE
