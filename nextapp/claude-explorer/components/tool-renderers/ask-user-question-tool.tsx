@@ -35,6 +35,7 @@ export function AskUserQuestionTool({
     () => new Map()
   );
   const [submitted, setSubmitted] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const toggleOption = useCallback(
     (questionIdx: number, label: string, multiSelect: boolean) => {
@@ -59,7 +60,7 @@ export function AskUserQuestionTool({
     [isAnswered, submitted]
   );
 
-  const handleSubmit = useCallback(() => {
+  const handleSubmit = useCallback(async () => {
     if (!onAnswer || !toolUseId || submitted) return;
     const answers: Record<string, string[]> = {};
     questions.forEach((q, i) => {
@@ -67,7 +68,18 @@ export function AskUserQuestionTool({
       answers[q.header] = sel ? Array.from(sel) : [];
     });
     setSubmitted(true);
-    onAnswer(toolUseId, answers);
+    setSubmitError(null);
+    try {
+      await onAnswer(toolUseId, answers);
+    } catch (err) {
+      // Reset so the user can retry
+      setSubmitted(false);
+      setSubmitError(
+        err instanceof Error
+          ? err.message
+          : "Failed to submit answer. Please try again."
+      );
+    }
   }, [onAnswer, toolUseId, questions, selections, submitted]);
 
   const allQuestionsAnswered = questions.every((_, i) => {
@@ -217,10 +229,13 @@ export function AskUserQuestionTool({
         </div>
       ))}
 
+      {submitError && (
+        <p className="mt-3 text-xs text-destructive">{submitError}</p>
+      )}
       <div className="mt-4 flex justify-end">
         <Button
           size="sm"
-          disabled={!allQuestionsAnswered || !onAnswer}
+          disabled={!allQuestionsAnswered || !onAnswer || submitted}
           onClick={handleSubmit}
           className="text-xs"
         >

@@ -67,12 +67,10 @@ import {
   setPrefilledAnswers,
   getPendingQuestion,
   deletePendingQuestion,
-  deletePendingQuestionsForSession,
   upsertPendingExitPlanMode,
   setPrefilledApproval,
   getPendingExitPlanMode,
   deletePendingExitPlanMode,
-  deletePendingExitPlanModeForSession,
 } from "./explorer-db";
 import {
   getFavorites,
@@ -549,13 +547,12 @@ function cleanupPendingAnswers(sessionId: string) {
       pendingExitPlanMode.delete(toolUseId);
     }
   }
-  // Also clean up any DB rows for this session that lost their in-memory promise
-  // (e.g. orphaned rows from a previous server run).
-  // NOTE: do NOT call deletePendingExitPlanModeForSession here — we intentionally
-  // keep those DB rows alive so approvePlanProc can store a prefilled approval
-  // decision and trigger a resume stream. Rows are deleted in canUseTool once
-  // the prefilled decision is consumed, or never if the session is abandoned.
-  deletePendingQuestionsForSession(sessionId);
+  // NOTE: do NOT call deletePendingQuestionsForSession here — we intentionally
+  // keep those DB rows alive so answerQuestionProc can store prefilled answers
+  // and return needsResume: true so the frontend reopens the stream. Rows are
+  // deleted in canUseTool once the prefilled answers are consumed, or never if
+  // the session is abandoned.
+  // (Same reasoning as pending_exit_plan_mode above.)
 }
 
 function buildPromptArg(
@@ -696,6 +693,12 @@ const chatProc = os
               }
               // Normal flow: persist to DB then pause for user input
               upsertPendingQuestion(opts.toolUseID, sessionId!, typedInput);
+              // Update session state so the UI shows "waiting for permission"
+              // rather than "tool running" while we are blocked on user input.
+              upsertSession(sessionId!, {
+                state: "waiting_for_permission",
+                current_tool: "AskUserQuestion",
+              });
               return new Promise<
                 | { behavior: "allow"; updatedInput?: Record<string, unknown> }
                 | { behavior: "deny"; message: string }
@@ -705,6 +708,18 @@ const chatProc = os
                   sessionId: sessionId!,
                   toolInput: typedInput,
                 });
+
+                // Resolve immediately if the SDK aborts so the Promise doesn't hang.
+                opts.signal?.addEventListener(
+                  "abort",
+                  () => {
+                    if (pendingAnswers.has(opts.toolUseID)) {
+                      resolve({ behavior: "deny", message: "Aborted" });
+                      pendingAnswers.delete(opts.toolUseID);
+                    }
+                  },
+                  { once: true }
+                );
               });
             }
 
@@ -1777,6 +1792,12 @@ const rootChatProc = os
               }
               // Normal flow: persist to DB then pause for user input
               upsertPendingQuestion(opts.toolUseID, sessionId!, typedInput);
+              // Update session state so the UI shows "waiting for permission"
+              // rather than "tool running" while we are blocked on user input.
+              upsertSession(sessionId!, {
+                state: "waiting_for_permission",
+                current_tool: "AskUserQuestion",
+              });
               return new Promise<
                 | { behavior: "allow"; updatedInput?: Record<string, unknown> }
                 | { behavior: "deny"; message: string }
@@ -1786,6 +1807,18 @@ const rootChatProc = os
                   sessionId: sessionId!,
                   toolInput: typedInput,
                 });
+
+                // Resolve immediately if the SDK aborts so the Promise doesn't hang.
+                opts.signal?.addEventListener(
+                  "abort",
+                  () => {
+                    if (pendingAnswers.has(opts.toolUseID)) {
+                      resolve({ behavior: "deny", message: "Aborted" });
+                      pendingAnswers.delete(opts.toolUseID);
+                    }
+                  },
+                  { once: true }
+                );
               });
             }
 
@@ -2939,14 +2972,7 @@ const installCatalogSkillProc = os
   .handler(async ({ input }) => {
     try {
       const proc = Bun.spawn(
-        [
-          "npx",
-          "-y",
-          "skills",
-          "add",
-          ...input.installCommand.split(" "),
-          "-y",
-        ],
+        ["bunx", "skills", "add", ...input.installCommand.split(" "), "-y"],
         {
           stdout: "pipe",
           stderr: "pipe",

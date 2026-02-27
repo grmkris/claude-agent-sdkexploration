@@ -159,9 +159,14 @@ export function useRootChatStream(
 
   const answerQuestion = useCallback(
     async (toolUseId: string, answers: Record<string, string[]>) => {
-      if (!sessionId) return;
+      const effectiveSessionId = sessionId ?? opts?.resume ?? null;
+      if (!effectiveSessionId) {
+        throw new Error(
+          "Session not yet initialized. Please wait a moment and try again."
+        );
+      }
       const result = await client.answerQuestion({
-        sessionId,
+        sessionId: effectiveSessionId,
         toolUseId,
         answers,
       });
@@ -177,14 +182,15 @@ export function useRootChatStream(
         send(" ");
       }
     },
-    [sessionId, send, streamingRef]
+    [sessionId, opts?.resume, send, streamingRef]
   );
 
   const approvePlan = useCallback(
     async (toolUseId: string, approved: boolean, feedback?: string) => {
-      if (!sessionId) return;
+      const effectiveSessionId = sessionId ?? opts?.resume ?? null;
+      if (!effectiveSessionId) return;
       const result = await client.approvePlan({
-        sessionId,
+        sessionId: effectiveSessionId,
         toolUseId,
         approved,
         feedback,
@@ -204,7 +210,7 @@ export function useRootChatStream(
         send(" ");
       }
     },
-    [sessionId, send, streamingRef]
+    [sessionId, opts?.resume, send, stop, streamingRef]
   );
 
   return {

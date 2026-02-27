@@ -13,7 +13,10 @@ export type ToolRendererProps = {
   /** Current session ID — needed by ExitPlanMode to fetch plan text */
   sessionId?: string;
   /** Callback invoked when the user answers an AskUserQuestion */
-  onAnswer?: (toolUseId: string, answers: Record<string, string[]>) => void;
+  onAnswer?: (
+    toolUseId: string,
+    answers: Record<string, string[]>
+  ) => void | Promise<void>;
   /** Callback invoked when the user approves or rejects an ExitPlanMode */
   onApprovePlan?: (
     toolUseId: string,

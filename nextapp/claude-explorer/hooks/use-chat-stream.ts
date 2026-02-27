@@ -19,7 +19,11 @@ export type { ToolProgressEntry };
 
 type UseChatStreamReturn = {
   messages: ParsedMessage[];
-  send: (prompt: string, images?: AttachedImage[], cwdOverride?: string) => void;
+  send: (
+    prompt: string,
+    images?: AttachedImage[],
+    cwdOverride?: string
+  ) => void;
   stop: () => void;
   answerQuestion: (
     toolUseId: string,
@@ -162,7 +166,11 @@ export function useChatStream(opts?: ChatStreamOpts): UseChatStreamReturn {
 
   const answerQuestion = useCallback(
     async (toolUseId: string, answers: Record<string, string[]>) => {
-      if (!sessionId) return;
+      if (!sessionId) {
+        throw new Error(
+          "Session not yet initialized. Please wait a moment and try again."
+        );
+      }
       const result = await client.answerQuestion({
         sessionId,
         toolUseId,
@@ -185,9 +193,13 @@ export function useChatStream(opts?: ChatStreamOpts): UseChatStreamReturn {
 
   const approvePlan = useCallback(
     async (toolUseId: string, approved: boolean, feedback?: string) => {
-      if (!sessionId) return;
+      // Use the URL-param resume ID as a fallback for pages loaded fresh (or
+      // after a refresh) where the React sessionId state is still null because
+      // no streaming turn has run yet.
+      const effectiveSessionId = sessionId ?? opts?.resume ?? null;
+      if (!effectiveSessionId) return;
       const result = await client.approvePlan({
-        sessionId,
+        sessionId: effectiveSessionId,
         toolUseId,
         approved,
         feedback,
@@ -199,7 +211,9 @@ export function useChatStream(opts?: ChatStreamOpts): UseChatStreamReturn {
       }
       if (result.needsResume) {
         // SSE stream died before approval arrived — trigger a resume stream so
-        // the agent can re-ask for plan approval with a fresh connection.
+        // the agent can pick up the pre-filled approval decision from the DB.
+        // Stop any heartbeat-only stream first so send()'s guard doesn't block.
+        if (streamingRef.current) stop();
         send(" ");
       } else if (result.success && !streamingRef.current) {
         // Approval was accepted but our SSE stream already ended locally.
@@ -207,7 +221,7 @@ export function useChatStream(opts?: ChatStreamOpts): UseChatStreamReturn {
         send(" ");
       }
     },
-    [sessionId, send, streamingRef]
+    [sessionId, opts?.resume, send, stop, streamingRef]
   );
 
   return {
