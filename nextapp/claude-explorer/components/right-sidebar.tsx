@@ -12,6 +12,7 @@ import {
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
+import * as React from "react";
 import { usePathname, useRouter } from "next/navigation";
 
 import { SessionsPanel } from "@/components/sessions-panel";
@@ -209,6 +210,17 @@ function RightSidebarInner() {
 
 export function RightSidebar() {
   const { state, openMobile, setOpenMobile, isMobile } = useRightSidebar();
+  const [mounted, setMounted] = React.useState(false);
+
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Don't render anything until client-side mobile detection has resolved.
+  // Without this guard, useIsMobile() returns false on first render (SSR),
+  // causing the desktop fixed sidebar to mount on mobile — its `fixed` children
+  // can escape the parent's `hidden` class and render as a floating icon rail.
+  if (!mounted) return null;
 
   if (isMobile) {
     return (
