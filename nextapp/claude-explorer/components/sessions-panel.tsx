@@ -182,9 +182,10 @@ export function SessionsPanel({
   const archiveMutation = useMutation({
     ...orpc.sessions.archive.mutationOptions(),
     onSuccess: () => {
-      void queryClient.invalidateQueries(
-        orpc.sessions.timeline.queryOptions({ input: queryInput })
-      );
+      void queryClient.invalidateQueries({
+        queryKey: orpc.sessions.timeline.queryOptions({ input: queryInput })
+          .queryKey,
+      });
     },
   });
 
