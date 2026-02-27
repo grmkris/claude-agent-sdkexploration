@@ -181,12 +181,12 @@ export function useChatStream(opts?: ChatStreamOpts): UseChatStreamReturn {
         // Server was restarted or SSE stream died — the in-memory promise is
         // gone but pre-filled answers were stored to DB. Trigger a resume stream
         // so canUseTool fires again with those stored answers, which auto-resolves.
-        send(" ");
+        send(".");
       } else if (result.success && !streamingRef.current) {
         // The answer was accepted (promise resolved) but the SSE stream has
         // already ended on our end (e.g. connection dropped after the promise
         // resolved). Resume so we don't silently lose the agent's response.
-        send(" ");
+        send(".");
       }
     },
     [sessionId, opts?.resume, send, streamingRef]
@@ -215,11 +215,11 @@ export function useChatStream(opts?: ChatStreamOpts): UseChatStreamReturn {
         // the agent can pick up the pre-filled approval decision from the DB.
         // Stop any heartbeat-only stream first so send()'s guard doesn't block.
         if (streamingRef.current) stop();
-        send(" ");
+        send(".");
       } else if (result.success && !streamingRef.current) {
         // Approval was accepted but our SSE stream already ended locally.
         // Resume so we don't silently lose the agent's continued output.
-        send(" ");
+        send(".");
       }
     },
     [sessionId, opts?.resume, send, stop, streamingRef]
