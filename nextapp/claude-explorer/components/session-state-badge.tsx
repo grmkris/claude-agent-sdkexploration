@@ -69,9 +69,11 @@ export function SessionStateBadge({
           <TooltipTrigger>
             <span className="inline-flex items-center gap-1">
               {dot}
-              <span className="text-[10px] text-muted-foreground">
-                {cfg.label}
-              </span>
+              {!inactiveStates.has(data.state) && (
+                <span className="text-[10px] text-muted-foreground">
+                  {cfg.label}
+                </span>
+              )}
             </span>
           </TooltipTrigger>
           <TooltipContent side="right">{tooltipText}</TooltipContent>
