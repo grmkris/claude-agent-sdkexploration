@@ -291,7 +291,10 @@ export function ChatInput({
             aria-label={isListening ? "Stop recording" : "Start voice input"}
             aria-pressed={isListening}
           >
-            <HugeiconsIcon icon={isListening ? Mic02Icon : Mic01Icon} size={18} />
+            <HugeiconsIcon
+              icon={isListening ? Mic02Icon : Mic01Icon}
+              size={18}
+            />
           </Button>
         )}
 

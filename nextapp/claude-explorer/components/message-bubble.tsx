@@ -156,6 +156,12 @@ export function MessageBubble({
     const imageBlocks = content.filter(
       (b): b is UserImageBlock => b.type === "user_image"
     );
+    const userTextContent = content
+      .filter(
+        (b): b is Extract<ContentBlock, { type: "text" }> => b.type === "text"
+      )
+      .map((b) => b.text)
+      .join("\n");
     return (
       <div className="flex w-full justify-end">
         <div className="max-w-[85%] rounded-lg px-3 py-2 text-sm bg-primary text-primary-foreground">
@@ -184,8 +190,16 @@ export function MessageBubble({
             }
             return null;
           })}
-          <div className="mt-1 text-[10px] opacity-50 text-right">
-            {new Date(timestamp).toLocaleTimeString()}
+          <div className="mt-1 flex items-center justify-end gap-1.5">
+            {userTextContent && (
+              <CopyButton
+                text={userTextContent}
+                className="opacity-50 hover:opacity-100 [&_svg]:h-2.5 [&_svg]:w-2.5"
+              />
+            )}
+            <span className="text-[10px] opacity-50">
+              {new Date(timestamp).toLocaleTimeString()}
+            </span>
           </div>
         </div>
       </div>
@@ -327,8 +341,16 @@ export function MessageBubble({
 
           return null;
         })}
-        <div className="mt-1 text-[10px] opacity-40">
-          {new Date(timestamp).toLocaleTimeString()}
+        <div className="mt-1 flex items-center gap-1.5">
+          {hasText && (
+            <CopyButton
+              text={textContent}
+              className="opacity-40 hover:opacity-100"
+            />
+          )}
+          <span className="text-[10px] opacity-40">
+            {new Date(timestamp).toLocaleTimeString()}
+          </span>
         </div>
       </div>
     </div>
