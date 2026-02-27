@@ -214,6 +214,8 @@ export const EmailEventSchema = z.object({
   sessionId: z.string().optional(),
   messageId: z.string().optional(), // for threading
   error: z.string().optional(),
+  body: z.string().optional(), // plain-text body (stored inline for both inbound and outbound)
+  attachmentFilenames: z.array(z.string()).optional(), // sanitized filenames in ~/emails/{id}/attachments/
 });
 
 export const OAuthAppSchema = z.object({

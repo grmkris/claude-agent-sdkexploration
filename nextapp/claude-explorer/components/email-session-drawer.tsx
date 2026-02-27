@@ -2,14 +2,21 @@
 
 import type { z } from "zod";
 
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
+import { ChevronDown, ChevronRight } from "lucide-react";
 
 import type { EmailEventSchema } from "@/lib/schemas";
 
 import { ChatView } from "@/components/chat-view";
-import { Badge } from "@/components/ui/badge";
+import { EmailThreadView } from "@/components/email-thread-view";
 import { Button } from "@/components/ui/button";
+import {
+  Collapsible,
+  CollapsibleTrigger,
+  CollapsibleContent,
+} from "@/components/ui/collapsible";
 import {
   Sheet,
   SheetContent,
@@ -18,7 +25,6 @@ import {
   SheetDescription,
 } from "@/components/ui/sheet";
 import { orpc } from "@/lib/orpc";
-import { getTimeAgo } from "@/lib/utils";
 
 type EmailEvent = z.infer<typeof EmailEventSchema>;
 
@@ -36,6 +42,7 @@ export function EmailSessionDrawer({
   const open = event !== null;
   const sessionId = event?.sessionId;
   const projectSlug = event?.projectSlug;
+  const [agentSessionOpen, setAgentSessionOpen] = useState(false);
 
   const isRoot = projectSlug === "__root__" || projectSlug === "__outbound__";
 
@@ -43,14 +50,14 @@ export function EmailSessionDrawer({
     ...orpc.sessions.messages.queryOptions({
       input: { slug: projectSlug ?? "", sessionId: sessionId ?? "" },
     }),
-    enabled: open && !!sessionId && !isRoot,
+    enabled: open && !!sessionId && !isRoot && agentSessionOpen,
   });
 
   const { data: rootMessages, isLoading: isLoadingRoot } = useQuery({
     ...orpc.root.messages.queryOptions({
       input: { sessionId: sessionId ?? "" },
     }),
-    enabled: open && !!sessionId && isRoot,
+    enabled: open && !!sessionId && isRoot && agentSessionOpen,
   });
 
   const messages = isRoot ? rootMessages : projectMessages;
@@ -85,58 +92,47 @@ export function EmailSessionDrawer({
           )}
         </SheetHeader>
 
-        {/* Related events in this session — only show when there are 2+ */}
-        {sortedRelated.length > 1 && (
-          <div className="shrink-0 border-b px-4 py-2">
-            <p className="mb-1.5 text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
-              Email thread &middot; {sortedRelated.length} events
-            </p>
-            <div className="flex flex-col gap-1">
-              {sortedRelated.map((ev) => (
-                <div
-                  key={ev.id}
-                  className={`flex items-center gap-2 text-[10px] ${ev.id === event?.id ? "opacity-100" : "opacity-60"}`}
-                >
-                  <span
-                    className={`h-1.5 w-1.5 shrink-0 rounded-full ${ev.direction === "inbound" ? "bg-blue-500" : "bg-green-500"}`}
-                  />
-                  <Badge
-                    variant="outline"
-                    className="shrink-0 px-1 py-0 text-[9px]"
-                  >
-                    {ev.direction}
-                  </Badge>
-                  <span className="text-muted-foreground truncate">
-                    {ev.from} &rarr; {ev.to}
-                  </span>
-                  <span className="shrink-0 text-muted-foreground">
-                    {getTimeAgo(ev.timestamp)}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+        {/* Email thread — scrollable */}
+        <div className="flex-1 overflow-y-auto min-h-0">
+          <EmailThreadView events={sortedRelated} />
+        </div>
 
-        {/* Conversation body */}
-        {!sessionId ? (
-          <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
-            No session linked to this email event.
-          </div>
-        ) : isLoading ? (
-          <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground animate-pulse">
-            Loading conversation&hellip;
-          </div>
-        ) : messages && messages.length > 0 ? (
-          <ChatView
-            messages={messages}
-            projectSlug={isRoot ? undefined : projectSlug}
-            sessionId={sessionId}
-          />
-        ) : (
-          <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
-            No messages found for this session.
-          </div>
+        {/* Agent session — collapsed by default */}
+        {sessionId && (
+          <Collapsible
+            open={agentSessionOpen}
+            onOpenChange={setAgentSessionOpen}
+            className="shrink-0 border-t"
+          >
+            <CollapsibleTrigger className="flex w-full items-center gap-2 px-4 py-2.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors">
+              {agentSessionOpen ? (
+                <ChevronDown className="size-3.5 shrink-0" />
+              ) : (
+                <ChevronRight className="size-3.5 shrink-0" />
+              )}
+              Agent Session
+              <span className="ml-auto font-mono text-[9px] opacity-60">
+                {sessionId.slice(0, 8)}&hellip;
+              </span>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="max-h-[50vh] overflow-y-auto border-t">
+              {isLoading ? (
+                <div className="flex items-center justify-center p-6 text-sm text-muted-foreground animate-pulse">
+                  Loading conversation&hellip;
+                </div>
+              ) : messages && messages.length > 0 ? (
+                <ChatView
+                  messages={messages}
+                  projectSlug={isRoot ? undefined : projectSlug}
+                  sessionId={sessionId}
+                />
+              ) : (
+                <div className="flex items-center justify-center p-6 text-sm text-muted-foreground">
+                  No messages found for this session.
+                </div>
+              )}
+            </CollapsibleContent>
+          </Collapsible>
         )}
 
         {/* Footer */}

@@ -545,6 +545,24 @@ export async function updateEmailEventStatus(
   await writeStore(store);
 }
 
+export async function updateEmailEventAttachments(
+  id: string,
+  attachmentFilenames: string[]
+): Promise<void> {
+  const store = await readStore();
+  const event = (store.emailEvents ?? []).find((e) => e.id === id);
+  if (!event) return;
+  event.attachmentFilenames = attachmentFilenames;
+  await writeStore(store);
+}
+
+export async function getEmailEventById(
+  id: string
+): Promise<EmailEvent | null> {
+  const store = await readStore();
+  return (store.emailEvents ?? []).find((e) => e.id === id) ?? null;
+}
+
 export async function tagOutboundEmailEvents(
   since: string,
   sessionId: string,

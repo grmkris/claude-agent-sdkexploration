@@ -2,7 +2,7 @@ import type { SDKUserMessage } from "@anthropic-ai/claude-agent-sdk/sdk";
 
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import { os, eventIterator } from "@orpc/server";
-import { stat } from "node:fs/promises";
+import { readdir, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join, dirname } from "node:path";
 import { z } from "zod";
@@ -107,6 +107,7 @@ import {
   removeEmailConfig,
   addEmailEvent,
   getEmailEvents,
+  getEmailEventById,
   saveOAuthApp,
   getOAuthApp,
   removeOAuthApp,
@@ -2324,6 +2325,8 @@ const emailSendProc = os
         subject: input.subject,
         status: "success",
         messageId: result.messageId,
+        body: input.body,
+        attachmentFilenames: input.attachments?.map((a) => a.filename),
       });
 
       return { success: true, messageId: result.messageId };
@@ -2340,6 +2343,8 @@ const emailSendProc = os
         subject: input.subject,
         status: "error",
         error,
+        body: input.body,
+        attachmentFilenames: input.attachments?.map((a) => a.filename),
       });
 
       return { success: false, error };
@@ -2350,6 +2355,73 @@ const emailEventsProc = os
   .input(z.object({ projectSlug: z.string().optional() }))
   .output(z.array(EmailEventSchema))
   .handler(async ({ input }) => getEmailEvents(input.projectSlug));
+
+const emailGetContentProc = os
+  .input(z.object({ eventId: z.string() }))
+  .output(
+    z.object({
+      body: z.string().nullable(),
+      attachments: z.array(
+        z.object({
+          filename: z.string(),
+          size: z.number(),
+        })
+      ),
+    })
+  )
+  .handler(async ({ input }) => {
+    // First check if the event already has the body stored inline
+    const event = await getEmailEventById(input.eventId);
+    if (event?.body) {
+      // Build attachment list from stored filenames
+      const attachments: { filename: string; size: number }[] = [];
+      if (event.attachmentFilenames?.length) {
+        const attachmentsDir = join(USER_HOME, "emails", input.eventId, "attachments");
+        for (const filename of event.attachmentFilenames) {
+          try {
+            const s = await stat(join(attachmentsDir, filename)).catch(() => null);
+            attachments.push({ filename, size: s?.size ?? 0 });
+          } catch {
+            attachments.push({ filename, size: 0 });
+          }
+        }
+      }
+      return { body: event.body, attachments };
+    }
+
+    // Fallback: read from disk (legacy inbound events without stored body)
+    const emailMdPath = join(USER_HOME, "emails", input.eventId, "email.md");
+    const attachmentsDir = join(USER_HOME, "emails", input.eventId, "attachments");
+
+    let body: string | null = null;
+    try {
+      const file = Bun.file(emailMdPath);
+      if (await file.exists()) {
+        const raw = await file.text();
+        // email.md format: headers, then "\n---\n", then body (then optionally "\n\n## Attachments")
+        const afterDivider = raw.split("\n---\n")[1];
+        if (afterDivider) {
+          body = afterDivider.split("\n\n## Attachments")[0].trim();
+        }
+      }
+    } catch {
+      // file doesn't exist, body stays null
+    }
+
+    // List attachments from disk
+    const attachments: { filename: string; size: number }[] = [];
+    try {
+      const files = await readdir(attachmentsDir);
+      for (const filename of files) {
+        const s = await stat(join(attachmentsDir, filename)).catch(() => null);
+        attachments.push({ filename, size: s?.size ?? 0 });
+      }
+    } catch {
+      // attachments dir doesn't exist — leave attachments empty
+    }
+
+    return { body, attachments };
+  });
 
 const emailListConfigsProc = os
   .output(z.array(WorkspaceEmailConfigSchema))
@@ -3225,6 +3297,7 @@ export const router = {
     removeConfig: emailRemoveConfigProc,
     send: emailSendProc,
     events: emailEventsProc,
+    getContent: emailGetContentProc,
     listConfigs: emailListConfigsProc,
     domain: emailDomainProc,
   },

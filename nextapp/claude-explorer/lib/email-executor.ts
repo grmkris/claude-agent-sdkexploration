@@ -10,6 +10,7 @@ import { upsertSession } from "./explorer-db";
 import {
   addEmailEvent,
   tagOutboundEmailEvents,
+  updateEmailEventAttachments,
   updateEmailEventStatus,
 } from "./explorer-store";
 import { createSessionHooks } from "./session-hooks";
@@ -62,10 +63,15 @@ async function downloadAttachment(
  *
  * Returns the absolute path to the email directory.
  */
+interface MaterializedEmail {
+  emailDir: string;
+  attachmentFilenames: string[]; // sanitized filenames that were successfully downloaded
+}
+
 async function materializeEmail(
   email: ParsedEmail,
   eventId: string
-): Promise<string> {
+): Promise<MaterializedEmail> {
   const emailDir = join(EMAIL_STORE, eventId);
   const attachmentsDir = join(emailDir, "attachments");
   await mkdir(attachmentsDir, { recursive: true });
@@ -81,6 +87,11 @@ async function materializeEmail(
         : null,
     }))
   );
+
+  // Collect sanitized filenames for successfully downloaded attachments
+  const attachmentFilenames = resolved
+    .filter(({ localPath }) => localPath !== null)
+    .map(({ att }) => att.filename.replace(/[^a-zA-Z0-9._-]/g, "_") || `file-${crypto.randomUUID()}`);
 
   // Build attachment table for email.md
   const attachmentRows = resolved
@@ -115,7 +126,7 @@ ${attachmentSection}
 `;
 
   await writeFile(join(emailDir, "email.md"), emailMd, "utf-8");
-  return emailDir;
+  return { emailDir, attachmentFilenames };
 }
 
 /** Build the prompt for Claude with the full email content embedded inline */
@@ -177,11 +188,17 @@ export function executeInboundEmail(
       subject: email.subject,
       status: "running",
       messageId: email.messageId,
+      body: email.body || undefined,
     });
 
     try {
       // 1. Materialise email → ~/emails/{eventId}/ (keeps attachments on disk)
-      const emailDir = await materializeEmail(email, eventId);
+      const { emailDir, attachmentFilenames } = await materializeEmail(email, eventId);
+
+      // Store attachment filenames so the thread view can serve them
+      if (attachmentFilenames.length > 0) {
+        await updateEmailEventAttachments(eventId, attachmentFilenames);
+      }
 
       // 2. Build pointer-style prompt — Claude reads the file directly.
       //    The Read tool natively renders images and PDFs, so attachments are
