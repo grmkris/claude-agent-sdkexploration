@@ -3,6 +3,7 @@
 import {
   Analytics01Icon,
   ComputerTerminal01Icon,
+  Home01Icon,
   Key01Icon,
   Mail01Icon,
   McpServerIcon,
@@ -31,6 +32,12 @@ import {
 } from "@/components/ui/sidebar";
 
 const GLOBAL_NAV = [
+  {
+    href: "/",
+    label: "Home",
+    tooltip: "Home",
+    icon: Home01Icon,
+  },
   {
     href: "/analytics",
     label: "Analytics",
@@ -109,7 +116,7 @@ export function ProjectSidebar() {
                   <SidebarMenuItem key={href}>
                     <Link href={href}>
                       <SidebarMenuButton
-                        isActive={pathname === href}
+                        isActive={href === "/" ? pathname === "/" : pathname === href}
                         tooltip={tooltip}
                       >
                         <HugeiconsIcon icon={icon} size={15} strokeWidth={2} />

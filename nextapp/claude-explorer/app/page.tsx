@@ -86,7 +86,7 @@ function TmuxInCard({ panes }: { panes: TmuxPane[] }) {
 function NewProjectForm({
   onCreated,
 }: {
-  onCreated: (slug: string, sessionId?: string) => void;
+  onCreated: (slug: string, initialPrompt?: string) => void;
 }) {
   const { data: serverConfig } = useQuery(orpc.server.config.queryOptions());
   const defaultParent = serverConfig
@@ -116,8 +116,7 @@ function NewProjectForm({
         ...(initialPrompt ? { initialPrompt } : {}),
         ...(selectedMcps.length ? { mcps: selectedMcps } : {}),
       }),
-    onSuccess: (result) =>
-      onCreated(result.slug, result.sessionId ?? undefined),
+    onSuccess: (result) => onCreated(result.slug, initialPrompt || undefined),
   });
 
   return (
@@ -244,14 +243,14 @@ function UnifiedProjectGrid() {
         </div>
         {showNewProject && (
           <NewProjectForm
-            onCreated={(slug, sessionId) => {
+            onCreated={(slug, initialPrompt) => {
               void queryClient.invalidateQueries({
                 queryKey: orpc.projects.list.queryOptions().queryKey,
               });
               router.push(
-                sessionId
-                  ? `/project/${slug}/chat/${sessionId}`
-                  : `/project/${slug}`
+                initialPrompt
+                  ? `/project/${slug}/chat?prompt=${encodeURIComponent(initialPrompt)}&_new=${Date.now()}`
+                  : `/project/${slug}/chat?_new=${Date.now()}`
               );
             }}
           />
@@ -295,15 +294,15 @@ function UnifiedProjectGrid() {
       {showNewProject && (
         <div className="mb-3">
           <NewProjectForm
-            onCreated={(slug, sessionId) => {
+            onCreated={(slug, initialPrompt) => {
               setShowNewProject(false);
               void queryClient.invalidateQueries({
                 queryKey: orpc.projects.list.queryOptions().queryKey,
               });
               router.push(
-                sessionId
-                  ? `/project/${slug}/chat/${sessionId}`
-                  : `/project/${slug}`
+                initialPrompt
+                  ? `/project/${slug}/chat?prompt=${encodeURIComponent(initialPrompt)}&_new=${Date.now()}`
+                  : `/project/${slug}/chat?_new=${Date.now()}`
               );
             }}
           />

@@ -19,7 +19,13 @@ import { orpc } from "@/lib/orpc";
 // is torn down and remounted fresh every time "New Conversation" is clicked,
 // even when the URL path hasn't changed.
 
-function NewChatContent({ slug }: { slug: string }) {
+function NewChatContent({
+  slug,
+  initialPrompt,
+}: {
+  slug: string;
+  initialPrompt?: string;
+}) {
   const router = useRouter();
   const { data } = useQuery(
     orpc.projects.resolveSlug.queryOptions({ input: { slug } })
@@ -47,6 +53,15 @@ function NewChatContent({ slug }: { slug: string }) {
         ? "bypassPermissions"
         : "default",
   });
+
+  // Auto-send the initial prompt (from project creation) once the cwd is ready.
+  const didAutoSend = useRef(false);
+  useEffect(() => {
+    if (initialPrompt && data?.path && !didAutoSend.current) {
+      didAutoSend.current = true;
+      send(initialPrompt);
+    }
+  }, [initialPrompt, data?.path, send]);
 
   // Once the first stream completes, redirect to the canonical session URL.
   // This keeps /project/[slug]/chat always a blank slate, so clicking
@@ -105,7 +120,10 @@ function NewChatContent({ slug }: { slug: string }) {
 function NewChatPageInner({ slug }: { slug: string }) {
   const searchParams = useSearchParams();
   const newKey = searchParams.get("_new") ?? "initial";
-  return <NewChatContent key={newKey} slug={slug} />;
+  const initialPrompt = searchParams.get("prompt") ?? undefined;
+  return (
+    <NewChatContent key={newKey} slug={slug} initialPrompt={initialPrompt} />
+  );
 }
 
 // ── Page export ────────────────────────────────────────────────────────────────

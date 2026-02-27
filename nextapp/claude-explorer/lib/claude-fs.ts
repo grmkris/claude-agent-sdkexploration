@@ -141,7 +141,13 @@ async function buildSlugMaps() {
       // hyphens (e.g. "agent-sdk-test" ↔ "agent/sdk/test"). There is no
       // lossless way to reverse the Claude CLI's sanitisation without the
       // original path. Register the project in ~/.claude.json to fix this.
-      _slugToPath.set(dir, "/" + dir.replace(/^-/, "").replace(/-/g, "/"));
+      const reconstructedPath =
+        "/" + dir.replace(/^-/, "").replace(/-/g, "/");
+      _slugToPath.set(dir, reconstructedPath);
+      // Also populate the reverse map so resolveSlugForCwd() returns the
+      // correct slug instead of falling through to a parent path match.
+      if (!_pathToSlug.has(reconstructedPath))
+        _pathToSlug.set(reconstructedPath, dir);
     }
   }
 
@@ -623,6 +629,50 @@ export async function writeProjectEnv(
     Record<string, unknown>
   >;
   projects[projectPath] = { ...projects[projectPath], env };
+  raw.projects = projects;
+
+  await mkdir(CLAUDE_DIR, { recursive: true });
+  await writeFile(CLAUDE_CONFIG_PATH, JSON.stringify(raw, null, 2), "utf-8");
+
+  // Bust the in-memory cache so subsequent reads reflect the change
+  configCache = null;
+}
+
+/**
+ * Register a project path in ~/.claude.json so that slug resolution works
+ * correctly (especially for project names containing hyphens, which are
+ * ambiguous when reconstructed from the on-disk slug directory name).
+ * This is idempotent — safe to call even if the project is already registered.
+ */
+export async function registerProjectInConfig(
+  projectPath: string
+): Promise<void> {
+  let raw: Record<string, unknown> = {};
+  try {
+    raw = JSON.parse(await readFile(CLAUDE_CONFIG_PATH, "utf-8")) as Record<
+      string,
+      unknown
+    >;
+  } catch {
+    // file may not exist yet — start fresh
+  }
+
+  const projects = (raw.projects ?? {}) as Record<
+    string,
+    Record<string, unknown>
+  >;
+  // Only add if not already registered — don't overwrite existing config
+  if (!projects[projectPath]) {
+    // Mirror the minimal structure the Claude CLI writes on first interactive use
+    projects[projectPath] = {
+      allowedTools: [],
+      mcpContextUris: [],
+      mcpServers: {},
+      enabledMcpjsonServers: [],
+      disabledMcpjsonServers: [],
+      hasTrustDialogAccepted: true,
+    };
+  }
   raw.projects = projects;
 
   await mkdir(CLAUDE_DIR, { recursive: true });

@@ -1,7 +1,5 @@
 "use client";
 
-import { Home01Icon } from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -49,13 +47,6 @@ export function AppBreadcrumb() {
     return (
       <div className="flex items-center gap-1.5 text-xs">
         <Link
-          href="/"
-          className="flex items-center text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <HugeiconsIcon icon={Home01Icon} size={14} strokeWidth={2} />
-        </Link>
-        <span className="text-muted-foreground/50">/</span>
-        <Link
           href={`/project/${slug}`}
           className={
             hasSubPage
@@ -85,12 +76,5 @@ export function AppBreadcrumb() {
     );
   }
 
-  return (
-    <Link
-      href="/"
-      className="flex items-center text-muted-foreground hover:text-foreground transition-colors"
-    >
-      <HugeiconsIcon icon={Home01Icon} size={14} strokeWidth={2} />
-    </Link>
-  );
+  return null;
 }

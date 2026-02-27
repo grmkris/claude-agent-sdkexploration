@@ -44,6 +44,7 @@ import {
   readCommandContent,
   readProjectEnv,
   writeProjectEnv,
+  registerProjectInConfig,
   getGitStatus,
   getGitFileDiff,
   gitPull,
@@ -1031,7 +1032,6 @@ const createProjectProc = os
     z.object({
       slug: z.string(),
       path: z.string(),
-      sessionId: z.string().optional(),
     })
   )
   .handler(async ({ input }) => {
@@ -1044,6 +1044,10 @@ const createProjectProc = os
       input.parentDir,
       input.name
     );
+    // Register the new project in ~/.claude.json immediately so that slug
+    // resolution works correctly for all project names (including those with
+    // hyphens, which are ambiguous when reconstructed from the on-disk slug).
+    await registerProjectInConfig(projectPath);
     invalidateSlugCache();
 
     // Install selected MCPs
@@ -1074,39 +1078,9 @@ const createProjectProc = os
       }
     }
 
-    // Always run a real Claude session in the project directory so that the
-    // Claude SDK naturally registers the project in ~/.claude/.claude.json
-    // (populating lastSessionId, cost, tokens, etc.).  We capture the
-    // sessionId so the frontend can navigate directly to the first chat.
-    let sessionId: string | undefined;
-    try {
-      const conversation = query({
-        prompt: input.initialPrompt ?? "",
-        options: {
-          model: "claude-sonnet-4-6",
-          executable: "bun",
-          permissionMode: "bypassPermissions",
-          allowDangerouslySkipPermissions: true,
-          env: cleanEnv,
-          cwd: projectPath,
-          hooks: createSessionHooks("chat"),
-        },
-      });
-      for await (const msg of conversation) {
-        // Capture session_id from the SDK init message and persist it so
-        // it shows up in the project's conversation list.
-        if ("type" in msg && msg.type === "system" && "session_id" in msg) {
-          sessionId = (msg as { session_id: string }).session_id;
-          upsertSession(sessionId, { project_path: projectPath });
-        }
-      }
-    } catch {
-      // Claude session failed — project dir still created, return slug anyway
-    }
-
     invalidateSlugCache();
     const slug = await resolveSlugForCwd(projectPath);
-    return { slug, path: projectPath, sessionId };
+    return { slug, path: projectPath };
   });
 
 const listDirProc = os
