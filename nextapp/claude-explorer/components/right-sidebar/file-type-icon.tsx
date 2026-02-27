@@ -13,6 +13,11 @@ import {
   PythonIcon,
   ComputerTerminalIcon,
   Configuration01Icon,
+  Pdf01Icon,
+  Video01Icon,
+  MusicNote01Icon,
+  GridTableIcon,
+  FileAttachmentIcon,
 } from "@hugeicons/core-free-icons";
 
 export type FileIconDef = {
@@ -20,16 +25,8 @@ export type FileIconDef = {
   colorClass: string;
 };
 
+// True binary files that cannot be rendered at all
 const BINARY_EXTENSIONS = new Set([
-  "png",
-  "jpg",
-  "jpeg",
-  "gif",
-  "webp",
-  "ico",
-  "bmp",
-  "tiff",
-  "pdf",
   "zip",
   "tar",
   "gz",
@@ -44,12 +41,7 @@ const BINARY_EXTENSIONS = new Set([
   "dll",
   "so",
   "dylib",
-  "mp3",
-  "mp4",
-  "wav",
-  "ogg",
-  "avi",
-  "mov",
+  "avi", // not supported by native video element cross-browser
 ]);
 
 export function isBinaryFile(name: string): boolean {
@@ -131,7 +123,33 @@ export function getFileIcon(
     case "webp":
     case "ico":
     case "bmp":
+    case "tiff":
+    case "avif":
       return { icon: Image01Icon, colorClass: "text-pink-400/80" };
+    case "mp4":
+    case "webm":
+    case "ogg":
+    case "mov":
+      return { icon: Video01Icon, colorClass: "text-purple-400/80" };
+    case "mp3":
+    case "wav":
+    case "flac":
+    case "aac":
+    case "m4a":
+      return { icon: MusicNote01Icon, colorClass: "text-indigo-400/80" };
+    case "pdf":
+      return { icon: Pdf01Icon, colorClass: "text-red-400/80" };
+    case "xlsx":
+    case "xls":
+    case "csv":
+    case "ods":
+      return { icon: GridTableIcon, colorClass: "text-green-500/80" };
+    case "docx":
+    case "doc":
+    case "odt":
+    case "pptx":
+    case "ppt":
+      return { icon: FileAttachmentIcon, colorClass: "text-blue-400/80" };
     case "sh":
     case "bash":
     case "zsh":

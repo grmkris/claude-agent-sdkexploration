@@ -1,7 +1,51 @@
 import { stat } from "node:fs/promises";
-import { join, basename } from "node:path";
+import { join, basename, extname } from "node:path";
 
 import { resolveSlugToPath } from "@/lib/claude-fs";
+
+// Extensions that should be served inline (viewable in browser / by our viewer components)
+const INLINE_EXTENSIONS = new Set([
+  // Images
+  "png",
+  "jpg",
+  "jpeg",
+  "gif",
+  "webp",
+  "svg",
+  "ico",
+  "bmp",
+  "tiff",
+  "avif",
+  // Video
+  "mp4",
+  "webm",
+  "ogg",
+  "mov",
+  // Audio
+  "mp3",
+  "wav",
+  "flac",
+  "aac",
+  "m4a",
+  // Documents
+  "pdf",
+  // Office (served as binary to client-side parsers)
+  "docx",
+  "xlsx",
+  "xls",
+  "pptx",
+  // Text / code (served as text)
+  "txt",
+  "md",
+  "mdx",
+  "csv",
+  "html",
+  "htm",
+  "xml",
+  "json",
+  "yaml",
+  "yml",
+]);
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -33,10 +77,19 @@ export async function GET(request: Request) {
     }
 
     const filename = basename(fullPath);
+    const ext = extname(filename).slice(1).toLowerCase();
+    const inline = INLINE_EXTENSIONS.has(ext);
+    const disposition = inline
+      ? `inline; filename="${filename}"`
+      : `attachment; filename="${filename}"`;
+
     return new Response(file, {
       headers: {
         "Content-Type": file.type || "application/octet-stream",
-        "Content-Disposition": `attachment; filename="${filename}"`,
+        "Content-Disposition": disposition,
+        // Allow range requests for video/audio seeking
+        "Accept-Ranges": "bytes",
+        "Cache-Control": "private, max-age=60",
       },
     });
   } catch {

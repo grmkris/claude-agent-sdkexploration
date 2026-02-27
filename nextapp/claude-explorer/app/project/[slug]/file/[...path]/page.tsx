@@ -5,11 +5,38 @@ import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { use } from "react";
 
+import { FileViewer } from "@/components/file-viewer/file-viewer";
 import {
   getFileIcon,
   isBinaryFile,
 } from "@/components/right-sidebar/file-type-icon";
 import { orpc } from "@/lib/orpc";
+
+// Extensions that need a text content fetch (rendered via code/markdown viewers)
+const TEXT_EXTS = new Set([
+  "md", "mdx",
+  "ts", "tsx", "js", "jsx", "mjs", "cjs",
+  "py", "pyw", "rs", "go", "java", "kt", "swift",
+  "cpp", "c", "h", "hpp", "cs", "rb", "php",
+  "sh", "bash", "zsh", "fish", "ps1",
+  "css", "scss", "sass", "less",
+  "html", "htm", "xml", "svg",
+  "json", "jsonc", "jsonl", "yaml", "yml", "toml", "ini", "env",
+  "sql", "graphql", "gql",
+  "lua", "vim", "r", "jl", "ex", "exs", "erl", "hs", "clj",
+  "tf", "hcl",
+  "txt", "log", "rst", "csv",
+]);
+
+// Extensions handled by URL-based viewers (they fetch the file themselves)
+const URL_EXTS = new Set([
+  "pdf",
+  "docx", "doc", "odt", "pptx", "ppt",
+  "xlsx", "xls", "ods",
+  "png", "jpg", "jpeg", "gif", "webp", "ico", "bmp", "tiff", "avif",
+  "mp4", "webm", "ogg", "mov",
+  "mp3", "wav", "flac", "aac", "m4a",
+]);
 
 function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -25,17 +52,23 @@ export default function FilePage({
   const { slug, path: pathSegments } = use(params);
   const filePath = pathSegments.join("/");
   const fileName = pathSegments.at(-1) ?? filePath;
+  const ext = fileName.split(".").at(-1)?.toLowerCase() ?? "";
+
   const binary = isBinaryFile(fileName);
+  const needsText = TEXT_EXTS.has(ext);
+  const needsUrl = URL_EXTS.has(ext);
 
   const { icon, colorClass } = getFileIcon(fileName, false, false);
 
-  const { data, isLoading, error } = useQuery({
+  // Fetch text content only for text/code/markdown files
+  const { data: textData, isLoading: textLoading, error: textError } = useQuery({
     ...orpc.projects.readFile.queryOptions({ input: { slug, path: filePath } }),
-    enabled: !binary,
+    enabled: needsText,
     staleTime: 30_000,
   });
 
-  const lines = data?.content.split("\n") ?? [];
+  const lines = textData?.content.split("\n") ?? [];
+  const fileSrc = `/api/files?slug=${encodeURIComponent(slug)}&path=${encodeURIComponent(filePath)}`;
 
   return (
     <div className="flex flex-1 flex-col overflow-auto">
@@ -55,48 +88,67 @@ export default function FilePage({
           className={colorClass}
         />
         <span className="font-mono text-sm text-foreground">{filePath}</span>
-        {data && (
+        {textData && (
           <span className="ml-auto text-xs text-muted-foreground">
-            {lines.length} lines · {formatSize(new Blob([data.content]).size)}
+            {lines.length} lines · {formatSize(new Blob([textData.content]).size)}
           </span>
+        )}
+        {(needsUrl || binary) && (
+          <a
+            href={fileSrc}
+            download={fileName}
+            className="ml-auto text-xs text-muted-foreground transition-colors hover:text-foreground"
+          >
+            ↓ Download
+          </a>
         )}
       </div>
 
       {/* Content */}
-      <div className="flex-1 p-4">
+      <div className="flex flex-1 flex-col">
+        {/* True binary — no viewer available */}
         {binary && (
-          <p className="text-sm text-muted-foreground italic">
-            Binary file — preview not available.
-          </p>
+          <div className="flex flex-col items-center gap-4 py-16 text-sm text-muted-foreground">
+            <p>Binary file — preview not available.</p>
+            <a
+              href={fileSrc}
+              download={fileName}
+              className="rounded border border-border px-3 py-1.5 text-xs hover:bg-muted"
+            >
+              ↓ Download {fileName}
+            </a>
+          </div>
         )}
-        {!binary && isLoading && (
-          <p className="animate-pulse text-sm text-muted-foreground">
-            Loading…
-          </p>
+
+        {/* URL-based viewers: PDF, images, video, audio, office docs */}
+        {needsUrl && <FileViewer src={fileSrc} filename={fileName} />}
+
+        {/* Text / code / markdown viewers */}
+        {needsText && (
+          <>
+            {textLoading && (
+              <p className="animate-pulse px-4 py-8 text-sm text-muted-foreground">
+                Loading…
+              </p>
+            )}
+            {textError && (
+              <p className="px-4 py-8 text-sm text-destructive">
+                {textError.message || "Failed to load file."}
+              </p>
+            )}
+            {textData && (
+              <FileViewer
+                src={fileSrc}
+                content={textData.content}
+                filename={fileName}
+              />
+            )}
+          </>
         )}
-        {!binary && error && (
-          <p className="text-sm text-destructive">
-            {error.message || "Failed to load file."}
-          </p>
-        )}
-        {!binary && data && (
-          <table className="w-full border-collapse font-mono text-xs leading-relaxed">
-            <tbody>
-              {lines.map((line, i) => (
-                <tr
-                  key={i}
-                  className="group hover:bg-muted/40 transition-colors"
-                >
-                  <td className="w-12 select-none pr-4 text-right text-muted-foreground/40 group-hover:text-muted-foreground/70">
-                    {i + 1}
-                  </td>
-                  <td className="whitespace-pre text-foreground/85">
-                    {line || " "}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+
+        {/* Fallback for unrecognised extensions */}
+        {!binary && !needsText && !needsUrl && (
+          <FileViewer src={fileSrc} filename={fileName} />
         )}
       </div>
     </div>
