@@ -13,6 +13,7 @@ import type { SDKMessage } from "./types";
 import {
   listProjects,
   getSessionMessages,
+  getSessionLastAssistantText,
   resolveSlugToPath,
   readProjectMcpConfig,
   readUserMcpServers,
@@ -285,6 +286,23 @@ const timelineSessionsProc = os
     }
     const rows = getDbAllRecentSessions(input.limit ?? 50);
     return Promise.all(rows.map(sessionRowToRecent));
+  });
+
+// --- Session Preview ---
+
+const sessionPreviewProc = os
+  .input(z.object({ sessionId: z.string(), slug: z.string() }))
+  .output(
+    z.object({
+      lastAssistantMessage: z.string().nullable(),
+    })
+  )
+  .handler(async ({ input }) => {
+    const lastAssistantMessage = await getSessionLastAssistantText(
+      input.slug,
+      input.sessionId
+    );
+    return { lastAssistantMessage };
   });
 
 // --- Archive ---
@@ -2565,6 +2583,7 @@ export const router = {
     recent: recentSessionsProc,
     timeline: timelineSessionsProc,
     archive: archiveSessionProc,
+    preview: sessionPreviewProc,
   },
   favorites: {
     get: getFavoritesProc,

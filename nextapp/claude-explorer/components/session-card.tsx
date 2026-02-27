@@ -1,5 +1,6 @@
 "use client";
 
+import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 
 import type { SessionMeta, TmuxPane } from "@/lib/types";
@@ -15,6 +16,8 @@ import {
   CardDescription,
   CardContent,
 } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { orpc } from "@/lib/orpc";
 import { getTimeAgo } from "@/lib/utils";
 
 export interface SessionFacetData {
@@ -52,6 +55,17 @@ export function SessionCard({
     e.stopPropagation();
     onToggleFavorite?.();
   };
+
+  // Fetch last reply preview — only for non-compact cards in a terminal state
+  const isTerminal =
+    session.sessionState === "idle" || session.sessionState === "stale";
+  const { data: preview, isLoading: previewLoading } = useQuery({
+    ...orpc.sessions.preview.queryOptions({
+      input: { sessionId: session.id, slug: projectSlug },
+    }),
+    enabled: !compact && isTerminal,
+    staleTime: 5 * 60 * 1000,
+  });
 
   const timeAgo = getTimeAgo(session.lastModified || session.timestamp);
 
@@ -135,6 +149,28 @@ export function SessionCard({
         </CardHeader>
         {!compact && (
           <CardContent>
+            {/* Last reply preview */}
+            {isTerminal && (
+              <div className="mb-2 rounded bg-muted/40 px-2.5 py-2">
+                <p className="mb-0.5 text-[10px] font-medium text-muted-foreground">
+                  Last reply
+                </p>
+                {previewLoading ? (
+                  <div className="space-y-1">
+                    <Skeleton className="h-2.5 w-full" />
+                    <Skeleton className="h-2.5 w-4/5" />
+                  </div>
+                ) : preview?.lastAssistantMessage ? (
+                  <p className="line-clamp-2 text-[11px] leading-relaxed text-foreground/80">
+                    {preview.lastAssistantMessage}
+                  </p>
+                ) : (
+                  <p className="text-[11px] italic text-muted-foreground">
+                    No reply recorded
+                  </p>
+                )}
+              </div>
+            )}
             <div className="flex flex-wrap gap-1.5">
               {session.model && (
                 <Badge variant="outline" className="text-[10px]">

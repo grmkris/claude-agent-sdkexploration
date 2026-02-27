@@ -989,6 +989,52 @@ export async function getSessionMessages(
   return messages;
 }
 
+// --- Session preview: last assistant text ---
+
+export async function getSessionLastAssistantText(
+  slug: string,
+  sessionId: string
+): Promise<string | null> {
+  const filePath = join(CLAUDE_PROJECTS_DIR, slug, `${sessionId}.jsonl`);
+
+  let content: string;
+  try {
+    content = await readFile(filePath, "utf-8");
+  } catch {
+    return null;
+  }
+
+  const lines = content.trim().split("\n");
+
+  // Walk lines in reverse — find the last assistant message with text content
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const line = lines[i];
+    if (!line) continue;
+    try {
+      const parsed = JSON.parse(line) as RawJSONLLine;
+      if (!isAssistantLine(parsed)) continue;
+      const blocks = parsed.message.content;
+      if (!Array.isArray(blocks)) continue;
+      const textParts: string[] = [];
+      for (const block of blocks) {
+        if (
+          block.type === "text" &&
+          typeof block.text === "string" &&
+          block.text.trim()
+        ) {
+          textParts.push(block.text.trim());
+        }
+      }
+      if (textParts.length > 0) {
+        const full = textParts.join("\n\n");
+        return full.length > 600 ? full.slice(0, 600) + "…" : full;
+      }
+    } catch {}
+  }
+
+  return null;
+}
+
 // --- Analytics: global stats from ~/.claude.json ---
 
 interface GlobalStatsResult {

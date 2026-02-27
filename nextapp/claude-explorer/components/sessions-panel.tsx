@@ -16,6 +16,7 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 
 import { SessionActionsMenu } from "@/components/session-actions-menu";
+import { SessionPreviewPopover } from "@/components/session-preview-popover";
 import { SessionStateBadge } from "@/components/session-state-badge";
 import {
   SidebarGroupContent,
@@ -261,39 +262,48 @@ export function SessionsPanel({
 
           return (
             <SidebarMenuItem key={session.id}>
-              <div className="group flex items-center">
-                <Link href={sessionUrl} className="min-w-0 flex-1">
-                  <SidebarMenuButton
-                    isActive={isSelected}
-                    tooltip={session.firstPrompt}
-                  >
-                    <div className="flex min-w-0 flex-1 flex-col">
-                      <span className="truncate text-sm">
-                        {session.firstPrompt}
-                      </span>
-                      <span className="flex items-center gap-1 truncate text-[10px] text-muted-foreground">
-                        {showProjectLabel ? `${projectLabel} · ` : ""}
-                        {timeAgo}
-                        <SourceIcon source={session.source} />
-                      </span>
-                    </div>
-                  </SidebarMenuButton>
-                </Link>
-                <div className="ml-auto flex shrink-0 items-center pr-1">
-                  <SessionStateBadge sessionId={session.id} compact />
+              <SessionPreviewPopover
+                sessionId={session.id}
+                slug={session.projectSlug ?? "root"}
+                firstPrompt={session.firstPrompt}
+                lastModified={session.lastModified}
+                timestamp={session.timestamp}
+                model={session.model}
+              >
+                <div className="group flex items-center">
+                  <Link href={sessionUrl} className="min-w-0 flex-1">
+                    <SidebarMenuButton
+                      isActive={isSelected}
+                      tooltip={session.firstPrompt}
+                    >
+                      <div className="flex min-w-0 flex-1 flex-col">
+                        <span className="truncate text-sm">
+                          {session.firstPrompt}
+                        </span>
+                        <span className="flex items-center gap-1 truncate text-[10px] text-muted-foreground">
+                          {showProjectLabel ? `${projectLabel} · ` : ""}
+                          {timeAgo}
+                          <SourceIcon source={session.source} />
+                        </span>
+                      </div>
+                    </SidebarMenuButton>
+                  </Link>
+                  <div className="ml-auto flex shrink-0 items-center pr-1">
+                    <SessionStateBadge sessionId={session.id} compact />
+                  </div>
+                  <div className="flex shrink-0 items-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    <SessionActionsMenu
+                      session={{
+                        sessionId: session.id,
+                        resumeCommand: session.resumeCommand,
+                      }}
+                      onArchive={() =>
+                        archiveMutation.mutate({ sessionId: session.id })
+                      }
+                    />
+                  </div>
                 </div>
-                <div className="flex shrink-0 items-center opacity-0 group-hover:opacity-100 transition-opacity">
-                  <SessionActionsMenu
-                    session={{
-                      sessionId: session.id,
-                      resumeCommand: session.resumeCommand,
-                    }}
-                    onArchive={() =>
-                      archiveMutation.mutate({ sessionId: session.id })
-                    }
-                  />
-                </div>
-              </div>
+              </SessionPreviewPopover>
             </SidebarMenuItem>
           );
         })}
