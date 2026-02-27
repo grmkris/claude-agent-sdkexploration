@@ -1,9 +1,13 @@
 "use client";
 
+import type { z } from "zod";
+
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import Link from "next/link";
 import { useState, useMemo } from "react";
 
+import type { EmailEventSchema } from "@/lib/schemas";
+
+import { EmailSessionDrawer } from "@/components/email-session-drawer";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -15,6 +19,8 @@ import {
 import { orpc } from "@/lib/orpc";
 import { client } from "@/lib/orpc-client";
 import { getTimeAgo } from "@/lib/utils";
+
+type EmailEvent = z.infer<typeof EmailEventSchema>;
 
 const PROMPT_SUGGESTIONS = [
   {
@@ -66,6 +72,7 @@ export function EmailContent({ projectSlug: scopedSlug }: EmailContentProps) {
   const [prompt, setPrompt] = useState("");
   const [eventsProjectFilter, setEventsProjectFilter] =
     useState<string>("__all__");
+  const [drawerEvent, setDrawerEvent] = useState<EmailEvent | null>(null);
 
   const finalAddress =
     addressMode === "new" ? `${localPart}@${domain}` : selectedAddress;
@@ -158,6 +165,18 @@ export function EmailContent({ projectSlug: scopedSlug }: EmailContentProps) {
       return events?.filter((ev) => ev.projectSlug === eventsProjectFilter);
     return events;
   }, [events, scopedSlug, eventsProjectFilter]);
+
+  // Group events by sessionId so the drawer can show the full email thread
+  const eventsBySession = useMemo(() => {
+    const map = new Map<string, EmailEvent[]>();
+    for (const ev of displayEvents ?? []) {
+      if (!ev.sessionId) continue;
+      const existing = map.get(ev.sessionId) ?? [];
+      existing.push(ev);
+      map.set(ev.sessionId, existing);
+    }
+    return map;
+  }, [displayEvents]);
 
   return (
     <div className="p-4">
@@ -421,15 +440,14 @@ export function EmailContent({ projectSlug: scopedSlug }: EmailContentProps) {
           {displayEvents && displayEvents.length > 0 ? (
             <div className="flex flex-col gap-1.5">
               {displayEvents.slice(0, 50).map((ev) => {
-                const href = ev.sessionId
-                  ? ev.projectSlug === "__root__" ||
-                    ev.projectSlug === "__outbound__"
-                    ? `/chat/${ev.sessionId}`
-                    : `/project/${ev.projectSlug}/chat/${ev.sessionId}`
-                  : null;
-                const rowClass = `flex flex-wrap items-center gap-x-2 gap-y-1 rounded border px-2 py-1.5${href ? " cursor-pointer hover:bg-muted/50" : ""}`;
-                const children = (
-                  <>
+                const hasSession = !!ev.sessionId;
+                const rowClass = `flex flex-wrap items-center gap-x-2 gap-y-1 rounded border px-2 py-1.5${hasSession ? " cursor-pointer hover:bg-muted/50" : ""}`;
+                return (
+                  <div
+                    key={ev.id}
+                    className={rowClass}
+                    onClick={hasSession ? () => setDrawerEvent(ev) : undefined}
+                  >
                     <span
                       className={`h-2 w-2 shrink-0 rounded-full ${ev.status === "success" ? "bg-green-500" : ev.status === "error" ? "bg-red-500" : "bg-yellow-500 animate-pulse"}`}
                     />
@@ -473,20 +491,11 @@ export function EmailContent({ projectSlug: scopedSlug }: EmailContentProps) {
                         {ev.subject}
                       </span>
                     )}
-                    {href && (
+                    {hasSession && (
                       <span className="hidden sm:block shrink-0 text-[10px] font-medium text-blue-500">
-                        session &rarr;
+                        view conversation &rarr;
                       </span>
                     )}
-                  </>
-                );
-                return href ? (
-                  <Link key={ev.id} href={href} className={rowClass}>
-                    {children}
-                  </Link>
-                ) : (
-                  <div key={ev.id} className={rowClass}>
-                    {children}
                   </div>
                 );
               })}
@@ -498,6 +507,19 @@ export function EmailContent({ projectSlug: scopedSlug }: EmailContentProps) {
           )}
         </>
       )}
+
+      {/* Session conversation drawer */}
+      <EmailSessionDrawer
+        event={drawerEvent}
+        relatedEvents={
+          drawerEvent?.sessionId
+            ? (eventsBySession.get(drawerEvent.sessionId) ?? [drawerEvent])
+            : drawerEvent
+              ? [drawerEvent]
+              : []
+        }
+        onClose={() => setDrawerEvent(null)}
+      />
     </div>
   );
 }
