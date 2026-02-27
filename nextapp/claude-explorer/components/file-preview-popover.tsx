@@ -39,33 +39,98 @@ function PreSkeleton() {
 const MARKDOWN_EXTS = new Set(["md", "mdx"]);
 
 const IMAGE_EXTS = new Set([
-  "png", "jpg", "jpeg", "gif", "webp", "svg", "ico", "bmp", "tiff", "avif",
+  "png",
+  "jpg",
+  "jpeg",
+  "gif",
+  "webp",
+  "svg",
+  "ico",
+  "bmp",
+  "tiff",
+  "avif",
 ]);
 
 const BINARY_PREVIEW_EXTS = new Set([
-  "pdf", "docx", "doc", "xlsx", "xls", "pptx", "ppt",
-  "mp4", "webm", "mov", "mp3", "wav", "flac",
-  "zip", "tar", "gz", "exe", "dll", "so", "dylib",
+  "pdf",
+  "docx",
+  "doc",
+  "xlsx",
+  "xls",
+  "pptx",
+  "ppt",
+  "mp4",
+  "webm",
+  "mov",
+  "mp3",
+  "wav",
+  "flac",
+  "zip",
+  "tar",
+  "gz",
+  "exe",
+  "dll",
+  "so",
+  "dylib",
 ]);
 
 function extToLang(filename: string): string {
   const ext = filename.split(".").at(-1)?.toLowerCase() ?? "";
   const map: Record<string, string> = {
-    ts: "typescript", tsx: "tsx", js: "javascript", jsx: "jsx",
-    mjs: "javascript", cjs: "javascript",
-    py: "python", pyw: "python", rs: "rust", go: "go",
-    java: "java", kt: "kotlin", swift: "swift",
-    cpp: "cpp", c: "c", h: "c", hpp: "cpp", cs: "csharp",
-    rb: "ruby", php: "php",
-    sh: "bash", bash: "bash", zsh: "bash", fish: "fish", ps1: "powershell",
-    css: "css", scss: "scss", sass: "sass", less: "less",
-    html: "html", htm: "html", xml: "xml", svg: "xml",
-    json: "json", jsonc: "jsonc", jsonl: "json",
-    yaml: "yaml", yml: "yaml", toml: "toml", ini: "ini", env: "dotenv",
-    sql: "sql", graphql: "graphql", gql: "graphql",
-    lua: "lua", r: "r", ex: "elixir", exs: "elixir",
-    tf: "hcl", hcl: "hcl",
-    txt: "text", log: "text", rst: "text", csv: "text",
+    ts: "typescript",
+    tsx: "tsx",
+    js: "javascript",
+    jsx: "jsx",
+    mjs: "javascript",
+    cjs: "javascript",
+    py: "python",
+    pyw: "python",
+    rs: "rust",
+    go: "go",
+    java: "java",
+    kt: "kotlin",
+    swift: "swift",
+    cpp: "cpp",
+    c: "c",
+    h: "c",
+    hpp: "cpp",
+    cs: "csharp",
+    rb: "ruby",
+    php: "php",
+    sh: "bash",
+    bash: "bash",
+    zsh: "bash",
+    fish: "fish",
+    ps1: "powershell",
+    css: "css",
+    scss: "scss",
+    sass: "sass",
+    less: "less",
+    html: "html",
+    htm: "html",
+    xml: "xml",
+    svg: "xml",
+    json: "json",
+    jsonc: "jsonc",
+    jsonl: "json",
+    yaml: "yaml",
+    yml: "yaml",
+    toml: "toml",
+    ini: "ini",
+    env: "dotenv",
+    sql: "sql",
+    graphql: "graphql",
+    gql: "graphql",
+    lua: "lua",
+    r: "r",
+    ex: "elixir",
+    exs: "elixir",
+    tf: "hcl",
+    hcl: "hcl",
+    txt: "text",
+    log: "text",
+    rst: "text",
+    csv: "text",
   };
   return map[ext] ?? "text";
 }
@@ -108,9 +173,7 @@ export function FilePreviewPopover({
     : null;
 
   const fileName =
-    relativePath?.split("/").at(-1) ??
-    filePath.split("/").at(-1) ??
-    "";
+    relativePath?.split("/").at(-1) ?? filePath.split("/").at(-1) ?? "";
 
   const previewType = getPreviewType(fileName);
   const needsText = previewType === "code" || previewType === "markdown";
@@ -169,7 +232,9 @@ export function FilePreviewPopover({
           {/* Markdown preview */}
           {previewType === "markdown" && data && (
             <div className="px-3 py-2 text-xs">
-              <MarkdownContent isStreaming={false}>{previewContent}</MarkdownContent>
+              <MarkdownContent isStreaming={false}>
+                {previewContent}
+              </MarkdownContent>
               {truncated && (
                 <p className="mt-1 text-[10px] italic text-muted-foreground">
                   … showing first {PREVIEW_LINES} lines

@@ -495,12 +495,20 @@ const pendingExitPlanMode = new Map<
   }
 >();
 
+// Track which sessions have an active SSE stream. Used by answerQuestionProc
+// to detect when a stream has died (so it can return needsResume: true even
+// though the in-memory promise was "resolved" via deny on stream end).
+const activeStreams = new Set<string>();
+
 function cleanupPendingAnswers(sessionId: string) {
+  activeStreams.delete(sessionId);
   for (const [toolUseId, entry] of pendingAnswers.entries()) {
     if (entry.sessionId === sessionId) {
       entry.resolve({ behavior: "deny", message: "Session ended" });
       pendingAnswers.delete(toolUseId);
-      deletePendingQuestion(toolUseId);
+      // NOTE: intentionally do NOT delete the DB row here. If the user submits
+      // an answer after the SSE stream dies, answerQuestionProc will find the
+      // DB row and return needsResume: true so the frontend reopens the stream.
     }
   }
   // Also clean up pending ExitPlanMode calls for this session
@@ -720,10 +728,38 @@ const chatProc = os
         },
       });
 
-      for await (const msg of conversation) {
+      // Use a multiplexed loop so we can emit periodic heartbeat events while
+      // the SDK is blocked on canUseTool (e.g. waiting for AskUserQuestion).
+      // Without heartbeats the SSE connection can be killed by proxies/browsers
+      // after ~60s of silence, causing the pending question to be silently lost.
+      const HEARTBEAT_MS = 20_000;
+      const sdkIter = conversation[Symbol.asyncIterator]();
+      let pendingNext: Promise<IteratorResult<SDKMessage>> | null = null;
+
+      while (true) {
+        if (!pendingNext) pendingNext = sdkIter.next();
+
+        const result = await Promise.race([
+          pendingNext.then((r) => ({ source: "sdk" as const, result: r })),
+          new Promise<{ source: "heartbeat" }>((resolve) =>
+            setTimeout(() => resolve({ source: "heartbeat" }), HEARTBEAT_MS)
+          ),
+        ]);
+
+        if (result.source === "heartbeat") {
+          yield { type: "heartbeat" } as unknown as SDKMessage;
+          continue;
+        }
+
+        pendingNext = null;
+        if (result.result.done) break;
+
+        const msg = result.result.value;
         // Capture session_id from init message
         if ("type" in msg && msg.type === "system" && "session_id" in msg) {
           sessionId = (msg as { session_id: string }).session_id;
+          // Mark this session as having an active SSE stream.
+          activeStreams.add(sessionId);
           // Explicitly set project_path — the SessionStart hook's input.cwd is
           // unreliable (undefined at runtime), so we capture it here directly.
           upsertSession(sessionId, {
@@ -798,21 +834,31 @@ const answerQuestionProc = os
     }
 
     if (pending) {
-      // Fast path — server is still running, in-memory promise is live
-      const convertedAnswers = convertAnswers(pending.toolInput);
-      pending.resolve({
-        behavior: "allow",
-        updatedInput: {
-          ...pending.toolInput,
-          answers: convertedAnswers,
-        },
-      });
+      // Fast path — server is still running, in-memory promise is live.
+      // But first check: is the SSE stream still alive? If the stream died
+      // (e.g. network timeout, browser tab backgrounded), cleanupPendingAnswers
+      // already resolved the promise with "deny" and removed it from activeStreams.
+      // In that case, fall through to the slow path so we return needsResume: true.
+      if (activeStreams.has(input.sessionId)) {
+        const convertedAnswers = convertAnswers(pending.toolInput);
+        pending.resolve({
+          behavior: "allow",
+          updatedInput: {
+            ...pending.toolInput,
+            answers: convertedAnswers,
+          },
+        });
+        pendingAnswers.delete(input.toolUseId);
+        deletePendingQuestion(input.toolUseId);
+        return { success: true };
+      }
+      // Stream is dead — the promise was already denied by cleanupPendingAnswers.
+      // Fall through to the slow path to use the DB row.
       pendingAnswers.delete(input.toolUseId);
-      deletePendingQuestion(input.toolUseId);
-      return { success: true };
     }
 
-    // Slow path — server was restarted, promise is gone but DB row may exist.
+    // Slow path — server was restarted or SSE stream died. Promise is gone but
+    // the DB row still exists (we intentionally kept it in cleanupPendingAnswers).
     const stored = getPendingQuestion(input.toolUseId);
     if (!stored) return { success: false };
 
@@ -836,27 +882,42 @@ const approvePlanProc = os
       feedback: z.string().optional(),
     })
   )
-  .output(z.object({ success: z.boolean() }))
+  .output(
+    z.object({ success: z.boolean(), needsResume: z.boolean().optional() })
+  )
   .handler(async ({ input }) => {
     const pending = pendingExitPlanMode.get(input.toolUseId);
-    if (!pending) return { success: false };
 
-    if (input.approved) {
-      pending.resolve({
-        behavior: "allow" as const,
-        updatedInput: pending.toolInput,
-      });
-    } else {
-      pending.resolve({
-        behavior: "deny" as const,
-        message:
-          input.feedback?.trim() ||
-          "User rejected the plan. Please revise and try again.",
-      });
+    if (pending) {
+      // Check if the SSE stream is still alive before resolving. If the stream
+      // died (network blip, tab suspended, etc.), cleanupPendingAnswers already
+      // resolved the promise with "deny" and removed the session from activeStreams.
+      // In that case fall through to return needsResume: true so the frontend
+      // reopens the stream.
+      if (activeStreams.has(input.sessionId)) {
+        if (input.approved) {
+          pending.resolve({
+            behavior: "allow" as const,
+            updatedInput: pending.toolInput,
+          });
+        } else {
+          pending.resolve({
+            behavior: "deny" as const,
+            message:
+              input.feedback?.trim() ||
+              "User rejected the plan. Please revise and try again.",
+          });
+        }
+        pendingExitPlanMode.delete(input.toolUseId);
+        return { success: true };
+      }
+      // Stream is dead — the promise was already denied by cleanupPendingAnswers.
+      pendingExitPlanMode.delete(input.toolUseId);
     }
 
-    pendingExitPlanMode.delete(input.toolUseId);
-    return { success: true };
+    // No in-memory entry (server restarted or stream died). Signal the frontend
+    // to trigger a session resume so the agent can re-ask for plan approval.
+    return { success: false, needsResume: true };
   });
 
 // Procedure to fetch the current pending plan (for restoring UI state)
@@ -1654,9 +1715,35 @@ const rootChatProc = os
         },
       });
 
-      for await (const msg of conversation) {
+      // Multiplexed loop with heartbeats — same as chatProc. Prevents SSE
+      // connections from being killed by proxies during AskUserQuestion waits.
+      const HEARTBEAT_MS = 20_000;
+      const sdkIter = conversation[Symbol.asyncIterator]();
+      let pendingNext: Promise<IteratorResult<SDKMessage>> | null = null;
+
+      while (true) {
+        if (!pendingNext) pendingNext = sdkIter.next();
+
+        const result = await Promise.race([
+          pendingNext.then((r) => ({ source: "sdk" as const, result: r })),
+          new Promise<{ source: "heartbeat" }>((resolve) =>
+            setTimeout(() => resolve({ source: "heartbeat" }), HEARTBEAT_MS)
+          ),
+        ]);
+
+        if (result.source === "heartbeat") {
+          yield { type: "heartbeat" } as unknown as SDKMessage;
+          continue;
+        }
+
+        pendingNext = null;
+        if (result.result.done) break;
+
+        const msg = result.result.value;
         if ("type" in msg && msg.type === "system" && "session_id" in msg) {
           sessionId = (msg as { session_id: string }).session_id;
+          // Mark this session as having an active SSE stream.
+          activeStreams.add(sessionId);
           // Explicitly set project_path for root workspace sessions.
           upsertSession(sessionId, { project_path: USER_HOME });
         }

@@ -14,28 +14,98 @@ import { orpc } from "@/lib/orpc";
 
 // Extensions that need a text content fetch (rendered via code/markdown viewers)
 const TEXT_EXTS = new Set([
-  "md", "mdx",
-  "ts", "tsx", "js", "jsx", "mjs", "cjs",
-  "py", "pyw", "rs", "go", "java", "kt", "swift",
-  "cpp", "c", "h", "hpp", "cs", "rb", "php",
-  "sh", "bash", "zsh", "fish", "ps1",
-  "css", "scss", "sass", "less",
-  "html", "htm", "xml", "svg",
-  "json", "jsonc", "jsonl", "yaml", "yml", "toml", "ini", "env",
-  "sql", "graphql", "gql",
-  "lua", "vim", "r", "jl", "ex", "exs", "erl", "hs", "clj",
-  "tf", "hcl",
-  "txt", "log", "rst", "csv",
+  "md",
+  "mdx",
+  "ts",
+  "tsx",
+  "js",
+  "jsx",
+  "mjs",
+  "cjs",
+  "py",
+  "pyw",
+  "rs",
+  "go",
+  "java",
+  "kt",
+  "swift",
+  "cpp",
+  "c",
+  "h",
+  "hpp",
+  "cs",
+  "rb",
+  "php",
+  "sh",
+  "bash",
+  "zsh",
+  "fish",
+  "ps1",
+  "css",
+  "scss",
+  "sass",
+  "less",
+  "html",
+  "htm",
+  "xml",
+  "svg",
+  "json",
+  "jsonc",
+  "jsonl",
+  "yaml",
+  "yml",
+  "toml",
+  "ini",
+  "env",
+  "sql",
+  "graphql",
+  "gql",
+  "lua",
+  "vim",
+  "r",
+  "jl",
+  "ex",
+  "exs",
+  "erl",
+  "hs",
+  "clj",
+  "tf",
+  "hcl",
+  "txt",
+  "log",
+  "rst",
+  "csv",
 ]);
 
 // Extensions handled by URL-based viewers (they fetch the file themselves)
 const URL_EXTS = new Set([
   "pdf",
-  "docx", "doc", "odt", "pptx", "ppt",
-  "xlsx", "xls", "ods",
-  "png", "jpg", "jpeg", "gif", "webp", "ico", "bmp", "tiff", "avif",
-  "mp4", "webm", "ogg", "mov",
-  "mp3", "wav", "flac", "aac", "m4a",
+  "docx",
+  "doc",
+  "odt",
+  "pptx",
+  "ppt",
+  "xlsx",
+  "xls",
+  "ods",
+  "png",
+  "jpg",
+  "jpeg",
+  "gif",
+  "webp",
+  "ico",
+  "bmp",
+  "tiff",
+  "avif",
+  "mp4",
+  "webm",
+  "ogg",
+  "mov",
+  "mp3",
+  "wav",
+  "flac",
+  "aac",
+  "m4a",
 ]);
 
 function formatSize(bytes: number): string {
@@ -61,7 +131,11 @@ export default function FilePage({
   const { icon, colorClass } = getFileIcon(fileName, false, false);
 
   // Fetch text content only for text/code/markdown files
-  const { data: textData, isLoading: textLoading, error: textError } = useQuery({
+  const {
+    data: textData,
+    isLoading: textLoading,
+    error: textError,
+  } = useQuery({
     ...orpc.projects.readFile.queryOptions({ input: { slug, path: filePath } }),
     enabled: needsText,
     staleTime: 30_000,
@@ -90,7 +164,8 @@ export default function FilePage({
         <span className="font-mono text-sm text-foreground">{filePath}</span>
         {textData && (
           <span className="ml-auto text-xs text-muted-foreground">
-            {lines.length} lines · {formatSize(new Blob([textData.content]).size)}
+            {lines.length} lines ·{" "}
+            {formatSize(new Blob([textData.content]).size)}
           </span>
         )}
         {(needsUrl || binary) && (

@@ -166,21 +166,40 @@ export function useRootChatStream(
         answers,
       });
       if (result.needsResume) {
-        // Server was restarted — the in-memory promise is gone but pre-filled
-        // answers were stored to DB. Trigger a resume stream so canUseTool fires
-        // again with those stored answers, which auto-resolves immediately.
+        // Server was restarted or SSE stream died — the in-memory promise is
+        // gone but pre-filled answers were stored to DB. Trigger a resume stream
+        // so canUseTool fires again with those stored answers, which auto-resolves.
+        send(" ");
+      } else if (result.success && !streamingRef.current) {
+        // The answer was accepted (promise resolved) but the SSE stream has
+        // already ended on our end (e.g. connection dropped after the promise
+        // resolved). Resume so we don't silently lose the agent's response.
         send(" ");
       }
     },
-    [sessionId, send]
+    [sessionId, send, streamingRef]
   );
 
   const approvePlan = useCallback(
     async (toolUseId: string, approved: boolean, feedback?: string) => {
       if (!sessionId) return;
-      await client.approvePlan({ sessionId, toolUseId, approved, feedback });
+      const result = await client.approvePlan({
+        sessionId,
+        toolUseId,
+        approved,
+        feedback,
+      });
+      if (result.needsResume) {
+        // SSE stream died before approval arrived — trigger a resume stream so
+        // the agent can re-ask for plan approval with a fresh connection.
+        send(" ");
+      } else if (result.success && !streamingRef.current) {
+        // Approval was accepted but our SSE stream already ended locally.
+        // Resume so we don't silently lose the agent's continued output.
+        send(" ");
+      }
     },
-    [sessionId]
+    [sessionId, send, streamingRef]
   );
 
   return {

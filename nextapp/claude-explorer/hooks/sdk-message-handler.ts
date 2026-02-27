@@ -41,6 +41,11 @@ export function handleSDKMessage(
   setCurrentPermissionMode?: (mode: string) => void
 ) {
   switch ((msg as { type: string }).type) {
+    case "heartbeat": {
+      // SSE keep-alive emitted by the server every ~20s while Claude is blocked
+      // waiting for user input (e.g. AskUserQuestion). No UI update needed.
+      break;
+    }
     case "system": {
       const sysMsg = msg as {
         subtype: string;
