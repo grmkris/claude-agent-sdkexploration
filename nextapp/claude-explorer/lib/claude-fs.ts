@@ -638,50 +638,6 @@ export async function writeProjectEnv(
   configCache = null;
 }
 
-/**
- * Register a project path in ~/.claude.json so that slug resolution works
- * correctly (especially for project names containing hyphens, which are
- * ambiguous when reconstructed from the on-disk slug directory name).
- * This is idempotent — safe to call even if the project is already registered.
- */
-export async function registerProjectInConfig(
-  projectPath: string
-): Promise<void> {
-  let raw: Record<string, unknown> = {};
-  try {
-    raw = JSON.parse(await readFile(CLAUDE_CONFIG_PATH, "utf-8")) as Record<
-      string,
-      unknown
-    >;
-  } catch {
-    // file may not exist yet — start fresh
-  }
-
-  const projects = (raw.projects ?? {}) as Record<
-    string,
-    Record<string, unknown>
-  >;
-  // Only add if not already registered — don't overwrite existing config
-  if (!projects[projectPath]) {
-    // Mirror the minimal structure the Claude CLI writes on first interactive use
-    projects[projectPath] = {
-      allowedTools: [],
-      mcpContextUris: [],
-      mcpServers: {},
-      enabledMcpjsonServers: [],
-      disabledMcpjsonServers: [],
-      hasTrustDialogAccepted: true,
-    };
-  }
-  raw.projects = projects;
-
-  await mkdir(CLAUDE_DIR, { recursive: true });
-  await writeFile(CLAUDE_CONFIG_PATH, JSON.stringify(raw, null, 2), "utf-8");
-
-  // Bust the in-memory cache so subsequent reads reflect the change
-  configCache = null;
-}
-
 export async function readProjectClaudeMd(
   projectPath: string
 ): Promise<string | null> {
@@ -1208,10 +1164,13 @@ export async function runClaudeCli(
   cwd?: string
 ): Promise<{ success: boolean; output?: string; error?: string }> {
   try {
+    // Strip CLAUDECODE so the CLI doesn't refuse to run inside an active session
+    const { CLAUDECODE: _cc, ...env } = process.env;
     const proc = Bun.spawn(["claude", ...args], {
       cwd,
       stdout: "pipe",
       stderr: "pipe",
+      env,
     });
     const [stdout, stderr] = await Promise.all([
       new Response(proc.stdout).text(),

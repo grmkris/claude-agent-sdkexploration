@@ -44,7 +44,6 @@ import {
   readCommandContent,
   readProjectEnv,
   writeProjectEnv,
-  registerProjectInConfig,
   getGitStatus,
   getGitFileDiff,
   gitPull,
@@ -1044,10 +1043,15 @@ const createProjectProc = os
       input.parentDir,
       input.name
     );
-    // Register the new project in ~/.claude.json immediately so that slug
-    // resolution works correctly for all project names (including those with
-    // hyphens, which are ambiguous when reconstructed from the on-disk slug).
-    await registerProjectInConfig(projectPath);
+    // Let the Claude CLI register this project in ~/.claude.json by running
+    // a benign mcp add+remove pair.  The CLI writes the project entry as a
+    // side-effect of any `claude mcp` mutation, which ensures slug resolution
+    // works correctly for all project names (including those with hyphens).
+    await runClaudeCli(
+      ["mcp", "add", "__init__", "--", "echo", "init"],
+      projectPath
+    );
+    await runClaudeCli(["mcp", "remove", "__init__"], projectPath);
     invalidateSlugCache();
 
     // Install selected MCPs
