@@ -141,8 +141,7 @@ async function buildSlugMaps() {
       // hyphens (e.g. "agent-sdk-test" ↔ "agent/sdk/test"). There is no
       // lossless way to reverse the Claude CLI's sanitisation without the
       // original path. Register the project in ~/.claude.json to fix this.
-      const reconstructedPath =
-        "/" + dir.replace(/^-/, "").replace(/-/g, "/");
+      const reconstructedPath = "/" + dir.replace(/^-/, "").replace(/-/g, "/");
       _slugToPath.set(dir, reconstructedPath);
       // Also populate the reverse map so resolveSlugForCwd() returns the
       // correct slug instead of falling through to a parent path match.

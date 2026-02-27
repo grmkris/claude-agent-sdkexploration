@@ -3,6 +3,7 @@
 import {
   Analytics01Icon,
   ComputerTerminal01Icon,
+  Home01Icon,
   Key01Icon,
   Mail01Icon,
   McpServerIcon,
@@ -14,7 +15,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { AppBreadcrumb } from "@/components/app-breadcrumb";
-import { CursorLogo } from "@/components/open-in-cursor-button";
 import { ProjectExplorerPanel } from "@/components/project-explorer-panel";
 import { PushNotificationManager } from "@/components/push-notification-manager";
 import { SshBadge } from "@/components/ssh-badge";
@@ -32,6 +32,12 @@ import {
 } from "@/components/ui/sidebar";
 
 const GLOBAL_NAV = [
+  {
+    href: "/",
+    label: "Home",
+    tooltip: "Home",
+    icon: Home01Icon,
+  },
   {
     href: "/analytics",
     label: "Analytics",
@@ -73,13 +79,6 @@ const GLOBAL_NAV = [
     label: "Tmux",
     tooltip: "Tmux Sessions",
     icon: ComputerTerminal01Icon,
-    customIcon: "cursor" as const,
-  },
-  {
-    href: "/terminal",
-    label: "Terminal",
-    tooltip: "Container Terminal",
-    icon: ComputerTerminal01Icon,
   },
 ] as const;
 
@@ -113,28 +112,21 @@ export function ProjectSidebar() {
           <SidebarGroup>
             <SidebarGroupContent>
               <SidebarMenu>
-                {GLOBAL_NAV.map(({ href, label, tooltip, icon, ...rest }) => {
-                  const customIcon = "customIcon" in rest ? rest.customIcon : undefined;
-                  return (
-                    <SidebarMenuItem key={href}>
-                      <Link href={href}>
-                        <SidebarMenuButton
-                          isActive={pathname === href}
-                          tooltip={tooltip}
-                        >
-                          {customIcon === "cursor" ? (
-                            <CursorLogo className="h-[15px] w-[15px] shrink-0" />
-                          ) : (
-                            <HugeiconsIcon icon={icon} size={15} strokeWidth={2} />
-                          )}
-                          <span className="group-data-[collapsible=icon]:hidden">
-                            {label}
-                          </span>
-                        </SidebarMenuButton>
-                      </Link>
-                    </SidebarMenuItem>
-                  );
-                })}
+                {GLOBAL_NAV.map(({ href, label, tooltip, icon }) => (
+                  <SidebarMenuItem key={href}>
+                    <Link href={href}>
+                      <SidebarMenuButton
+                        isActive={href === "/" ? pathname === "/" : pathname === href}
+                        tooltip={tooltip}
+                      >
+                        <HugeiconsIcon icon={icon} size={15} strokeWidth={2} />
+                        <span className="group-data-[collapsible=icon]:hidden">
+                          {label}
+                        </span>
+                      </SidebarMenuButton>
+                    </Link>
+                  </SidebarMenuItem>
+                ))}
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
