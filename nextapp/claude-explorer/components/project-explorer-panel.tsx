@@ -74,8 +74,10 @@ const TABS = [
  *             corresponding full-page route and has a tooltip.
  */
 export function ProjectExplorerPanel({ slug }: { slug: string }) {
-  const { state } = useSidebar();
-  const isCollapsed = state === "collapsed";
+  const { state, isMobile } = useSidebar();
+  // On mobile the sidebar renders as a Sheet (always "expanded" visually),
+  // so never show the collapsed icon rail on mobile.
+  const isCollapsed = !isMobile && state === "collapsed";
 
   const pathname = usePathname();
 
