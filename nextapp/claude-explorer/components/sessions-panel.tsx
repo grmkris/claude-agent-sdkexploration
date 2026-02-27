@@ -21,7 +21,6 @@ import { useState } from "react";
 
 import type { RecentSession } from "@/lib/types";
 
-import { SessionActionsMenu } from "@/components/session-actions-menu";
 import { SessionStateBadge } from "@/components/session-state-badge";
 import {
   SidebarGroupContent,
@@ -166,13 +165,13 @@ function FilterChip({
 function SessionRow({
   session,
   showProjectLabel,
-  onArchive,
+  onArchive: _onArchive,
   dimmed = false,
   unarchiveButton,
 }: {
   session: RecentSession;
   showProjectLabel: boolean;
-  onArchive: () => void;
+  onArchive?: () => void;
   dimmed?: boolean;
   unarchiveButton?: React.ReactNode;
 }) {

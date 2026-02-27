@@ -45,13 +45,13 @@ export function SessionList({ projectSlug }: { projectSlug: string }) {
   const archiveSession = useMutation({
     mutationFn: (id: string) => client.sessions.archive({ sessionId: id }),
     onSuccess: () => {
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
         queryKey: orpc.sessions.list.queryOptions({
           input: { slug: projectSlug },
         }).queryKey,
       });
       // Also refresh archived list so newly-archived session appears immediately
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
         queryKey: orpc.sessions.list.queryOptions({
           input: { slug: projectSlug, includeArchived: true },
         }).queryKey,
@@ -75,13 +75,13 @@ export function SessionList({ projectSlug }: { projectSlug: string }) {
       client.sessions.archive({ sessionId: id, archived: false }),
     onSuccess: () => {
       // Remove from archived list
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
         queryKey: orpc.sessions.list.queryOptions({
           input: { slug: projectSlug, includeArchived: true },
         }).queryKey,
       });
       // Re-add to active list
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
         queryKey: orpc.sessions.list.queryOptions({
           input: { slug: projectSlug },
         }).queryKey,

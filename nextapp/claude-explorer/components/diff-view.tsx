@@ -146,7 +146,7 @@ function myers(a: string[], b: string[]): DiffOp[] {
 
   if (max === 0) return [];
 
-  const v: number[] = new Array(2 * max + 1).fill(0);
+  const v: number[] = Array.from({ length: 2 * max + 1 }, () => 0);
   const trace: number[][] = [];
 
   for (let d = 0; d <= max; d++) {

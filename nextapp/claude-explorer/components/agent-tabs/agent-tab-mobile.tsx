@@ -16,8 +16,6 @@ import {
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { getTimeAgo } from "@/lib/utils";
 
-import type { Tab } from "./tab-context";
-
 import { useAgentTabs } from "./tab-context";
 
 // Minimal type for recent sessions (matches RecentSession from schemas)
@@ -29,36 +27,10 @@ interface RecentSession {
   sessionState?: string;
 }
 
-function TabIcon({ tab }: { tab: Tab }) {
-  if (tab.type === "project") {
-    return (
-      <svg
-        className="h-3.5 w-3.5 text-muted-foreground"
-        viewBox="0 0 16 16"
-        fill="currentColor"
-      >
-        <path d="M1.75 1A1.75 1.75 0 0 0 0 2.75v10.5C0 14.216.784 15 1.75 15h12.5A1.75 1.75 0 0 0 16 13.25v-8.5A1.75 1.75 0 0 0 14.25 3H7.5a.25.25 0 0 1-.2-.1l-.9-1.2C6.07 1.26 5.55 1 5 1H1.75Z" />
-      </svg>
-    );
-  }
-  if (tab.type === "page") {
-    return (
-      <svg
-        className="h-3.5 w-3.5 text-muted-foreground"
-        viewBox="0 0 16 16"
-        fill="currentColor"
-      >
-        <path d="M3 1.75C3 .784 3.784 0 4.75 0h5.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v9.586A1.75 1.75 0 0 1 13.25 16h-8.5A1.75 1.75 0 0 1 3 14.25V1.75Z" />
-      </svg>
-    );
-  }
-  return null; // session icon handled separately
-}
-
 export function AgentTabMobile({
   sessionStateMap,
   recentSessions = [],
-  projects = [],
+  projects: _projects = [],
   projectsWithSessions = [],
 }: {
   sessionStateMap: Map<string, LiveSession>;
