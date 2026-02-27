@@ -6,7 +6,7 @@ import { traverseContractProcedures } from "@orpc/server";
 import type { router } from "../../lib/procedures";
 
 /** Only expose these top-level router keys as MCP tools (keeps agent context small) */
-const INCLUDE_PREFIXES = new Set(["crons", "webhooks", "email"]);
+const INCLUDE_PREFIXES = new Set(["crons", "webhooks", "email", "projects"]);
 
 /** Tool descriptions keyed by flattened path (e.g. "crons_create") */
 const DESCRIPTIONS: Record<string, string> = {
@@ -31,6 +31,25 @@ const DESCRIPTIONS: Record<string, string> = {
   webhooks_setupInstructions:
     "Get setup instructions and dashboard URL for a webhook",
 
+  // Projects
+  projects_list: "List all projects",
+  projects_create:
+    "Create a new project directory. Provide parentDir (e.g. /home/bun/projects), name, and an optional initialPrompt to auto-send when the chat opens.",
+  projects_resolveSlug: "Resolve a project slug to its filesystem path",
+  projects_config: "Get project MCP and skill configuration",
+  projects_files: "List files and directories inside a project",
+  projects_readFile: "Read the contents of a file inside a project",
+  projects_createDir: "Create a subdirectory inside a project",
+  projects_gitStatus: "Get the git status of a project",
+  projects_gitLog: "Get the git commit log of a project",
+  projects_gitDiff: "Get the git diff for a project",
+  projects_gitPull: "Pull the latest changes for a project",
+  projects_gitStageAll: "Stage all changes in a project",
+  projects_gitCommit: "Commit staged changes in a project",
+  projects_gitCommitPush: "Commit and push staged changes in a project",
+  projects_getEnv: "Get project-level environment variables",
+  projects_setEnv: "Set project-level environment variables",
+
   // Email
   email_getConfig: "Get email configuration for a workspace",
   email_setConfig:
@@ -54,6 +73,11 @@ const POST_PROCESSORS: Record<string, PostProcessor> = {
     const wh = result as { id: string };
     const url = `${baseUrl}/api/webhooks/${wh.id}`;
     return `Created webhook. URL: ${url}\n\n${JSON.stringify(result, null, 2)}`;
+  },
+  projects_create: (result, baseUrl) => {
+    const p = result as { slug: string; path: string };
+    const chatUrl = `${baseUrl}/project/${p.slug}/chat?_new=${Date.now()}`;
+    return `Created project at ${p.path}\nOpen in chat: ${chatUrl}\n\n${JSON.stringify(result, null, 2)}`;
   },
 };
 
