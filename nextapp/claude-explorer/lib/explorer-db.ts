@@ -99,6 +99,18 @@ function getDB(): Database {
       created_at         TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_pq_session ON pending_questions(session_id);
+
+    CREATE TABLE IF NOT EXISTS pending_exit_plan_mode (
+      tool_use_id      TEXT PRIMARY KEY,
+      session_id       TEXT NOT NULL,
+      tool_input       TEXT NOT NULL,
+      plan_text        TEXT NOT NULL,
+      allowed_prompts  TEXT NOT NULL,
+      prefilled_approved INTEGER,
+      prefilled_feedback TEXT,
+      created_at       TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_pepm_session ON pending_exit_plan_mode(session_id);
   `);
 
   // Migration: add git_branch column to existing DBs
@@ -324,21 +336,27 @@ export function getActiveSessions(): SessionRow[] {
 
 export function getProjectSessions(
   projectPath: string,
-  limit = 20
+  limit = 20,
+  includeArchived = false
 ): SessionRow[] {
   // Match both exact path AND any subdirectory (project_path LIKE '/path/%')
   // so sessions started inside a subdirectory of the project are included.
+  const archivedFilter = includeArchived ? 1 : 0;
   return getDB()
     .query<SessionRow, [string, string, number]>(
-      "SELECT * FROM sessions WHERE (project_path = ? OR project_path LIKE ?) AND is_archived = 0 ORDER BY updated_at DESC LIMIT ?"
+      `SELECT * FROM sessions WHERE (project_path = ? OR project_path LIKE ?) AND is_archived = ${archivedFilter} ORDER BY updated_at DESC LIMIT ?`
     )
     .all(projectPath, projectPath + "/%", limit);
 }
 
-export function getAllRecentSessions(limit = 50): SessionRow[] {
+export function getAllRecentSessions(
+  limit = 50,
+  includeArchived = false
+): SessionRow[] {
+  const archivedFilter = includeArchived ? 1 : 0;
   return getDB()
     .query<SessionRow, [number]>(
-      "SELECT * FROM sessions WHERE is_archived = 0 ORDER BY updated_at DESC LIMIT ?"
+      `SELECT * FROM sessions WHERE is_archived = ${archivedFilter} ORDER BY updated_at DESC LIMIT ?`
     )
     .all(limit);
 }
@@ -423,5 +441,96 @@ export function deletePendingQuestion(toolUseId: string): void {
 export function deletePendingQuestionsForSession(sessionId: string): void {
   getDB()
     .query("DELETE FROM pending_questions WHERE session_id = ?")
+    .run(sessionId);
+}
+
+// --- Pending ExitPlanMode (plan approval resilience across restarts) ---
+
+export interface PendingExitPlanModeRow {
+  tool_use_id: string;
+  session_id: string;
+  tool_input: string; // JSON
+  plan_text: string;
+  allowed_prompts: string; // JSON array
+  prefilled_approved: number | null; // 1 = approved, 0 = rejected, null = not yet set
+  prefilled_feedback: string | null;
+  created_at: string;
+}
+
+export function upsertPendingExitPlanMode(
+  toolUseId: string,
+  sessionId: string,
+  toolInput: Record<string, unknown>,
+  planText: string,
+  allowedPrompts: Array<{ tool: string; prompt: string }>
+): void {
+  getDB()
+    .query(
+      `INSERT INTO pending_exit_plan_mode
+         (tool_use_id, session_id, tool_input, plan_text, allowed_prompts, prefilled_approved, prefilled_feedback, created_at)
+       VALUES (?, ?, ?, ?, ?, NULL, NULL, ?)
+       ON CONFLICT(tool_use_id) DO NOTHING`
+    )
+    .run(
+      toolUseId,
+      sessionId,
+      JSON.stringify(toolInput),
+      planText,
+      JSON.stringify(allowedPrompts),
+      new Date().toISOString()
+    );
+}
+
+export function setPrefilledApproval(
+  toolUseId: string,
+  approved: boolean,
+  feedback?: string
+): void {
+  getDB()
+    .query(
+      "UPDATE pending_exit_plan_mode SET prefilled_approved = ?, prefilled_feedback = ? WHERE tool_use_id = ?"
+    )
+    .run(approved ? 1 : 0, feedback ?? null, toolUseId);
+}
+
+export function getPendingExitPlanMode(toolUseId: string): {
+  toolUseId: string;
+  sessionId: string;
+  toolInput: Record<string, unknown>;
+  planText: string;
+  allowedPrompts: Array<{ tool: string; prompt: string }>;
+  prefilledApproved: boolean | null;
+  prefilledFeedback: string | null;
+} | null {
+  const row = getDB()
+    .query<PendingExitPlanModeRow, [string]>(
+      "SELECT * FROM pending_exit_plan_mode WHERE tool_use_id = ?"
+    )
+    .get(toolUseId);
+  if (!row) return null;
+  return {
+    toolUseId: row.tool_use_id,
+    sessionId: row.session_id,
+    toolInput: JSON.parse(row.tool_input) as Record<string, unknown>,
+    planText: row.plan_text,
+    allowedPrompts: JSON.parse(row.allowed_prompts) as Array<{
+      tool: string;
+      prompt: string;
+    }>,
+    prefilledApproved:
+      row.prefilled_approved === null ? null : row.prefilled_approved === 1,
+    prefilledFeedback: row.prefilled_feedback,
+  };
+}
+
+export function deletePendingExitPlanMode(toolUseId: string): void {
+  getDB()
+    .query("DELETE FROM pending_exit_plan_mode WHERE tool_use_id = ?")
+    .run(toolUseId);
+}
+
+export function deletePendingExitPlanModeForSession(sessionId: string): void {
+  getDB()
+    .query("DELETE FROM pending_exit_plan_mode WHERE session_id = ?")
     .run(sessionId);
 }

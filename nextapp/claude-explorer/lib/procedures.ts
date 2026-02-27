@@ -68,6 +68,11 @@ import {
   getPendingQuestion,
   deletePendingQuestion,
   deletePendingQuestionsForSession,
+  upsertPendingExitPlanMode,
+  setPrefilledApproval,
+  getPendingExitPlanMode,
+  deletePendingExitPlanMode,
+  deletePendingExitPlanModeForSession,
 } from "./explorer-db";
 import {
   getFavorites,
@@ -255,11 +260,21 @@ const listProjectsProc = os
   .handler(async () => listProjects());
 
 const listSessionsProc = os
-  .input(z.object({ slug: z.string(), limit: z.number().optional() }))
+  .input(
+    z.object({
+      slug: z.string(),
+      limit: z.number().optional(),
+      includeArchived: z.boolean().optional(),
+    })
+  )
   .output(z.array(SessionMetaSchema))
   .handler(async ({ input }) => {
     const projectPath = await resolveSlugToPath(input.slug);
-    const rows = getDbProjectSessions(projectPath, input.limit ?? 30);
+    const rows = getDbProjectSessions(
+      projectPath,
+      input.limit ?? 30,
+      input.includeArchived ?? false
+    );
     return rows.map(sessionRowToMeta);
   });
 
@@ -280,16 +295,21 @@ const recentSessionsProc = os
 
 const timelineSessionsProc = os
   .input(
-    z.object({ limit: z.number().optional(), slug: z.string().optional() })
+    z.object({
+      limit: z.number().optional(),
+      slug: z.string().optional(),
+      includeArchived: z.boolean().optional(),
+    })
   )
   .output(z.array(RecentSessionSchema))
   .handler(async ({ input }) => {
+    const archived = input.includeArchived ?? false;
     if (input.slug) {
       const projectPath = await resolveSlugToPath(input.slug);
-      const rows = getDbProjectSessions(projectPath, input.limit ?? 50);
+      const rows = getDbProjectSessions(projectPath, input.limit ?? 50, archived);
       return Promise.all(rows.map(sessionRowToRecent));
     }
-    const rows = getDbAllRecentSessions(input.limit ?? 50);
+    const rows = getDbAllRecentSessions(input.limit ?? 50, archived);
     return Promise.all(rows.map(sessionRowToRecent));
   });
 
@@ -300,14 +320,18 @@ const sessionPreviewProc = os
   .output(
     z.object({
       lastAssistantMessage: z.string().nullable(),
+      firstPrompt: z.string().nullable(),
     })
   )
   .handler(async ({ input }) => {
-    const lastAssistantMessage = await getSessionLastAssistantText(
-      input.slug,
-      input.sessionId
-    );
-    return { lastAssistantMessage };
+    const [lastAssistantMessage, session] = await Promise.all([
+      getSessionLastAssistantText(input.slug, input.sessionId),
+      Promise.resolve(getDbSession(input.sessionId)),
+    ]);
+    return {
+      lastAssistantMessage,
+      firstPrompt: session?.first_prompt ?? null,
+    };
   });
 
 // --- Archive ---
@@ -511,7 +535,10 @@ function cleanupPendingAnswers(sessionId: string) {
       // DB row and return needsResume: true so the frontend reopens the stream.
     }
   }
-  // Also clean up pending ExitPlanMode calls for this session
+  // Also clean up pending ExitPlanMode calls for this session.
+  // NOTE: intentionally do NOT delete the DB row here. If the user approves
+  // after the SSE stream dies, approvePlanProc will find the DB row and return
+  // needsResume: true so the frontend reopens the stream.
   for (const [toolUseId, entry] of pendingExitPlanMode.entries()) {
     if (entry.sessionId === sessionId) {
       entry.resolve({ behavior: "deny", message: "Session ended" });
@@ -520,6 +547,10 @@ function cleanupPendingAnswers(sessionId: string) {
   }
   // Also clean up any DB rows for this session that lost their in-memory promise
   // (e.g. orphaned rows from a previous server run).
+  // NOTE: do NOT call deletePendingExitPlanModeForSession here — we intentionally
+  // keep those DB rows alive so approvePlanProc can store a prefilled approval
+  // decision and trigger a resume stream. Rows are deleted in canUseTool once
+  // the prefilled decision is consumed, or never if the session is abandoned.
   deletePendingQuestionsForSession(sessionId);
 }
 
@@ -643,7 +674,7 @@ const chatProc = os
           canUseTool: async (
             toolName: string,
             toolInput: unknown,
-            opts: { toolUseID: string }
+            opts: { toolUseID: string; signal?: AbortSignal }
           ) => {
             if (toolName === "AskUserQuestion" && sessionId) {
               const typedInput = (toolInput as Record<string, unknown>) ?? {};
@@ -680,6 +711,23 @@ const chatProc = os
                 tool: string;
                 prompt: string;
               }>;
+
+              // Check for pre-filled approval stored during a restart scenario
+              const storedPlan = getPendingExitPlanMode(opts.toolUseID);
+              if (storedPlan?.prefilledApproved !== null && storedPlan?.prefilledApproved !== undefined) {
+                deletePendingExitPlanMode(opts.toolUseID);
+                if (storedPlan.prefilledApproved) {
+                  return { behavior: "allow" as const, updatedInput: typedInput };
+                } else {
+                  return {
+                    behavior: "deny" as const,
+                    message:
+                      storedPlan.prefilledFeedback?.trim() ||
+                      "User rejected the plan. Please revise and try again.",
+                  };
+                }
+              }
+
               // Try to read the plan file. Claude writes plan files to
               // ~/.claude/plans/<name>.md, NOT to cwd/PLAN.md.
               // Strategy:
@@ -687,8 +735,8 @@ const chatProc = os
               //   2. Scan ~/.claude/plans/ for the most recently modified .md
               //      file (written within the last 60 s, i.e. just now).
               //   3. Fall back to cwd/PLAN.md for legacy compatibility.
-              let planText = "";
-              {
+              let planText = storedPlan?.planText ?? "";
+              if (!planText) {
                 const {
                   readFile,
                   readdir,
@@ -741,6 +789,16 @@ const chatProc = os
                   ).catch(() => "");
                 }
               }
+
+              // Persist to DB so approval survives a server restart or SSE drop.
+              upsertPendingExitPlanMode(
+                opts.toolUseID,
+                sessionId!,
+                typedInput,
+                planText,
+                allowedPrompts
+              );
+
               return new Promise<
                 | { behavior: "allow"; updatedInput?: Record<string, unknown> }
                 | { behavior: "deny"; message: string }
@@ -752,6 +810,14 @@ const chatProc = os
                   allowedPrompts,
                   toolInput: typedInput,
                 });
+
+                // Resolve immediately if the SDK aborts so the Promise doesn't hang.
+                opts.signal?.addEventListener("abort", () => {
+                  if (pendingExitPlanMode.has(opts.toolUseID)) {
+                    resolve({ behavior: "deny", message: "Aborted" });
+                    pendingExitPlanMode.delete(opts.toolUseID);
+                  }
+                }, { once: true });
               });
             }
 
@@ -940,8 +1006,7 @@ const approvePlanProc = os
       // Check if the SSE stream is still alive before resolving. If the stream
       // died (network blip, tab suspended, etc.), cleanupPendingAnswers already
       // resolved the promise with "deny" and removed the session from activeStreams.
-      // In that case fall through to return needsResume: true so the frontend
-      // reopens the stream.
+      // In that case fall through to the slow path.
       if (activeStreams.has(input.sessionId)) {
         if (input.approved) {
           pending.resolve({
@@ -957,18 +1022,27 @@ const approvePlanProc = os
           });
         }
         pendingExitPlanMode.delete(input.toolUseId);
+        deletePendingExitPlanMode(input.toolUseId);
         return { success: true };
       }
       // Stream is dead — the promise was already denied by cleanupPendingAnswers.
       pendingExitPlanMode.delete(input.toolUseId);
     }
 
-    // No in-memory entry (server restarted or stream died). Signal the frontend
-    // to trigger a session resume so the agent can re-ask for plan approval.
+    // Slow path — server restarted or SSE stream died. Promise is gone but the
+    // DB row still exists. Persist the user's decision so canUseTool can
+    // auto-resolve on the next session resume.
+    const stored = getPendingExitPlanMode(input.toolUseId);
+    if (!stored) return { success: false };
+
+    setPrefilledApproval(input.toolUseId, input.approved, input.feedback);
+
+    // Signal the frontend to trigger a session resume stream.
     return { success: false, needsResume: true };
   });
 
-// Procedure to fetch the current pending plan (for restoring UI state)
+// Procedure to fetch the current pending plan (for restoring UI state).
+// Falls back to the DB row so the plan is still visible after an SSE reconnect.
 const getPendingPlanProc = os
   .input(z.object({ sessionId: z.string(), toolUseId: z.string() }))
   .output(
@@ -982,11 +1056,20 @@ const getPendingPlanProc = os
       .nullable()
   )
   .handler(async ({ input }) => {
+    // Fast path: in-memory entry is still live
     const pending = pendingExitPlanMode.get(input.toolUseId);
-    if (!pending || pending.sessionId !== input.sessionId) return null;
+    if (pending && pending.sessionId === input.sessionId) {
+      return {
+        planText: pending.planText,
+        allowedPrompts: pending.allowedPrompts,
+      };
+    }
+    // Slow path: SSE died or server restarted — read from DB
+    const stored = getPendingExitPlanMode(input.toolUseId);
+    if (!stored || stored.sessionId !== input.sessionId) return null;
     return {
-      planText: pending.planText,
-      allowedPrompts: pending.allowedPrompts,
+      planText: stored.planText,
+      allowedPrompts: stored.allowedPrompts,
     };
   });
 
@@ -1662,7 +1745,7 @@ const rootChatProc = os
           canUseTool: async (
             toolName: string,
             toolInput: unknown,
-            opts: { toolUseID: string }
+            opts: { toolUseID: string; signal?: AbortSignal }
           ) => {
             if (toolName === "AskUserQuestion" && sessionId) {
               const typedInput = (toolInput as Record<string, unknown>) ?? {};
@@ -1699,9 +1782,27 @@ const rootChatProc = os
                 tool: string;
                 prompt: string;
               }>;
-              // Scan ~/.claude/plans/ for the most recently modified plan file
-              let planText = "";
-              {
+
+              // Check for pre-filled approval stored during a restart scenario
+              const storedPlan = getPendingExitPlanMode(opts.toolUseID);
+              if (storedPlan?.prefilledApproved !== null && storedPlan?.prefilledApproved !== undefined) {
+                deletePendingExitPlanMode(opts.toolUseID);
+                if (storedPlan.prefilledApproved) {
+                  return { behavior: "allow" as const, updatedInput: typedInput };
+                } else {
+                  return {
+                    behavior: "deny" as const,
+                    message:
+                      storedPlan.prefilledFeedback?.trim() ||
+                      "User rejected the plan. Please revise and try again.",
+                  };
+                }
+              }
+
+              // Scan ~/.claude/plans/ for the most recently modified plan file,
+              // or reuse persisted plan text if this is a resume.
+              let planText = storedPlan?.planText ?? "";
+              if (!planText) {
                 const {
                   readFile,
                   readdir,
@@ -1745,6 +1846,16 @@ const rootChatProc = os
                   }
                 }
               }
+
+              // Persist to DB so approval survives a server restart or SSE drop.
+              upsertPendingExitPlanMode(
+                opts.toolUseID,
+                sessionId!,
+                typedInput,
+                planText,
+                allowedPrompts
+              );
+
               return new Promise<
                 | { behavior: "allow"; updatedInput?: Record<string, unknown> }
                 | { behavior: "deny"; message: string }
@@ -1756,6 +1867,14 @@ const rootChatProc = os
                   allowedPrompts,
                   toolInput: typedInput,
                 });
+
+                // Resolve immediately if the SDK aborts so the Promise doesn't hang.
+                opts.signal?.addEventListener("abort", () => {
+                  if (pendingExitPlanMode.has(opts.toolUseID)) {
+                    resolve({ behavior: "deny", message: "Aborted" });
+                    pendingExitPlanMode.delete(opts.toolUseID);
+                  }
+                }, { once: true });
               });
             }
 

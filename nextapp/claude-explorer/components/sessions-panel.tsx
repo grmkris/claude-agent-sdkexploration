@@ -3,6 +3,8 @@
 import type { IconSvgElement } from "@hugeicons/react";
 
 import {
+  Archive01Icon,
+  ArchiveIcon,
   Clock01Icon,
   LayerIcon,
   Mail01Icon,
@@ -187,6 +189,40 @@ export function SessionsPanel({
         queryKey: orpc.sessions.timeline.queryOptions({ input: queryInput })
           .queryKey,
       });
+      // Also refresh archived list if it's open so the newly archived session appears
+      void queryClient.invalidateQueries({
+        queryKey: orpc.sessions.timeline.queryOptions({
+          input: { ...queryInput, includeArchived: true },
+        }).queryKey,
+      });
+    },
+  });
+
+  // Archived sessions toggle and query
+  const [showArchived, setShowArchived] = useState(false);
+
+  const { data: archivedSessions, isLoading: archivedLoading } = useQuery({
+    ...orpc.sessions.timeline.queryOptions({
+      input: { ...queryInput, includeArchived: true },
+    }),
+    enabled: showArchived,
+    refetchInterval: showArchived ? 30000 : false,
+  });
+
+  const unarchiveMutation = useMutation({
+    ...orpc.sessions.archive.mutationOptions(),
+    onSuccess: () => {
+      // Remove from archived list
+      void queryClient.invalidateQueries({
+        queryKey: orpc.sessions.timeline.queryOptions({
+          input: { ...queryInput, includeArchived: true },
+        }).queryKey,
+      });
+      // Re-add to active list
+      void queryClient.invalidateQueries({
+        queryKey: orpc.sessions.timeline.queryOptions({ input: queryInput })
+          .queryKey,
+      });
     },
   });
 
@@ -316,6 +352,91 @@ export function SessionsPanel({
           </div>
         )}
       </SidebarMenu>
+
+      {/* Archived section toggle */}
+      <div className="mt-1 px-2">
+        <button
+          onClick={() => setShowArchived((prev) => !prev)}
+          className="flex w-full items-center gap-1.5 rounded px-1.5 py-1 text-[10px] text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+        >
+          <HugeiconsIcon icon={ArchiveIcon} size={10} />
+          {showArchived ? "Hide archived" : "Show archived"}
+        </button>
+      </div>
+
+      {showArchived && (
+        <SidebarMenu>
+          {archivedLoading &&
+            Array.from({ length: 3 }).map((_, i) => (
+              <SidebarMenuItem key={i}>
+                <SidebarMenuSkeleton />
+              </SidebarMenuItem>
+            ))}
+
+          {!archivedLoading && (archivedSessions ?? []).length === 0 && (
+            <div className="px-2 py-3 text-center text-xs text-muted-foreground">
+              No archived conversations
+            </div>
+          )}
+
+          {(archivedSessions ?? []).map((session) => {
+            const sessionUrl = session.projectSlug
+              ? `/project/${session.projectSlug}/chat/${session.id}`
+              : `/chat/${session.id}`;
+            const isSelected = pathname === sessionUrl;
+            const projectLabel = session.projectSlug
+              ? (session.projectPath.split("/").pop() ?? session.projectSlug)
+              : "root";
+            const timeAgo = getTimeAgo(session.lastModified ?? session.timestamp);
+
+            return (
+              <SidebarMenuItem key={session.id}>
+                <div className="group flex items-center opacity-60 hover:opacity-100 transition-opacity">
+                  <Link href={sessionUrl} className="min-w-0 flex-1">
+                    <SidebarMenuButton
+                      isActive={isSelected}
+                      tooltip={session.firstPrompt}
+                    >
+                      <div className="flex min-w-0 flex-1 flex-col">
+                        <span className="truncate text-sm">
+                          {session.firstPrompt}
+                        </span>
+                        <span className="flex items-center gap-1 truncate text-[10px] text-muted-foreground">
+                          {showProjectLabel ? `${projectLabel} · ` : ""}
+                          {timeAgo}
+                          <SourceIcon source={session.source} />
+                        </span>
+                      </div>
+                    </SidebarMenuButton>
+                  </Link>
+                  <div className="flex shrink-0 items-center opacity-0 group-hover:opacity-100 transition-opacity pr-1">
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger>
+                          <button
+                            onClick={() =>
+                              unarchiveMutation.mutate({
+                                sessionId: session.id,
+                                archived: false,
+                              })
+                            }
+                            className="rounded p-1 text-muted-foreground hover:text-foreground transition-colors"
+                          >
+                            <HugeiconsIcon icon={Archive01Icon} size={12} />
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent side="left" className="text-xs">
+                          Unarchive
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
+                </div>
+              </SidebarMenuItem>
+            );
+          })}
+        </SidebarMenu>
+      )}
     </SidebarGroupContent>
   );
 }
