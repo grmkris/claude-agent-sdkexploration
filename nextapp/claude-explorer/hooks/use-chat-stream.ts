@@ -166,13 +166,14 @@ export function useChatStream(opts?: ChatStreamOpts): UseChatStreamReturn {
 
   const answerQuestion = useCallback(
     async (toolUseId: string, answers: Record<string, string[]>) => {
-      if (!sessionId) {
+      const effectiveSessionId = sessionId ?? opts?.resume ?? null;
+      if (!effectiveSessionId) {
         throw new Error(
           "Session not yet initialized. Please wait a moment and try again."
         );
       }
       const result = await client.answerQuestion({
-        sessionId,
+        sessionId: effectiveSessionId,
         toolUseId,
         answers,
       });
@@ -188,7 +189,7 @@ export function useChatStream(opts?: ChatStreamOpts): UseChatStreamReturn {
         send(" ");
       }
     },
-    [sessionId, send, streamingRef]
+    [sessionId, opts?.resume, send, streamingRef]
   );
 
   const approvePlan = useCallback(
