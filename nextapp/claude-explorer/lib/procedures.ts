@@ -1223,6 +1223,8 @@ const createProjectProc = os
       initialPrompt: z.string().optional(),
       mcps: z.array(z.string()).optional(),
       skills: z.array(z.string()).optional(),
+      cloneIntegrationId: z.string().optional(),
+      cloneUrl: z.string().optional(),
     })
   )
   .output(
@@ -1237,10 +1239,32 @@ const createProjectProc = os
       throw new Error(`Parent directory does not exist: ${input.parentDir}`);
     }
 
-    const projectPath = await createProjectDirectory(
-      input.parentDir,
-      input.name
-    );
+    // Validate name eagerly (same rules as createProjectDirectory)
+    if (
+      input.name.includes("/") ||
+      input.name.includes("\\") ||
+      input.name.includes("\0") ||
+      input.name.includes("..")
+    ) {
+      throw new Error("Invalid project name");
+    }
+    const projectPath = join(input.parentDir, input.name);
+
+    if (input.cloneUrl && input.cloneIntegrationId) {
+      // Resolve token server-side — never exposed to the client
+      const all = await getIntegrations();
+      const integration = all.find((i) => i.id === input.cloneIntegrationId);
+      if (!integration) throw new Error("Integration not found for clone");
+      const token = await resolveIntegrationToken(integration);
+      // git clone creates the directory itself — do NOT mkdir first
+      const cloneResult = await gitClone(input.cloneUrl, projectPath, token);
+      if (!cloneResult.success) {
+        throw new Error(`Git clone failed: ${cloneResult.error}`);
+      }
+    } else {
+      await createProjectDirectory(input.parentDir, input.name);
+    }
+
     // Let the Claude CLI register this project in ~/.claude.json by running
     // a benign mcp add+remove pair.  The CLI writes the project entry as a
     // side-effect of any `claude mcp` mutation, which ensures slug resolution
@@ -1405,50 +1429,6 @@ const listIntegrationsProc = os
   .handler(async () => {
     const all = await getIntegrations();
     return all.map(({ auth: _auth, ...rest }) => rest);
-  });
-
-const GithubRepoSchema = z.object({
-  id: z.number(),
-  fullName: z.string(),
-  name: z.string(),
-  private: z.boolean(),
-  description: z.string().nullable(),
-  defaultBranch: z.string(),
-  cloneUrl: z.string(),
-  updatedAt: z.string(),
-});
-
-const githubListReposProc = os
-  .input(z.object({ integrationId: z.string() }))
-  .output(z.array(GithubRepoSchema))
-  .handler(async ({ input }) => {
-    const all = await getIntegrations();
-    const integration = all.find(
-      (i) => i.id === input.integrationId && i.type === "github"
-    );
-    if (!integration) throw new Error("GitHub integration not found");
-    if (!integration.enabled) throw new Error("Integration is disabled");
-
-    const token = await resolveIntegrationToken(integration);
-    const { Octokit } = await import("@octokit/rest");
-    const octokit = new Octokit({ auth: token });
-
-    const { data } = await octokit.rest.repos.listForAuthenticatedUser({
-      per_page: 100,
-      sort: "updated",
-      affiliation: "owner,collaborator,organization_member",
-    });
-
-    return data.map((repo) => ({
-      id: repo.id,
-      fullName: repo.full_name,
-      name: repo.name,
-      private: repo.private,
-      description: repo.description ?? null,
-      defaultBranch: repo.default_branch,
-      cloneUrl: repo.clone_url,
-      updatedAt: repo.updated_at ?? "",
-    }));
   });
 
 const createIntegrationProc = os
@@ -1643,6 +1623,50 @@ const suggestIntegrationsProc = os
     }
 
     return suggestions;
+  });
+
+const GithubRepoSchema = z.object({
+  id: z.number(),
+  fullName: z.string(),
+  name: z.string(),
+  private: z.boolean(),
+  description: z.string().nullable(),
+  defaultBranch: z.string(),
+  cloneUrl: z.string(),
+  updatedAt: z.string(),
+});
+
+const githubListReposProc = os
+  .input(z.object({ integrationId: z.string() }))
+  .output(z.array(GithubRepoSchema))
+  .handler(async ({ input }) => {
+    const all = await getIntegrations();
+    const integration = all.find(
+      (i) => i.id === input.integrationId && i.type === "github"
+    );
+    if (!integration) throw new Error("GitHub integration not found");
+    if (!integration.enabled) throw new Error("Integration is disabled");
+
+    const token = await resolveIntegrationToken(integration);
+    const { Octokit } = await import("@octokit/rest");
+    const octokit = new Octokit({ auth: token });
+
+    const { data } = await octokit.rest.repos.listForAuthenticatedUser({
+      per_page: 100,
+      sort: "updated",
+      affiliation: "owner,collaborator,organization_member",
+    });
+
+    return data.map((repo) => ({
+      id: repo.id,
+      fullName: repo.full_name,
+      name: repo.name,
+      private: repo.private,
+      description: repo.description ?? null,
+      defaultBranch: repo.default_branch,
+      cloneUrl: repo.clone_url,
+      updatedAt: repo.updated_at ?? "",
+    }));
   });
 
 // --- Root Workspace ---
@@ -3349,6 +3373,7 @@ export const router = {
     data: integrationDataProc,
     test: testIntegrationProc,
     suggest: suggestIntegrationsProc,
+    githubListRepos: githubListReposProc,
   },
   apiKeys: {
     list: listApiKeysProc,

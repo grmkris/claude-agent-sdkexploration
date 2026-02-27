@@ -312,6 +312,28 @@ export async function getGitFileDiff(
   }
 }
 
+export async function gitClone(
+  repoUrl: string,
+  targetPath: string,
+  token?: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    let cloneUrl = repoUrl;
+    if (token && repoUrl.startsWith("https://")) {
+      // Embed PAT as HTTP Basic-Auth user — standard GitHub HTTPS clone pattern
+      cloneUrl = repoUrl.replace("https://", `https://${token}@`);
+    }
+    // git clone <url> <path> creates targetPath itself — do NOT mkdir beforehand
+    await Bun.$`git clone ${cloneUrl} ${targetPath}`.quiet();
+    return { success: true };
+  } catch (e: any) {
+    const raw: string = e?.stderr?.toString?.() ?? String(e);
+    // Sanitize token from error output before surfacing to the caller
+    const sanitized = token ? raw.replaceAll(token, "***") : raw;
+    return { success: false, error: sanitized };
+  }
+}
+
 export async function gitPull(
   projectPath: string
 ): Promise<{ success: boolean; output: string }> {

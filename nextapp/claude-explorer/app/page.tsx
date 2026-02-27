@@ -3,7 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 import type { TmuxPane } from "@/lib/types";
 
@@ -97,6 +97,52 @@ function NewProjectForm({
   const [selectedTemplate, setSelectedTemplate] = useState("blank");
   const [selectedMcps, setSelectedMcps] = useState<string[]>([]);
 
+  // Clone-from-GitHub state
+  const [cloneEnabled, setCloneEnabled] = useState(false);
+  const [selectedIntegrationId, setSelectedIntegrationId] = useState("");
+  const [repoSearch, setRepoSearch] = useState("");
+  const [selectedRepo, setSelectedRepo] = useState<{
+    fullName: string;
+    name: string;
+    cloneUrl: string;
+  } | null>(null);
+
+  // Fetch GitHub integrations
+  const { data: integrations } = useQuery(
+    orpc.integrations.list.queryOptions()
+  );
+  const githubIntegrations = (integrations ?? []).filter(
+    (i) => i.type === "github" && i.enabled
+  );
+
+  // Auto-select the only GitHub integration
+  useEffect(() => {
+    if (
+      cloneEnabled &&
+      githubIntegrations.length === 1 &&
+      !selectedIntegrationId
+    ) {
+      setSelectedIntegrationId(githubIntegrations[0].id);
+    }
+  }, [cloneEnabled, githubIntegrations.length, selectedIntegrationId]);
+
+  // Fetch repos when an integration is selected
+  const {
+    data: repos,
+    isLoading: reposLoading,
+    error: reposError,
+  } = useQuery({
+    ...orpc.integrations.githubListRepos.queryOptions({
+      input: { integrationId: selectedIntegrationId },
+    }),
+    enabled: cloneEnabled && !!selectedIntegrationId,
+  });
+
+  const filteredRepos = (repos ?? []).filter(
+    (r) =>
+      !repoSearch || r.fullName.toLowerCase().includes(repoSearch.toLowerCase())
+  );
+
   function applyTemplate(templateId: string) {
     setSelectedTemplate(templateId);
     const tpl = PROJECT_TEMPLATES.find((t) => t.id === templateId);
@@ -108,6 +154,21 @@ function NewProjectForm({
     }
   }
 
+  function handleToggleClone() {
+    const next = !cloneEnabled;
+    setCloneEnabled(next);
+    if (!next) {
+      setSelectedIntegrationId("");
+      setSelectedRepo(null);
+      setRepoSearch("");
+    }
+  }
+
+  function handleSelectRepo(repo: NonNullable<typeof repos>[number]) {
+    setSelectedRepo(repo);
+    setName(repo.name);
+  }
+
   const createProject = useMutation({
     mutationFn: () =>
       client.projects.create({
@@ -115,6 +176,12 @@ function NewProjectForm({
         name,
         ...(initialPrompt ? { initialPrompt } : {}),
         ...(selectedMcps.length ? { mcps: selectedMcps } : {}),
+        ...(cloneEnabled && selectedRepo && selectedIntegrationId
+          ? {
+              cloneUrl: selectedRepo.cloneUrl,
+              cloneIntegrationId: selectedIntegrationId,
+            }
+          : {}),
       }),
     onSuccess: (result) => onCreated(result.slug, initialPrompt || undefined),
   });
@@ -144,6 +211,118 @@ function NewProjectForm({
         ))}
       </div>
 
+      {/* Clone from GitHub toggle */}
+      <button
+        type="button"
+        onClick={handleToggleClone}
+        className={`self-start rounded border px-2.5 py-1 text-[11px] transition-colors ${
+          cloneEnabled
+            ? "border-primary bg-primary/10 text-foreground"
+            : "border-border text-muted-foreground hover:border-primary/50 hover:text-foreground"
+        }`}
+      >
+        Clone from GitHub
+      </button>
+
+      {/* Clone panel */}
+      {cloneEnabled && (
+        <div className="flex flex-col gap-2 rounded border border-dashed p-2">
+          {githubIntegrations.length === 0 ? (
+            <p className="text-[11px] text-muted-foreground">
+              No GitHub integrations configured. Add one in Settings.
+            </p>
+          ) : (
+            <>
+              {/* Integration selector — only shown when multiple accounts */}
+              {githubIntegrations.length > 1 && (
+                <select
+                  className="rounded border bg-background px-2 py-1 text-xs"
+                  value={selectedIntegrationId}
+                  onChange={(e) => {
+                    setSelectedIntegrationId(e.target.value);
+                    setSelectedRepo(null);
+                    setRepoSearch("");
+                  }}
+                >
+                  <option value="">Select GitHub account…</option>
+                  {githubIntegrations.map((i) => (
+                    <option key={i.id} value={i.id}>
+                      {i.name}
+                    </option>
+                  ))}
+                </select>
+              )}
+
+              {selectedIntegrationId && (
+                <>
+                  <Input
+                    placeholder="Search repos…"
+                    value={repoSearch}
+                    onChange={(e) => setRepoSearch(e.target.value)}
+                    className="text-xs"
+                  />
+
+                  {reposLoading && (
+                    <p className="text-[11px] text-muted-foreground">
+                      Loading repos…
+                    </p>
+                  )}
+
+                  {reposError && (
+                    <p className="text-[11px] text-destructive">
+                      Failed to load repos.
+                    </p>
+                  )}
+
+                  {!reposLoading && filteredRepos.length > 0 && (
+                    <div className="max-h-40 overflow-y-auto rounded border">
+                      {filteredRepos.map((repo) => (
+                        <button
+                          key={repo.id}
+                          type="button"
+                          onClick={() => handleSelectRepo(repo)}
+                          className={`flex w-full flex-col items-start px-2.5 py-1.5 text-left text-[11px] transition-colors hover:bg-accent/50 ${
+                            selectedRepo?.fullName === repo.fullName
+                              ? "bg-primary/10"
+                              : ""
+                          }`}
+                        >
+                          <span className="font-medium">{repo.fullName}</span>
+                          {repo.description && (
+                            <span className="truncate text-[10px] text-muted-foreground">
+                              {repo.description}
+                            </span>
+                          )}
+                          <span className="text-[10px] text-muted-foreground">
+                            {repo.private ? "Private" : "Public"} ·{" "}
+                            {repo.defaultBranch}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {!reposLoading &&
+                    !reposError &&
+                    filteredRepos.length === 0 &&
+                    repoSearch && (
+                      <p className="text-[11px] text-muted-foreground">
+                        No repos match &ldquo;{repoSearch}&rdquo;.
+                      </p>
+                    )}
+
+                  {selectedRepo && (
+                    <p className="text-[10px] text-muted-foreground">
+                      Will clone: {selectedRepo.fullName}
+                    </p>
+                  )}
+                </>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
       <Input
         placeholder="Project name"
         value={name}
@@ -168,10 +347,16 @@ function NewProjectForm({
       )}
       <Button
         size="sm"
-        disabled={!name || createProject.isPending}
+        disabled={
+          !name || createProject.isPending || (cloneEnabled && !selectedRepo)
+        }
         onClick={() => createProject.mutate()}
       >
-        {createProject.isPending ? "Creating..." : "Create"}
+        {createProject.isPending
+          ? cloneEnabled
+            ? "Cloning…"
+            : "Creating…"
+          : "Create"}
       </Button>
       {createProject.isError && (
         <span className="text-[10px] text-destructive">
