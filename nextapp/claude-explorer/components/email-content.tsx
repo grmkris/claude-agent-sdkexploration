@@ -64,7 +64,8 @@ export function EmailContent({ projectSlug: scopedSlug }: EmailContentProps) {
   >("new_session");
   const [sessionId, setSessionId] = useState("");
   const [prompt, setPrompt] = useState("");
-  const [eventsProjectFilter, setEventsProjectFilter] = useState<string>("__all__");
+  const [eventsProjectFilter, setEventsProjectFilter] =
+    useState<string>("__all__");
 
   const finalAddress =
     addressMode === "new" ? `${localPart}@${domain}` : selectedAddress;
@@ -143,25 +144,20 @@ export function EmailContent({ projectSlug: scopedSlug }: EmailContentProps) {
       : selectedAddress.length > 0 && prompt.length > 0;
 
   // Scoped filtering
-  const displayConfigs = useMemo(
-    () => {
-      if (scopedSlug) return configs?.filter((c) => c.projectSlug === scopedSlug);
-      if (eventsProjectFilter !== "__all__")
-        return configs?.filter((c) => c.projectSlug === eventsProjectFilter);
-      return configs;
-    },
-    [configs, scopedSlug, eventsProjectFilter]
-  );
+  const displayConfigs = useMemo(() => {
+    if (scopedSlug) return configs?.filter((c) => c.projectSlug === scopedSlug);
+    if (eventsProjectFilter !== "__all__")
+      return configs?.filter((c) => c.projectSlug === eventsProjectFilter);
+    return configs;
+  }, [configs, scopedSlug, eventsProjectFilter]);
 
-  const displayEvents = useMemo(
-    () => {
-      if (scopedSlug) return events?.filter((ev) => ev.projectSlug === scopedSlug);
-      if (eventsProjectFilter !== "__all__")
-        return events?.filter((ev) => ev.projectSlug === eventsProjectFilter);
-      return events;
-    },
-    [events, scopedSlug, eventsProjectFilter]
-  );
+  const displayEvents = useMemo(() => {
+    if (scopedSlug)
+      return events?.filter((ev) => ev.projectSlug === scopedSlug);
+    if (eventsProjectFilter !== "__all__")
+      return events?.filter((ev) => ev.projectSlug === eventsProjectFilter);
+    return events;
+  }, [events, scopedSlug, eventsProjectFilter]);
 
   return (
     <div className="p-4">
@@ -399,7 +395,9 @@ export function EmailContent({ projectSlug: scopedSlug }: EmailContentProps) {
       )}
 
       {/* Email events log */}
-      {((displayEvents && displayEvents.length > 0) || scopedSlug || eventsProjectFilter !== "__all__") && (
+      {((displayEvents && displayEvents.length > 0) ||
+        scopedSlug ||
+        eventsProjectFilter !== "__all__") && (
         <>
           <div className="mb-3 flex items-center gap-3">
             <h2 className="text-sm font-medium text-muted-foreground">
@@ -443,10 +441,13 @@ export function EmailContent({ projectSlug: scopedSlug }: EmailContentProps) {
                     </Badge>
                     {!scopedSlug && (
                       <span className="shrink-0 rounded bg-muted px-1 text-[10px] text-muted-foreground">
-                        {ev.projectSlug === "__root__" || ev.projectSlug === "__outbound__"
+                        {ev.projectSlug === "__root__" ||
+                        ev.projectSlug === "__outbound__"
                           ? "root"
-                          : projects?.find((p) => p.slug === ev.projectSlug)?.path.split("/").pop()
-                              ?? ev.projectSlug}
+                          : (projects
+                              ?.find((p) => p.slug === ev.projectSlug)
+                              ?.path.split("/")
+                              .pop() ?? ev.projectSlug)}
                       </span>
                     )}
                     <span className="shrink-0 text-[10px] text-muted-foreground">
@@ -491,7 +492,9 @@ export function EmailContent({ projectSlug: scopedSlug }: EmailContentProps) {
               })}
             </div>
           ) : (
-            <p className="text-sm text-muted-foreground">No email events yet.</p>
+            <p className="text-sm text-muted-foreground">
+              No email events yet.
+            </p>
           )}
         </>
       )}

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 
+import { CopyButton } from "@/components/copy-button";
 import { MarkdownContent } from "@/components/markdown-content";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -22,6 +23,7 @@ export function ExitPlanModeTool({
   const isResolved = output !== undefined;
 
   const [planText, setPlanText] = useState<string | null>(null);
+  const [planFilePath, setPlanFilePath] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [feedback, setFeedback] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -46,6 +48,7 @@ export function ExitPlanModeTool({
           if (cancelled) return;
           if (result?.planText) {
             setPlanText(result.planText);
+            setPlanFilePath(result.planFilePath ?? "");
             setLoading(false);
             return;
           }
@@ -162,8 +165,35 @@ export function ExitPlanModeTool({
           </div>
         </div>
       ) : planText ? (
-        <div className="mb-4 max-h-72 overflow-y-auto rounded-md border border-border/40 bg-background/50 p-3 text-sm">
-          <MarkdownContent>{planText}</MarkdownContent>
+        <div className="mb-4 rounded-md border border-border/40 bg-background/50 text-sm overflow-hidden">
+          {planFilePath && (
+            <div className="flex items-center gap-1.5 border-b border-border/40 bg-background/30 px-3 py-1.5">
+              <svg
+                width="11"
+                height="11"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="shrink-0 text-muted-foreground"
+              >
+                <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+                <polyline points="14 2 14 8 20 8" />
+              </svg>
+              <code
+                className="flex-1 truncate font-mono text-[11px] text-muted-foreground"
+                title={planFilePath}
+              >
+                {planFilePath}
+              </code>
+              <CopyButton text={planFilePath} className="ml-1" />
+            </div>
+          )}
+          <div className="max-h-72 overflow-y-auto p-3">
+            <MarkdownContent>{planText}</MarkdownContent>
+          </div>
         </div>
       ) : (
         <div className="mb-4 rounded-md border border-border/40 bg-background/30 p-3">

@@ -2,12 +2,12 @@
 
 import type { CommitRaw, DeploymentRaw, TicketRaw } from "@/lib/activity-types";
 
-import { cn } from "@/lib/utils";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
 
 interface CommitItemProps {
   raw: CommitRaw;
@@ -78,7 +78,9 @@ export function CommitItem({
               {raw.body?.trim() && (
                 <>
                   {"\n"}
-                  <span className="opacity-70 whitespace-pre-wrap">{raw.body.trim()}</span>
+                  <span className="opacity-70 whitespace-pre-wrap">
+                    {raw.body.trim()}
+                  </span>
                 </>
               )}
             </TooltipContent>
@@ -127,9 +129,7 @@ export function CommitItem({
               {relatedTickets?.map((ticket) => (
                 <Tooltip key={ticket.identifier}>
                   <TooltipTrigger>
-                    <span
-                      className="inline-flex items-center text-[10px] font-mono px-1 py-0.5 rounded bg-blue-500/10 text-blue-400 font-medium cursor-default"
-                    >
+                    <span className="inline-flex items-center text-[10px] font-mono px-1 py-0.5 rounded bg-blue-500/10 text-blue-400 font-medium cursor-default">
                       {ticket.identifier}
                     </span>
                   </TooltipTrigger>

@@ -12,7 +12,11 @@ import {
 } from "@/components/ui/tooltip";
 import { orpc } from "@/lib/orpc";
 
-export function ArchiveChatButton({ size = "default" }: { size?: "default" | "sm" }) {
+export function ArchiveChatButton({
+  size = "default",
+}: {
+  size?: "default" | "sm";
+}) {
   const pathname = usePathname();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -65,7 +69,11 @@ export function ArchiveChatButton({ size = "default" }: { size?: "default" | "sm
           <Button
             variant="ghost"
             size="icon"
-            className={size === "sm" ? "h-6 w-6 text-muted-foreground hover:text-foreground" : "h-7 w-7 text-muted-foreground hover:text-foreground"}
+            className={
+              size === "sm"
+                ? "h-6 w-6 text-muted-foreground hover:text-foreground"
+                : "h-7 w-7 text-muted-foreground hover:text-foreground"
+            }
             disabled={archiveMutation.isPending}
             {...props}
             onClick={(e) => {

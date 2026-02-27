@@ -2,6 +2,8 @@
 
 import {
   Attachment01Icon,
+  Mic01Icon,
+  Mic02Icon,
   SendHorizontal,
   StopIcon,
 } from "@hugeicons/core-free-icons";
@@ -12,6 +14,7 @@ import type { AttachedImage } from "@/lib/types";
 
 import { Button } from "@/components/ui/button";
 import { useInputDraft } from "@/hooks/use-input-draft";
+import { useSpeechToText } from "@/hooks/use-speech-to-text";
 import { cn } from "@/lib/utils";
 
 // ─── Image attachment constants ──────────────────────────────────────────────
@@ -74,6 +77,36 @@ export function ChatInput({
     el.style.height = "auto";
     el.style.height = Math.min(el.scrollHeight, 200) + "px";
   }, []);
+
+  // ─── Speech to text ────────────────────────────────────────────────────────
+
+  const handleTranscript = useCallback(
+    (transcript: string) => {
+      // Append transcribed text to existing draft with a space separator
+      const trimmedPrev = value.trimEnd();
+      const next = trimmedPrev ? `${trimmedPrev} ${transcript}` : transcript;
+      setValue(next);
+      // Resize textarea after React state update settles
+      requestAnimationFrame(() => autoGrow());
+    },
+    [value, setValue, autoGrow]
+  );
+
+  const {
+    isSupported: isSpeechSupported,
+    isListening,
+    error: speechError,
+    start: startListening,
+    stop: stopListening,
+  } = useSpeechToText(handleTranscript);
+
+  const handleMicClick = useCallback(() => {
+    if (isListening) {
+      stopListening();
+    } else {
+      startListening();
+    }
+  }, [isListening, startListening, stopListening]);
 
   const addImages = useCallback((incoming: (AttachedImage | null)[]) => {
     const valid = incoming.filter((img): img is AttachedImage => img !== null);
@@ -197,6 +230,19 @@ export function ChatInput({
         </div>
       )}
 
+      {/* Speech error notice */}
+      {speechError && speechError !== "aborted" && (
+        <div className="px-3 pt-1 text-xs text-destructive">
+          {speechError === "not-allowed"
+            ? "Microphone access denied. Check browser permissions."
+            : speechError === "no-speech"
+              ? "No speech detected. Try again."
+              : speechError === "not-supported"
+                ? "Speech recognition is not supported in this browser."
+                : "Speech recognition error. Try again."}
+        </div>
+      )}
+
       {/* Input row */}
       <div
         className={cn(
@@ -226,6 +272,28 @@ export function ChatInput({
         >
           <HugeiconsIcon icon={Attachment01Icon} size={18} />
         </Button>
+
+        {/* Mic button — only rendered when Web Speech API is available */}
+        {isSpeechSupported && (
+          <Button
+            type="button"
+            size="icon-lg"
+            variant="ghost"
+            className={cn(
+              "shrink-0 rounded-full",
+              isListening
+                ? "text-destructive animate-pulse"
+                : "text-muted-foreground"
+            )}
+            onClick={handleMicClick}
+            disabled={disabled}
+            title={isListening ? "Stop recording" : "Start voice input"}
+            aria-label={isListening ? "Stop recording" : "Start voice input"}
+            aria-pressed={isListening}
+          >
+            <HugeiconsIcon icon={isListening ? Mic02Icon : Mic01Icon} size={18} />
+          </Button>
+        )}
 
         <textarea
           ref={textareaRef}

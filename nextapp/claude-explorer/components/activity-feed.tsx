@@ -457,7 +457,12 @@ export function ActivityFeed({ slug }: { slug: string }) {
       }
     }
 
-    return { commitToDeployments, deploymentToCommit, commitToTickets, ticketToCommits };
+    return {
+      commitToDeployments,
+      deploymentToCommit,
+      commitToTickets,
+      ticketToCommits,
+    };
   }, [allItems]);
 
   // ── Available filter options ─────────────────────────────────────────────

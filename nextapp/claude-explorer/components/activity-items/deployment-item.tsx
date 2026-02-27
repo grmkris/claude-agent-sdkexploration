@@ -2,12 +2,12 @@
 
 import type { CommitRaw, DeploymentRaw } from "@/lib/activity-types";
 
-import { cn } from "@/lib/utils";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
 
 interface DeploymentItemProps {
   raw: DeploymentRaw;
@@ -24,7 +24,11 @@ const STATUS_LABEL: Record<string, string> = {
   REMOVED: "Removed",
 };
 
-export function DeploymentItem({ raw, onStartChat, relatedCommit }: DeploymentItemProps) {
+export function DeploymentItem({
+  raw,
+  onStartChat,
+  relatedCommit,
+}: DeploymentItemProps) {
   const isFailed = raw.status === "FAILED" || raw.status === "CRASHED";
   const isLive = raw.status === "SUCCESS";
   const isBuilding = raw.status === "DEPLOYING" || raw.status === "BUILDING";
@@ -104,7 +108,10 @@ export function DeploymentItem({ raw, onStartChat, relatedCommit }: DeploymentIt
                   {raw.commitMessage}
                 </p>
               </TooltipTrigger>
-              <TooltipContent side="top" className="whitespace-pre-wrap max-w-sm">
+              <TooltipContent
+                side="top"
+                className="whitespace-pre-wrap max-w-sm"
+              >
                 {raw.commitHash && (
                   <span className="font-mono opacity-70 block mb-0.5">
                     {raw.commitHash}
@@ -138,7 +145,10 @@ export function DeploymentItem({ raw, onStartChat, relatedCommit }: DeploymentIt
                     {relatedCommit.shortHash}
                   </span>
                 </TooltipTrigger>
-                <TooltipContent side="top" className="max-w-xs whitespace-pre-wrap">
+                <TooltipContent
+                  side="top"
+                  className="max-w-xs whitespace-pre-wrap"
+                >
                   <span className="font-medium">{relatedCommit.subject}</span>
                   {relatedCommit.body?.trim() && (
                     <>

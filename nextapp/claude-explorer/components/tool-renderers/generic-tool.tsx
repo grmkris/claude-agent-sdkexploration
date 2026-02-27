@@ -43,8 +43,8 @@ export function GenericTool({
         <pre className="mt-1 overflow-x-auto rounded bg-background/50 p-2 text-[11px] font-mono leading-relaxed">
           {JSON.stringify(input, null, 2)}
         </pre>
-        {output !== undefined && (
-          !is_error && looksLikeDiff(output) ? (
+        {output !== undefined &&
+          (!is_error && looksLikeDiff(output) ? (
             <div className="mt-1 max-h-60 overflow-auto rounded bg-background/30 p-2">
               <DiffView
                 diff={
@@ -67,8 +67,7 @@ export function GenericTool({
                 ? output.slice(0, 2000) + "\n... (truncated)"
                 : output}
             </pre>
-          )
-        )}
+          ))}
       </CollapsibleContent>
     </Collapsible>
   );

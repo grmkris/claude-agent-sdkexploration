@@ -11,6 +11,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 
+import { CopyButton } from "./copy-button";
 import { MarkdownContent } from "./markdown-content";
 import { ResultBlock } from "./result-block";
 import {
@@ -56,7 +57,8 @@ function ToolGroup({
       <CollapsibleTrigger className="my-1.5 flex w-full items-center gap-2 rounded border border-border/50 bg-background/30 px-2.5 py-1.5 text-xs cursor-pointer hover:bg-background/50">
         <span className="text-[10px]">{open ? "▼" : "▶"}</span>
         <span className="font-medium text-foreground">
-          {blocks.length} {blocks.length === 1 ? "tool" : "tools"}: {namesSummary}
+          {blocks.length} {blocks.length === 1 ? "tool" : "tools"}:{" "}
+          {namesSummary}
         </span>
         <span className="ml-auto text-[10px] text-muted-foreground">
           {anyRunning ? (

@@ -2,12 +2,12 @@
 
 import type { CommitRaw, TicketRaw } from "@/lib/activity-types";
 
-import { cn } from "@/lib/utils";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
 
 interface TicketItemProps {
   raw: TicketRaw;
@@ -22,7 +22,11 @@ const PRIORITY_ICON: Record<number, { icon: string; className: string }> = {
   4: { icon: "↓", className: "text-muted-foreground" }, // Low
 };
 
-export function TicketItem({ raw, onStartChat, relatedCommits }: TicketItemProps) {
+export function TicketItem({
+  raw,
+  onStartChat,
+  relatedCommits,
+}: TicketItemProps) {
   const priority =
     raw.priority !== undefined ? PRIORITY_ICON[raw.priority] : null;
 
@@ -103,7 +107,10 @@ export function TicketItem({ raw, onStartChat, relatedCommits }: TicketItemProps
                       {commit.shortHash}
                     </span>
                   </TooltipTrigger>
-                  <TooltipContent side="top" className="max-w-xs whitespace-pre-wrap">
+                  <TooltipContent
+                    side="top"
+                    className="max-w-xs whitespace-pre-wrap"
+                  >
                     <span className="font-medium">{commit.subject}</span>
                     {commit.body?.trim() && (
                       <>

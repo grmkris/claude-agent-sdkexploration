@@ -132,6 +132,15 @@ function getDB(): Database {
     // Column already exists
   }
 
+  // Migration: add plan_file_path column to pending_exit_plan_mode
+  try {
+    db.exec(
+      "ALTER TABLE pending_exit_plan_mode ADD COLUMN plan_file_path TEXT NOT NULL DEFAULT ''"
+    );
+  } catch {
+    // Column already exists
+  }
+
   // Migration: fix project paths that were corrupted by the lossy slug→path
   // conversion in buildSlugMaps (replacing ALL hyphens with slashes in orphan
   // directory names, which mangled hyphenated project names like
@@ -451,6 +460,7 @@ export interface PendingExitPlanModeRow {
   session_id: string;
   tool_input: string; // JSON
   plan_text: string;
+  plan_file_path: string;
   allowed_prompts: string; // JSON array
   prefilled_approved: number | null; // 1 = approved, 0 = rejected, null = not yet set
   prefilled_feedback: string | null;
@@ -462,13 +472,14 @@ export function upsertPendingExitPlanMode(
   sessionId: string,
   toolInput: Record<string, unknown>,
   planText: string,
+  planFilePath: string,
   allowedPrompts: Array<{ tool: string; prompt: string }>
 ): void {
   getDB()
     .query(
       `INSERT INTO pending_exit_plan_mode
-         (tool_use_id, session_id, tool_input, plan_text, allowed_prompts, prefilled_approved, prefilled_feedback, created_at)
-       VALUES (?, ?, ?, ?, ?, NULL, NULL, ?)
+         (tool_use_id, session_id, tool_input, plan_text, plan_file_path, allowed_prompts, prefilled_approved, prefilled_feedback, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, NULL, NULL, ?)
        ON CONFLICT(tool_use_id) DO NOTHING`
     )
     .run(
@@ -476,6 +487,7 @@ export function upsertPendingExitPlanMode(
       sessionId,
       JSON.stringify(toolInput),
       planText,
+      planFilePath,
       JSON.stringify(allowedPrompts),
       new Date().toISOString()
     );
@@ -498,6 +510,7 @@ export function getPendingExitPlanMode(toolUseId: string): {
   sessionId: string;
   toolInput: Record<string, unknown>;
   planText: string;
+  planFilePath: string;
   allowedPrompts: Array<{ tool: string; prompt: string }>;
   prefilledApproved: boolean | null;
   prefilledFeedback: string | null;
@@ -513,6 +526,7 @@ export function getPendingExitPlanMode(toolUseId: string): {
     sessionId: row.session_id,
     toolInput: JSON.parse(row.tool_input) as Record<string, unknown>,
     planText: row.plan_text,
+    planFilePath: row.plan_file_path ?? "",
     allowedPrompts: JSON.parse(row.allowed_prompts) as Array<{
       tool: string;
       prompt: string;
