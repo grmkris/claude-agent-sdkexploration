@@ -128,7 +128,9 @@ export function buildTicketContextPrompt(raw: TicketRaw): string {
   ];
 
   if (raw.priority !== undefined) {
-    lines.push(`Priority: ${PRIORITY_LABEL[raw.priority] ?? String(raw.priority)}`);
+    lines.push(
+      `Priority: ${PRIORITY_LABEL[raw.priority] ?? String(raw.priority)}`
+    );
   }
 
   if (raw.assignee) {

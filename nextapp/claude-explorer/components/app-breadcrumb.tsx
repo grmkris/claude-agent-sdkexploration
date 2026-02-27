@@ -27,7 +27,7 @@ export function AppBreadcrumb() {
     const filePath = fileMatch?.[1] ?? null;
 
     const sectionMatch = pathname.match(
-      /^\/project\/[^/]+\/(overview|git|skills|files|automations|crons|webhooks|email|diff)(?:\/|$)/
+      /^\/project\/[^/]+\/(overview|git|skills|files|automations|crons|webhooks|email|diff|activity)(?:\/|$)/
     );
     const sectionName = sectionMatch?.[1] ?? null;
     const sectionLabel: Record<string, string> = {
@@ -40,6 +40,7 @@ export function AppBreadcrumb() {
       webhooks: "Webhooks",
       email: "Email",
       diff: "Diff",
+      activity: "Activity",
     };
 
     const hasSubPage = !!filePath || !!sectionName;

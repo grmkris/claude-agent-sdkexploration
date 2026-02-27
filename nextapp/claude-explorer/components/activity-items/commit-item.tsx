@@ -1,7 +1,8 @@
 "use client";
 
-import { cn } from "@/lib/utils";
 import type { CommitRaw } from "@/lib/activity-types";
+
+import { cn } from "@/lib/utils";
 
 interface CommitItemProps {
   raw: CommitRaw;
@@ -9,13 +10,26 @@ interface CommitItemProps {
   onViewExternal?: () => void;
 }
 
-export function CommitItem({ raw, onStartChat, onViewExternal }: CommitItemProps) {
+export function CommitItem({
+  raw,
+  onStartChat,
+  onViewExternal,
+}: CommitItemProps) {
   return (
     <div className="group border-b border-border/50 last:border-0">
       <div className="flex items-start gap-2.5 px-3 py-2.5">
         {/* Icon */}
         <div className="mt-0.5 shrink-0 flex h-5 w-5 items-center justify-center rounded-full bg-violet-500/10 text-violet-400">
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <svg
+            width="10"
+            height="10"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
             <circle cx="12" cy="12" r="3" />
             <line x1="3" y1="12" x2="9" y2="12" />
             <line x1="15" y1="12" x2="21" y2="12" />
@@ -47,11 +61,23 @@ export function CommitItem({ raw, onStartChat, onViewExternal }: CommitItemProps
           {onViewExternal && (
             <button
               type="button"
-              onClick={(e) => { e.stopPropagation(); onViewExternal(); }}
+              onClick={(e) => {
+                e.stopPropagation();
+                onViewExternal();
+              }}
               className="flex h-5 w-5 items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
               title="View on GitHub"
             >
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <svg
+                width="10"
+                height="10"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
                 <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
                 <polyline points="15 3 21 3 21 9" />
                 <line x1="10" y1="14" x2="21" y2="3" />
@@ -60,7 +86,10 @@ export function CommitItem({ raw, onStartChat, onViewExternal }: CommitItemProps
           )}
           <button
             type="button"
-            onClick={(e) => { e.stopPropagation(); onStartChat(); }}
+            onClick={(e) => {
+              e.stopPropagation();
+              onStartChat();
+            }}
             className={cn(
               "rounded px-2 py-0.5 text-[10px] font-medium transition-colors",
               "bg-primary text-primary-foreground hover:bg-primary/90"

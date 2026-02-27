@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Activity01Icon,
   Clock01Icon,
   FolderOpenIcon,
   GitBranchIcon,
@@ -13,6 +14,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 
+import { ActivityFeed } from "@/components/activity-feed";
 import { AutomationsTab } from "@/components/right-sidebar/automations-tab";
 import { FileTreeTab } from "@/components/right-sidebar/file-tree-tab";
 import { GitTab } from "@/components/right-sidebar/git-tab";
@@ -31,7 +33,13 @@ import {
 } from "@/components/ui/tooltip";
 import { orpc } from "@/lib/orpc";
 
-type TabValue = "overview" | "skills" | "git" | "files" | "automations";
+type TabValue =
+  | "overview"
+  | "skills"
+  | "git"
+  | "files"
+  | "automations"
+  | "activity";
 
 const TABS = [
   {
@@ -63,6 +71,12 @@ const TABS = [
     icon: Clock01Icon,
     label: "Automations",
     page: (slug: string) => `/project/${slug}/automations`,
+  },
+  {
+    value: "activity" as const,
+    icon: Activity01Icon,
+    label: "Activity",
+    page: (slug: string) => `/project/${slug}/activity`,
   },
 ] as const;
 
@@ -193,6 +207,9 @@ export function ProjectExplorerPanel({ slug }: { slug: string }) {
         </TabsContent>
         <TabsContent value="automations" hidden={activeTab !== "automations"}>
           <AutomationsTab slug={slug} />
+        </TabsContent>
+        <TabsContent value="activity" hidden={activeTab !== "activity"}>
+          <ActivityFeed slug={slug} />
         </TabsContent>
       </SidebarContent>
     </Tabs>

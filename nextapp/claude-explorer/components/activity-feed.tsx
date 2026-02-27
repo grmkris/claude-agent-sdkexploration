@@ -4,6 +4,14 @@ import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 
+import type {
+  ActivityItem,
+  ActivityItemType,
+  CommitRaw,
+  DeploymentRaw,
+  TicketRaw,
+} from "@/lib/activity-types";
+
 import { CommitItem } from "@/components/activity-items/commit-item";
 import { DeploymentItem } from "@/components/activity-items/deployment-item";
 import { TicketItem } from "@/components/activity-items/ticket-item";
@@ -12,13 +20,6 @@ import {
   buildDeploymentContextPrompt,
   buildTicketContextPrompt,
 } from "@/lib/activity-context";
-import type {
-  ActivityItem,
-  ActivityItemType,
-  CommitRaw,
-  DeploymentRaw,
-  TicketRaw,
-} from "@/lib/activity-types";
 import { orpc } from "@/lib/orpc";
 import { cn } from "@/lib/utils";
 
@@ -26,35 +27,58 @@ import { cn } from "@/lib/utils";
 // Normalizers: convert raw API data into unified ActivityItem[]
 // ─────────────────────────────────────────────────────────────────────────────
 
-function normalizeCommits(gitLog: { hash: string; date: string; message: string; author_name: string; refs: string }[] | undefined): ActivityItem[] {
-  if (!gitLog) return [];
-  return gitLog.map((c) => {
-    const [subject, ...bodyLines] = c.message.split("\n");
-    const branch = c.refs
-      ? c.refs.split(",").map((r) => r.trim()).find((r) => r.startsWith("HEAD -> "))?.replace("HEAD -> ", "") ?? undefined
-      : undefined;
+function normalizeCommits(
+  commits:
+    | {
+        hash: string;
+        shortHash: string;
+        subject: string;
+        body: string;
+        author: string;
+        date: string;
+      }[]
+    | undefined
+): ActivityItem[] {
+  if (!commits) return [];
+  return commits.map((c) => {
     const raw: CommitRaw = {
       hash: c.hash,
-      shortHash: c.hash.slice(0, 7),
-      subject: subject ?? c.message,
-      body: bodyLines.join("\n").trim(),
-      author: c.author_name,
+      shortHash: c.shortHash,
+      subject: c.subject,
+      body: c.body,
+      author: c.author,
       date: c.date,
-      branch,
     };
     return {
       id: `commit:${c.hash}`,
       type: "commit" as ActivityItemType,
       timestamp: c.date,
-      title: subject ?? c.message,
-      subtitle: c.author_name,
+      title: c.subject,
+      subtitle: c.author,
       raw,
     };
   });
 }
 
 function normalizeDeployments(
-  widgets: { id: string; title: string; type: string; items: { id: string; title: string; subtitle?: string; status?: string; statusColor?: string; url?: string; secondaryUrl?: string; secondaryLabel?: string; timestamp?: string }[] }[] | undefined
+  widgets:
+    | {
+        id: string;
+        title: string;
+        type: string;
+        items: {
+          id: string;
+          title: string;
+          subtitle?: string;
+          status?: string;
+          statusColor?: string;
+          url?: string;
+          secondaryUrl?: string;
+          secondaryLabel?: string;
+          timestamp?: string;
+        }[];
+      }[]
+    | undefined
 ): ActivityItem[] {
   if (!widgets) return [];
   const deploysWidget = widgets.find((w) => w.id === "railway-deploys");
@@ -68,7 +92,9 @@ function normalizeDeployments(
       serviceName: item.title,
       createdAt: item.timestamp ?? new Date().toISOString(),
       commitMessage: item.subtitle,
-      commitHash: item.secondaryLabel ? item.secondaryUrl?.split("/").at(-1) : undefined,
+      commitHash: item.secondaryLabel
+        ? item.secondaryUrl?.split("/").at(-1)
+        : undefined,
       dashboardUrl: item.url,
       githubUrl: item.secondaryUrl,
     };
@@ -87,7 +113,22 @@ function normalizeDeployments(
 }
 
 function normalizeTickets(
-  widgets: { id: string; title: string; type: string; items: { id: string; title: string; subtitle?: string; status?: string; statusColor?: string; url?: string; timestamp?: string }[] }[] | undefined
+  widgets:
+    | {
+        id: string;
+        title: string;
+        type: string;
+        items: {
+          id: string;
+          title: string;
+          subtitle?: string;
+          status?: string;
+          statusColor?: string;
+          url?: string;
+          timestamp?: string;
+        }[];
+      }[]
+    | undefined
 ): ActivityItem[] {
   if (!widgets) return [];
 
@@ -95,7 +136,8 @@ function normalizeTickets(
   const items: ActivityItem[] = [];
 
   for (const widget of widgets) {
-    if (widget.id !== "linear-assigned" && widget.id !== "linear-recent") continue;
+    if (widget.id !== "linear-assigned" && widget.id !== "linear-recent")
+      continue;
     for (const item of widget.items) {
       if (seen.has(item.id)) continue;
       seen.add(item.id);
@@ -159,11 +201,19 @@ function FilterChip({
       )}
     >
       {color && (
-        <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
+        <span
+          className="h-1.5 w-1.5 rounded-full shrink-0"
+          style={{ backgroundColor: color }}
+        />
       )}
       {label}
       {count !== undefined && (
-        <span className={cn("text-[10px]", active ? "text-muted-foreground" : "text-muted-foreground/60")}>
+        <span
+          className={cn(
+            "text-[10px]",
+            active ? "text-muted-foreground" : "text-muted-foreground/60"
+          )}
+        >
           {count}
         </span>
       )}
@@ -180,9 +230,12 @@ function EmptyState({ hasIntegrations }: { hasIntegrations: boolean }) {
     return (
       <div className="flex flex-col items-center justify-center gap-2 py-16 px-6 text-center">
         <div className="text-2xl">🔗</div>
-        <p className="text-sm font-medium text-foreground">No integrations connected</p>
+        <p className="text-sm font-medium text-foreground">
+          No integrations connected
+        </p>
         <p className="text-xs text-muted-foreground max-w-[220px]">
-          Connect Railway or Linear integrations to see deployments and tickets here alongside your git commits.
+          Connect Railway or Linear integrations to see deployments and tickets
+          here alongside your git commits.
         </p>
       </div>
     );
@@ -216,7 +269,9 @@ function SectionDivider({ date }: { date: string }) {
 // Group items by date
 // ─────────────────────────────────────────────────────────────────────────────
 
-function groupByDate(items: ActivityItem[]): { date: string; items: ActivityItem[] }[] {
+function groupByDate(
+  items: ActivityItem[]
+): { date: string; items: ActivityItem[] }[] {
   const groups = new Map<string, ActivityItem[]>();
   for (const item of items) {
     const d = new Date(item.timestamp);
@@ -225,8 +280,14 @@ function groupByDate(items: ActivityItem[]): { date: string; items: ActivityItem
     const diffDays = Math.floor((now.getTime() - d.getTime()) / 86400000);
     if (diffDays === 0) label = "Today";
     else if (diffDays === 1) label = "Yesterday";
-    else if (diffDays < 7) label = d.toLocaleDateString(undefined, { weekday: "long" });
-    else label = d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: diffDays > 365 ? "numeric" : undefined });
+    else if (diffDays < 7)
+      label = d.toLocaleDateString(undefined, { weekday: "long" });
+    else
+      label = d.toLocaleDateString(undefined, {
+        month: "short",
+        day: "numeric",
+        year: diffDays > 365 ? "numeric" : undefined,
+      });
 
     if (!groups.has(label)) groups.set(label, []);
     groups.get(label)!.push(item);
@@ -245,8 +306,12 @@ export function ActivityFeed({ slug }: { slug: string }) {
   const [activeTypes, setActiveTypes] = useState<Set<ActivityItemType>>(
     new Set(["commit", "deployment", "ticket"])
   );
-  const [activeDeployStatuses, setActiveDeployStatuses] = useState<Set<string>>(new Set());
-  const [activeTicketStatuses, setActiveTicketStatuses] = useState<Set<string>>(new Set());
+  const [activeDeployStatuses, setActiveDeployStatuses] = useState<Set<string>>(
+    new Set()
+  );
+  const [activeTicketStatuses, setActiveTicketStatuses] = useState<Set<string>>(
+    new Set()
+  );
 
   // ── Data fetching ────────────────────────────────────────────────────────
 
@@ -272,7 +337,9 @@ export function ActivityFeed({ slug }: { slug: string }) {
 
   // Railway widget data
   const { data: railwayData, isLoading: railwayLoading } = useQuery({
-    ...orpc.integrations.data.queryOptions({ input: { id: railwayIntegration?.id ?? "" } }),
+    ...orpc.integrations.data.queryOptions({
+      input: { id: railwayIntegration?.id ?? "" },
+    }),
     enabled: !!railwayIntegration,
     refetchInterval: 30_000,
     staleTime: 30_000,
@@ -280,38 +347,51 @@ export function ActivityFeed({ slug }: { slug: string }) {
 
   // Linear widget data
   const { data: linearData, isLoading: linearLoading } = useQuery({
-    ...orpc.integrations.data.queryOptions({ input: { id: linearIntegration?.id ?? "" } }),
+    ...orpc.integrations.data.queryOptions({
+      input: { id: linearIntegration?.id ?? "" },
+    }),
     enabled: !!linearIntegration,
     refetchInterval: 30_000,
     staleTime: 30_000,
   });
 
-  const isLoading = gitLoading || (!!railwayIntegration && railwayLoading) || (!!linearIntegration && linearLoading);
+  const isLoading =
+    gitLoading ||
+    (!!railwayIntegration && railwayLoading) ||
+    (!!linearIntegration && linearLoading);
 
   // ── Merge & normalize ────────────────────────────────────────────────────
 
   const allItems = useMemo<ActivityItem[]>(() => {
-    const commits = normalizeCommits(gitLog?.log);
+    const commits = normalizeCommits(gitLog?.commits);
     const deployments = normalizeDeployments(railwayData?.widgets);
     const tickets = normalizeTickets(linearData?.widgets);
     return [...commits, ...deployments, ...tickets].sort(
-      (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+      (a, b) =>
+        new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
     );
   }, [gitLog, railwayData, linearData]);
 
   // ── Available filter options ─────────────────────────────────────────────
 
-  const availableTypes = useMemo(() => new Set(allItems.map((i) => i.type)), [allItems]);
+  const availableTypes = useMemo(
+    () => new Set(allItems.map((i) => i.type)),
+    [allItems]
+  );
 
   const deployStatuses = useMemo(() => {
     const s = new Set<string>();
-    allItems.filter((i) => i.type === "deployment" && i.status).forEach((i) => s.add(i.status!));
+    allItems
+      .filter((i) => i.type === "deployment" && i.status)
+      .forEach((i) => s.add(i.status!));
     return s;
   }, [allItems]);
 
   const ticketStatuses = useMemo(() => {
     const s = new Set<string>();
-    allItems.filter((i) => i.type === "ticket" && i.status).forEach((i) => s.add(i.status!));
+    allItems
+      .filter((i) => i.type === "ticket" && i.status)
+      .forEach((i) => s.add(i.status!));
     return s;
   }, [allItems]);
 
@@ -330,7 +410,10 @@ export function ActivityFeed({ slug }: { slug: string }) {
     });
   }, [allItems, activeTypes, activeDeployStatuses, activeTicketStatuses]);
 
-  const groupedItems = useMemo(() => groupByDate(filteredItems), [filteredItems]);
+  const groupedItems = useMemo(
+    () => groupByDate(filteredItems),
+    [filteredItems]
+  );
 
   // ── Chat handler ─────────────────────────────────────────────────────────
 
@@ -384,7 +467,8 @@ export function ActivityFeed({ slug }: { slug: string }) {
   }
 
   const hasIntegrations = !!railwayIntegration || !!linearIntegration;
-  const typeCount = (type: ActivityItemType) => allItems.filter((i) => i.type === type).length;
+  const typeCount = (type: ActivityItemType) =>
+    allItems.filter((i) => i.type === type).length;
 
   // ── Render ───────────────────────────────────────────────────────────────
 
@@ -424,10 +508,14 @@ export function ActivityFeed({ slug }: { slug: string }) {
             )}
 
             {/* Clear sub-filters */}
-            {(activeDeployStatuses.size > 0 || activeTicketStatuses.size > 0) && (
+            {(activeDeployStatuses.size > 0 ||
+              activeTicketStatuses.size > 0) && (
               <button
                 type="button"
-                onClick={() => { setActiveDeployStatuses(new Set()); setActiveTicketStatuses(new Set()); }}
+                onClick={() => {
+                  setActiveDeployStatuses(new Set());
+                  setActiveTicketStatuses(new Set());
+                }}
                 className="text-[11px] text-muted-foreground hover:text-foreground transition-colors ml-1"
               >
                 Clear filters ×
@@ -439,7 +527,9 @@ export function ActivityFeed({ slug }: { slug: string }) {
         {/* Deployment status sub-filters */}
         {activeTypes.has("deployment") && deployStatuses.size > 1 && (
           <div className="flex flex-wrap items-center gap-1">
-            <span className="text-[10px] text-muted-foreground mr-0.5">Status:</span>
+            <span className="text-[10px] text-muted-foreground mr-0.5">
+              Status:
+            </span>
             {Array.from(deployStatuses).map((s) => (
               <FilterChip
                 key={s}
@@ -454,7 +544,9 @@ export function ActivityFeed({ slug }: { slug: string }) {
         {/* Ticket status sub-filters */}
         {activeTypes.has("ticket") && ticketStatuses.size > 1 && (
           <div className="flex flex-wrap items-center gap-1">
-            <span className="text-[10px] text-muted-foreground mr-0.5">Status:</span>
+            <span className="text-[10px] text-muted-foreground mr-0.5">
+              Status:
+            </span>
             {Array.from(ticketStatuses).map((s) => (
               <FilterChip
                 key={s}
@@ -472,7 +564,10 @@ export function ActivityFeed({ slug }: { slug: string }) {
         {isLoading && allItems.length === 0 ? (
           <div className="flex flex-col gap-0">
             {Array.from({ length: 8 }).map((_, i) => (
-              <div key={i} className="flex items-start gap-2.5 border-b border-border/50 px-3 py-2.5">
+              <div
+                key={i}
+                className="flex items-start gap-2.5 border-b border-border/50 px-3 py-2.5"
+              >
                 <div className="mt-0.5 h-5 w-5 rounded-full bg-muted animate-pulse shrink-0" />
                 <div className="flex-1 space-y-1.5">
                   <div className="h-2.5 w-24 rounded bg-muted animate-pulse" />
