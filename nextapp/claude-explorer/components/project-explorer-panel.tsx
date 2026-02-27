@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  Activity01Icon,
   ArrowUpRight01Icon,
   Clock01Icon,
   FolderOpenIcon,
@@ -15,13 +14,19 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 
-import { ActivityFeed } from "@/components/activity-feed";
+import { OpenInCursorButton } from "@/components/open-in-cursor-button";
 import { PushNotificationManager } from "@/components/push-notification-manager";
 import { AutomationsTab } from "@/components/right-sidebar/automations-tab";
 import { FileTreeTab } from "@/components/right-sidebar/file-tree-tab";
 import { GitTab } from "@/components/right-sidebar/git-tab";
 import { OverviewTab } from "@/components/right-sidebar/overview-tab";
 import { SkillsMcpsTab } from "@/components/right-sidebar/skills-mcps-tab";
+import { TmuxLauncher } from "@/components/tmux-launcher";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import {
   SidebarContent,
   SidebarFooter,
@@ -36,13 +41,7 @@ import {
 } from "@/components/ui/tooltip";
 import { orpc } from "@/lib/orpc";
 
-type TabValue =
-  | "overview"
-  | "skills"
-  | "git"
-  | "files"
-  | "automations"
-  | "activity";
+type TabValue = "overview" | "skills" | "git" | "files" | "automations";
 
 const TABS = [
   {
@@ -75,13 +74,59 @@ const TABS = [
     label: "Automations",
     page: (slug: string) => `/project/${slug}/automations`,
   },
-  {
-    value: "activity" as const,
-    icon: Activity01Icon,
-    label: "Activity",
-    page: (slug: string) => `/project/${slug}/activity`,
-  },
 ] as const;
+
+/**
+ * Toolbar row showing the Tmux launch popover and Open-in-Cursor button.
+ * Always visible in the sidebar header regardless of which tab is active.
+ */
+function TmuxCursorToolbar({ slug }: { slug: string }) {
+  const { data: projects } = useQuery(orpc.projects.list.queryOptions());
+  const { data: serverConfig } = useQuery(orpc.server.config.queryOptions());
+  const project = projects?.find((p) => p.slug === slug);
+
+  if (!project?.path) return null;
+
+  return (
+    <div className="flex items-center gap-1 border-b px-2 py-1">
+      <Popover>
+        <PopoverTrigger
+          className="rounded p-0.5 text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground"
+          title="Launch new tmux session"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={2}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="h-3.5 w-3.5"
+          >
+            <rect width="20" height="14" x="2" y="3" rx="2" />
+            <path d="m8 10 2 2-2 2" />
+            <path d="M12 14h4" />
+          </svg>
+        </PopoverTrigger>
+        <PopoverContent
+          side="right"
+          align="start"
+          sideOffset={8}
+          className="w-80 p-3"
+        >
+          <div className="mb-2.5 text-xs font-medium">Launch Tmux Session</div>
+          <TmuxLauncher slug={slug} projectPath={project.path} />
+        </PopoverContent>
+      </Popover>
+
+      <OpenInCursorButton
+        path={project.path}
+        sshHost={serverConfig?.sshHost}
+        showLabel={false}
+      />
+    </div>
+  );
+}
 
 /**
  * Project explorer panel rendered inside the LEFT sidebar.
@@ -198,6 +243,7 @@ export function ProjectExplorerPanel({ slug }: { slug: string }) {
             </Tooltip>
           ))}
         </TabsList>
+        <TmuxCursorToolbar slug={slug} />
       </SidebarHeader>
       <SidebarContent>
         <TabsContent value="overview" hidden={activeTab !== "overview"}>
@@ -214,9 +260,6 @@ export function ProjectExplorerPanel({ slug }: { slug: string }) {
         </TabsContent>
         <TabsContent value="automations" hidden={activeTab !== "automations"}>
           <AutomationsTab slug={slug} />
-        </TabsContent>
-        <TabsContent value="activity" hidden={activeTab !== "activity"}>
-          <ActivityFeed slug={slug} />
         </TabsContent>
       </SidebarContent>
       <SidebarFooter className="border-t border-sidebar-border p-0">

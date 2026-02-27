@@ -2,16 +2,10 @@
 
 import { useQuery } from "@tanstack/react-query";
 
-import { OpenInCursorButton } from "@/components/open-in-cursor-button";
+import { ActivityFeed } from "@/components/activity-feed";
 import { IntegrationWidgets } from "@/components/project-integrations";
 import { WorktreeInfoSection } from "@/components/right-sidebar/worktree-info-section";
-import { TmuxLauncher } from "@/components/tmux-launcher";
 import { TmuxSessionsPanel } from "@/components/tmux-sessions-panel";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 import { SidebarGroup, SidebarGroupContent } from "@/components/ui/sidebar";
 import { orpc } from "@/lib/orpc";
 
@@ -43,59 +37,14 @@ function IntegrationsSection({ slug }: { slug: string }) {
   );
 }
 
-// ── Tmux: sessions list + popover launcher + Cursor icon ─────────────────────
+// ── Tmux: active sessions list ───────────────────────────────────────────────
 
 function TmuxSection({ slug }: { slug: string }) {
   const { data: projects } = useQuery(orpc.projects.list.queryOptions());
-  const { data: serverConfig } = useQuery(orpc.server.config.queryOptions());
   const project = projects?.find((p) => p.slug === slug);
 
   return (
     <SidebarGroup>
-      {/* Header: tmux launch popover trigger + open-in-cursor icon */}
-      <div className="flex items-center gap-1 px-2 pb-1">
-        <Popover>
-          <PopoverTrigger
-            className="rounded p-0.5 text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground"
-            title="Launch new tmux session"
-          >
-            {/* Terminal icon */}
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={2}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="h-3.5 w-3.5"
-            >
-              <rect width="20" height="14" x="2" y="3" rx="2" />
-              <path d="m8 10 2 2-2 2" />
-              <path d="M12 14h4" />
-            </svg>
-          </PopoverTrigger>
-          <PopoverContent
-            side="left"
-            align="start"
-            sideOffset={8}
-            className="w-80 p-3"
-          >
-            <div className="mb-2.5 text-xs font-medium">
-              Launch Tmux Session
-            </div>
-            <TmuxLauncher slug={slug} projectPath={project?.path ?? null} />
-          </PopoverContent>
-        </Popover>
-
-        {project?.path && (
-          <OpenInCursorButton
-            path={project.path}
-            sshHost={serverConfig?.sshHost}
-            showLabel={false}
-          />
-        )}
-      </div>
-
       {/* Active sessions list — returns null when empty */}
       <SidebarGroupContent>
         <TmuxSessionsPanel filterProjectPath={project?.path} />
@@ -120,11 +69,14 @@ export function OverviewTab({ slug }: { slug: string | null }) {
       {/* Git worktrees (only visible when 2+ worktrees exist) */}
       <WorktreeInfoSection slug={slug} />
 
-      {/* Tmux sessions + launch popover */}
+      {/* Active tmux sessions */}
       <TmuxSection slug={slug} />
 
       {/* Integrations */}
       <IntegrationsSection slug={slug} />
+
+      {/* Activity feed */}
+      <ActivityFeed slug={slug} />
     </div>
   );
 }

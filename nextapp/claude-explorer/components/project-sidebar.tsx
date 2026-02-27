@@ -102,44 +102,47 @@ export function ProjectSidebar() {
         </div>
       </SidebarHeader>
 
-      <SidebarContent>
-        {projectSlug ? (
-          /* ── Project view: 5-tab explorer ──────────────── */
-          <ProjectExplorerPanel key={projectSlug} slug={projectSlug} />
-        ) : (
-          /* ── Root view: global navigation ─────────────── */
-          <SidebarGroup>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {GLOBAL_NAV.map(({ href, label, tooltip, icon }) => (
-                  <SidebarMenuItem key={href}>
-                    <Link href={href}>
-                      <SidebarMenuButton
-                        isActive={
-                          href === "/" ? pathname === "/" : pathname === href
-                        }
-                        tooltip={tooltip}
-                      >
-                        <HugeiconsIcon icon={icon} size={15} strokeWidth={2} />
-                        <span className="group-data-[collapsible=icon]:hidden">
-                          {label}
-                        </span>
-                      </SidebarMenuButton>
-                    </Link>
-                  </SidebarMenuItem>
-                ))}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        )}
-      </SidebarContent>
-
-      {!projectSlug && (
-        <SidebarFooter>
-          <div className="group-data-[collapsible=icon]:hidden px-2 pb-1">
-            <PushNotificationManager />
-          </div>
-        </SidebarFooter>
+      {projectSlug ? (
+        /* ── Project view: panel manages its own SidebarContent + SidebarFooter ── */
+        <ProjectExplorerPanel key={projectSlug} slug={projectSlug} />
+      ) : (
+        /* ── Root view: global navigation ─────────────── */
+        <>
+          <SidebarContent>
+            <SidebarGroup>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {GLOBAL_NAV.map(({ href, label, tooltip, icon }) => (
+                    <SidebarMenuItem key={href}>
+                      <Link href={href}>
+                        <SidebarMenuButton
+                          isActive={
+                            href === "/" ? pathname === "/" : pathname === href
+                          }
+                          tooltip={tooltip}
+                        >
+                          <HugeiconsIcon
+                            icon={icon}
+                            size={15}
+                            strokeWidth={2}
+                          />
+                          <span className="group-data-[collapsible=icon]:hidden">
+                            {label}
+                          </span>
+                        </SidebarMenuButton>
+                      </Link>
+                    </SidebarMenuItem>
+                  ))}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          </SidebarContent>
+          <SidebarFooter>
+            <div className="group-data-[collapsible=icon]:hidden px-2 pb-1">
+              <PushNotificationManager />
+            </div>
+          </SidebarFooter>
+        </>
       )}
     </Sidebar>
   );
