@@ -29,12 +29,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gh \
     && rm -rf /var/lib/apt/lists/*
 
-# Postgres 17 + Redis for local dev databases
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    postgresql-17 \
-    redis-server \
-    && rm -rf /var/lib/apt/lists/*
-
 # Set bash as login shell (Tailscale SSH uses login shell; default /bin/sh won't source .bashrc)
 RUN usermod -s /bin/bash bun
 
