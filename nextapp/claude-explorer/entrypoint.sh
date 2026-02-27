@@ -55,9 +55,10 @@ for stale in .credentials.json history.jsonl explorer.json \
              settings.json statusline-command.sh statusline-wrapper.sh; do
     [ -f "/home/bun/$stale" ] && rm -f "/home/bun/$stale"
 done
-for stale_dir in backups cache debug plans plugins session-env shell-snapshots todos; do
+for stale_dir in backups cache debug plans plugins session-env shell-snapshots todos pgdata; do
     [ -d "/home/bun/$stale_dir" ] && rm -rf "/home/bun/$stale_dir"
 done
+[ -f "/home/bun/dump.rdb" ] && rm -f "/home/bun/dump.rdb"
 
 # Clean up Claude CLI session dirs that landed in ~/projects instead of ~/.claude/projects
 for d in /home/bun/projects/-home-bun*; do
