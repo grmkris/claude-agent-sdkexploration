@@ -68,12 +68,15 @@ export function CommitItem({
 
           {/* Subject with full message tooltip */}
           <Tooltip>
-            <TooltipTrigger>
-              <p className="mt-0.5 text-xs text-foreground leading-snug line-clamp-2 text-left cursor-default">
+            <TooltipTrigger render={<span />}>
+              <span className="mt-0.5 text-xs text-foreground leading-snug line-clamp-2 cursor-default block">
                 {raw.subject}
-              </p>
+              </span>
             </TooltipTrigger>
-            <TooltipContent side="top" className="max-w-sm whitespace-pre-wrap">
+            <TooltipContent
+              side="top"
+              className="max-w-[320px] whitespace-pre-wrap break-words"
+            >
               <span className="font-medium">{raw.subject}</span>
               {raw.body?.trim() && (
                 <>

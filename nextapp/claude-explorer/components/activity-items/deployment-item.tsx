@@ -98,19 +98,19 @@ export function DeploymentItem({
           {/* Commit message with full-text tooltip */}
           {raw.commitMessage && (
             <Tooltip>
-              <TooltipTrigger>
-                <p className="mt-0.5 text-[10px] text-muted-foreground truncate cursor-default text-left">
+              <TooltipTrigger render={<span />}>
+                <span className="mt-0.5 text-[10px] text-muted-foreground truncate cursor-default block">
                   {raw.commitHash && (
                     <span className="font-mono mr-1">
                       {raw.commitHash.slice(0, 7)}
                     </span>
                   )}
                   {raw.commitMessage}
-                </p>
+                </span>
               </TooltipTrigger>
               <TooltipContent
                 side="top"
-                className="whitespace-pre-wrap max-w-sm"
+                className="whitespace-pre-wrap max-w-[320px] break-words"
               >
                 {raw.commitHash && (
                   <span className="font-mono opacity-70 block mb-0.5">
