@@ -78,33 +78,49 @@ export function generateTmuxCommand(config: TmuxLaunchConfig): string {
 
   if (panelCount === 1) {
     tmuxCmd = `${tmuxBin} new-session -s ${safeName} -c ${safePath} '${panelCmd(0)}'`;
-  } else {
-    // Always use plain 'tmux' for the setup chain (new-session -d + splits).
-    // tmux -CC (iTerm2 control mode) must only be applied to the final attach
-    // call — using -CC on 'new-session -d' causes the control-mode handshake
-    // to fire on a detached session, which breaks over SSH ("connection closed").
-    const setupParts: string[] = [
-      `tmux new-session -d -s ${safeName} -c ${safePath} '${panelCmd(0)}'`,
-    ];
-
-    for (let i = 1; i < panelCount; i++) {
-      const dir =
-        layout === "even-vertical" || layout === "main-vertical" ? "-v" : "-h";
-      setupParts.push(`split-window ${dir} -c ${safePath} '${panelCmd(i)}'`);
+    if (sshTarget) {
+      return `ssh -t ${sshTarget} '${tmuxCmd.replace(/'/g, "'\\''")}'`;
     }
-
-    setupParts.push(`select-layout ${layout}`);
-
-    if (ccMode) {
-      // Separate attach so -CC is only activated at attach time
-      tmuxCmd =
-        setupParts.join(" \\; \\\n  ") +
-        ` && \\\n  tmux -CC attach -t ${safeName}`;
-    } else {
-      setupParts.push("attach");
-      tmuxCmd = setupParts.join(" \\; \\\n  ");
-    }
+    return tmuxCmd;
   }
+
+  // Multi-pane: build the setup chain with plain tmux (no -CC).
+  const setupParts: string[] = [
+    `tmux new-session -d -s ${safeName} -c ${safePath} '${panelCmd(0)}'`,
+  ];
+
+  for (let i = 1; i < panelCount; i++) {
+    const dir =
+      layout === "even-vertical" || layout === "main-vertical" ? "-v" : "-h";
+    setupParts.push(`split-window ${dir} -c ${safePath} '${panelCmd(i)}'`);
+  }
+
+  setupParts.push(`select-layout ${layout}`);
+
+  const setupCmd = setupParts.join(" \\; \\\n  ");
+
+  if (ccMode && sshTarget) {
+    // iTerm2 control mode requires tmux -CC to be the very first command in a
+    // fresh SSH session — it cannot be chained after other commands because
+    // iTerm2 detects the control-mode DSC sequence only at connection start.
+    // Solution: two separate SSH invocations:
+    //   1. Non-interactive SSH to set up the detached session (no -t needed)
+    //   2. Fresh ssh -t with tmux -CC attach as the only command
+    const escapedSetup = setupCmd.replace(/'/g, "'\\''");
+    const attachCmd = `tmux -CC attach -t ${safeName}`;
+    return (
+      `ssh ${sshTarget} '${escapedSetup}' && \\\n` +
+      `ssh -t ${sshTarget} '${attachCmd}'`
+    );
+  }
+
+  if (ccMode) {
+    // Local -CC multi-pane: same two-step approach without SSH
+    return setupCmd + ` && \\\n  tmux -CC attach -t ${safeName}`;
+  }
+
+  setupParts.push("attach");
+  tmuxCmd = setupParts.join(" \\; \\\n  ");
 
   if (sshTarget) {
     return `ssh -t ${sshTarget} '${tmuxCmd.replace(/'/g, "'\\''")}'`;
