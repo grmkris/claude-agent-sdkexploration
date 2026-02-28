@@ -269,7 +269,7 @@ export function GlobalSearch() {
         <CommandPaletteList>
           {query.length === 0 && (
             <CommandPaletteEmpty>
-              Type to search across your workspace\u2026
+              Type to search across your workspace…
             </CommandPaletteEmpty>
           )}
           {query.length > 0 && allResults.length === 0 && (
@@ -305,13 +305,13 @@ export function GlobalSearch() {
         <div className="flex items-center gap-3 border-t border-border px-3 py-1.5 text-[10px] text-muted-foreground">
           <span>
             <kbd className="rounded border border-border px-1 py-0.5 font-mono text-[9px]">
-              \u2191\u2193
+              ↑↓
             </kbd>{" "}
             navigate
           </span>
           <span>
             <kbd className="rounded border border-border px-1 py-0.5 font-mono text-[9px]">
-              \u21b5
+              ↵
             </kbd>{" "}
             open
           </span>
