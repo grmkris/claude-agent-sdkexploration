@@ -1228,12 +1228,31 @@ export async function runShellCommand(
   cwd: string,
   timeoutMs = 180_000
 ): Promise<{ success: boolean; output?: string; error?: string }> {
+  console.log(
+    `[runShellCommand] running: ${command} ${args.join(" ")} (cwd=${cwd})`
+  );
   try {
+    // Ensure PATH includes standard binary locations — the Next.js runtime
+    // may inherit a stripped PATH that's missing /usr/local/bin (where bun
+    // lives in oven/bun images) or the user-local bin dirs.
+    const basePath = process.env.PATH ?? "";
+    const extraDirs = [
+      "/usr/local/bin",
+      "/home/bun/.bun/bin",
+      "/home/bun/.local/bin",
+    ];
+    const enrichedPath = [
+      ...extraDirs.filter((d) => !basePath.includes(d)),
+      basePath,
+    ]
+      .filter(Boolean)
+      .join(":");
+
     const proc = Bun.spawn([command, ...args], {
       cwd,
       stdout: "pipe",
       stderr: "pipe",
-      env: process.env,
+      env: { ...process.env, PATH: enrichedPath },
     });
 
     const timer = setTimeout(() => proc.kill(), timeoutMs);
@@ -1245,13 +1264,26 @@ export async function runShellCommand(
 
     const exitCode = await proc.exited;
     if (exitCode !== 0) {
+      console.error(
+        `[runShellCommand] Command failed: ${command} ${args.join(" ")}`
+      );
+      console.error(`[runShellCommand] Exit code: ${exitCode}`);
+      if (stderr)
+        console.error(`[runShellCommand] stderr: ${stderr.slice(0, 2000)}`);
+      if (stdout)
+        console.error(`[runShellCommand] stdout: ${stdout.slice(0, 2000)}`);
       return {
         success: false,
         error: stderr || stdout || `Exit code ${exitCode}`,
       };
     }
+    console.log(`[runShellCommand] success: ${command} ${args.join(" ")}`);
     return { success: true, output: stdout };
   } catch (e) {
+    console.error(
+      `[runShellCommand] Exception running: ${command} ${args.join(" ")}`,
+      e
+    );
     return {
       success: false,
       error: e instanceof Error ? e.message : "Command execution failed",

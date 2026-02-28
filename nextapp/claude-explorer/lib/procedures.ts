@@ -1,7 +1,7 @@
 import type { SDKUserMessage } from "@anthropic-ai/claude-agent-sdk/sdk";
 
 import { query } from "@anthropic-ai/claude-agent-sdk";
-import { os, eventIterator } from "@orpc/server";
+import { os, eventIterator, ORPCError } from "@orpc/server";
 import { readdir, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join, dirname } from "node:path";
@@ -1359,7 +1359,13 @@ const createProjectProc = os
   .handler(async ({ input }) => {
     const parentStat = await stat(input.parentDir).catch(() => null);
     if (!parentStat?.isDirectory()) {
-      throw new Error(`Parent directory does not exist: ${input.parentDir}`);
+      console.error(
+        "[createProject] Parent directory does not exist:",
+        input.parentDir
+      );
+      throw new ORPCError("BAD_REQUEST", {
+        message: `Parent directory does not exist: ${input.parentDir}`,
+      });
     }
 
     // Validate name eagerly (same rules as createProjectDirectory)
@@ -1369,7 +1375,10 @@ const createProjectProc = os
       input.name.includes("\0") ||
       input.name.includes("..")
     ) {
-      throw new Error("Invalid project name");
+      console.error("[createProject] Invalid project name:", input.name);
+      throw new ORPCError("BAD_REQUEST", {
+        message: "Invalid project name",
+      });
     }
     const projectPath = join(input.parentDir, input.name);
 
@@ -1377,7 +1386,13 @@ const createProjectProc = os
       // Validate that args look like a create command for safety
       const firstArg = input.bootstrapCommand.args[0];
       if (!firstArg?.startsWith("create")) {
-        throw new Error("Bootstrap args must start with 'create'");
+        console.error(
+          "[createProject] Bootstrap args must start with 'create':",
+          input.bootstrapCommand.args
+        );
+        throw new ORPCError("BAD_REQUEST", {
+          message: "Bootstrap args must start with 'create'",
+        });
       }
       // The CLI creates the directory — run from parentDir
       const result = await runShellCommand(
@@ -1387,18 +1402,32 @@ const createProjectProc = os
         180_000 // 3 minute timeout for scaffolding
       );
       if (!result.success) {
-        throw new Error(`Bootstrap failed: ${result.error}`);
+        console.error("[createProject] Bootstrap failed:", result.error);
+        throw new ORPCError("INTERNAL_SERVER_ERROR", {
+          message: `Bootstrap failed: ${result.error}`,
+        });
       }
     } else if (input.cloneUrl && input.cloneIntegrationId) {
       // Resolve token server-side — never exposed to the client
       const all = await getIntegrations();
       const integration = all.find((i) => i.id === input.cloneIntegrationId);
-      if (!integration) throw new Error("Integration not found for clone");
+      if (!integration) {
+        console.error(
+          "[createProject] Integration not found for clone:",
+          input.cloneIntegrationId
+        );
+        throw new ORPCError("NOT_FOUND", {
+          message: "Integration not found for clone",
+        });
+      }
       const token = await resolveIntegrationToken(integration);
       // git clone creates the directory itself — do NOT mkdir first
       const cloneResult = await gitClone(input.cloneUrl, projectPath, token);
       if (!cloneResult.success) {
-        throw new Error(`Git clone failed: ${cloneResult.error}`);
+        console.error("[createProject] Git clone failed:", cloneResult.error);
+        throw new ORPCError("INTERNAL_SERVER_ERROR", {
+          message: `Git clone failed: ${cloneResult.error}`,
+        });
       }
     } else {
       await createProjectDirectory(input.parentDir, input.name);
