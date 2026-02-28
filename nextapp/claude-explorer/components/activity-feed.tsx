@@ -453,10 +453,12 @@ export function ActivityFeed({
   slug,
   mode = "expand",
   initialCommitHash,
+  initialTicketId,
 }: {
   slug: string;
   mode?: "expand" | "navigate";
   initialCommitHash?: string | null;
+  initialTicketId?: string | null;
 }) {
   const router = useRouter();
 
@@ -466,6 +468,11 @@ export function ActivityFeed({
   );
   const [activeTicketStatuses, setActiveTicketStatuses] = useState<Set<string>>(
     new Set()
+  );
+
+  // Expanded ticket state (mirrors commit expand pattern)
+  const [expandedTicket, setExpandedTicket] = useState<string | null>(
+    initialTicketId ?? null
   );
 
   // Detail sheet state
@@ -991,10 +998,29 @@ export function ActivityFeed({
                     }
                     case "ticket": {
                       const raw = item.raw as TicketRaw;
+                      const ticketExpanded =
+                        mode === "navigate"
+                          ? false
+                          : expandedTicket === raw.identifier;
                       return (
                         <TicketItem
                           key={item.id}
                           raw={raw}
+                          compact={mode === "navigate"}
+                          isExpanded={ticketExpanded}
+                          onToggleExpand={() => {
+                            if (mode === "navigate") {
+                              router.push(
+                                `/project/${slug}/overview?ticket=${raw.identifier}`
+                              );
+                            } else {
+                              setExpandedTicket(
+                                expandedTicket === raw.identifier
+                                  ? null
+                                  : raw.identifier
+                              );
+                            }
+                          }}
                           onStartChat={() => handleStartChat(item)}
                           relatedCommits={ticketToCommits.get(
                             raw.identifier.toUpperCase()

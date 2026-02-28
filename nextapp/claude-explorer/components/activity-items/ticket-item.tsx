@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useRef } from "react";
+
 import type { CommitRaw, TicketRaw } from "@/lib/activity-types";
 
 import {
@@ -13,26 +15,73 @@ interface TicketItemProps {
   raw: TicketRaw;
   onStartChat: () => void;
   relatedCommits?: CommitRaw[];
+  /** Whether ticket is expanded inline (overview page) */
+  isExpanded?: boolean;
+  /** Click handler — navigates in sidebar mode, toggles expand in overview mode */
+  onToggleExpand?: () => void;
+  /** Sidebar mode — compact layout, no inline expansion */
+  compact?: boolean;
 }
 
 const PRIORITY_ICON: Record<number, { icon: string; className: string }> = {
-  1: { icon: "↑↑", className: "text-red-400" }, // Urgent
-  2: { icon: "↑", className: "text-orange-400" }, // High
-  3: { icon: "→", className: "text-yellow-400" }, // Medium
-  4: { icon: "↓", className: "text-muted-foreground" }, // Low
+  1: { icon: "\u2191\u2191", className: "text-red-400" }, // Urgent
+  2: { icon: "\u2191", className: "text-orange-400" }, // High
+  3: { icon: "\u2192", className: "text-yellow-400" }, // Medium
+  4: { icon: "\u2193", className: "text-muted-foreground" }, // Low
 };
 
 export function TicketItem({
   raw,
   onStartChat,
   relatedCommits,
+  isExpanded = false,
+  onToggleExpand,
+  compact = false,
 }: TicketItemProps) {
   const priority =
     raw.priority !== undefined ? PRIORITY_ICON[raw.priority] : null;
 
+  const rowRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll into view when initially expanded (e.g. navigated via ?ticket=)
+  useEffect(() => {
+    if (isExpanded && rowRef.current) {
+      rowRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+    // Only run on mount when initially expanded
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
-    <div className="group border-b border-border/50 last:border-0">
-      <div className="flex items-start gap-2.5 px-3 py-2.5">
+    <div
+      ref={rowRef}
+      className="group border-b border-border/50 last:border-0"
+      data-ticket-id={raw.identifier}
+    >
+      {/* ── Main row (clickable) ────────────────────────────────────── */}
+      <div
+        className={cn(
+          "flex items-start px-3 cursor-pointer transition-colors",
+          compact ? "gap-2 py-1.5 hover:bg-muted/5" : "gap-2.5 py-2.5",
+          !compact && (isExpanded ? "bg-muted/20" : "hover:bg-muted/10")
+        )}
+        onClick={onToggleExpand}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onToggleExpand?.();
+          }
+        }}
+      >
+        {/* Chevron — hidden in compact/sidebar mode */}
+        {!compact && (
+          <span className="mt-1 shrink-0 text-[10px] text-muted-foreground/60 w-2.5 text-center select-none">
+            {isExpanded ? "\u25BE" : "\u25B8"}
+          </span>
+        )}
+
         {/* Status color dot as icon */}
         <div className="mt-1 shrink-0">
           <span
@@ -131,8 +180,8 @@ export function TicketItem({
 
           <p className="mt-0.5 text-[10px] text-muted-foreground">
             {raw.status}
-            {raw.assignee && ` · ${raw.assignee}`}
-            {raw.updatedAt && ` · ${relativeTime(raw.updatedAt)}`}
+            {raw.assignee && ` \u00b7 ${raw.assignee}`}
+            {raw.updatedAt && ` \u00b7 ${relativeTime(raw.updatedAt)}`}
           </p>
         </div>
 
@@ -174,6 +223,69 @@ export function TicketItem({
           </button>
         </div>
       </div>
+
+      {/* ── Expanded content ──────────────────────────────────────────── */}
+      {isExpanded && (
+        <div className="border-t border-border/30 bg-muted/10 px-3 py-2.5 space-y-2.5">
+          {/* Description */}
+          {raw.description?.trim() && (
+            <p className="text-xs text-muted-foreground whitespace-pre-wrap leading-relaxed">
+              {raw.description.trim()}
+            </p>
+          )}
+
+          {/* Quick links */}
+          <div className="flex flex-wrap items-center gap-2">
+            {raw.url && (
+              <a
+                href={raw.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="inline-flex items-center gap-1 text-[10px] font-medium text-blue-400 hover:text-blue-300 transition-colors"
+              >
+                <svg
+                  width="10"
+                  height="10"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                  <polyline points="15 3 21 3 21 9" />
+                  <line x1="10" y1="14" x2="21" y2="3" />
+                </svg>
+                View on Linear
+              </a>
+            )}
+          </div>
+
+          {/* Related commits (expanded view) */}
+          {relatedCommits && relatedCommits.length > 0 && (
+            <div className="space-y-1">
+              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
+                Related commits
+              </p>
+              {relatedCommits.map((commit) => (
+                <div
+                  key={commit.hash}
+                  className="flex items-start gap-2 text-xs"
+                >
+                  <span className="shrink-0 font-mono text-[10px] font-medium text-violet-400 bg-violet-500/10 px-1 py-0.5 rounded">
+                    {commit.shortHash}
+                  </span>
+                  <span className="text-foreground/80 line-clamp-1">
+                    {commit.subject}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

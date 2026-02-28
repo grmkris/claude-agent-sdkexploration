@@ -24,10 +24,12 @@ export function OverviewTab({
   slug,
   commitMode,
   initialCommitHash,
+  initialTicketId,
 }: {
   slug: string | null;
   commitMode?: "expand" | "navigate";
   initialCommitHash?: string | null;
+  initialTicketId?: string | null;
 }) {
   if (!slug) {
     return (
@@ -50,6 +52,7 @@ export function OverviewTab({
         slug={slug}
         mode={commitMode}
         initialCommitHash={initialCommitHash}
+        initialTicketId={initialTicketId}
       />
     </div>
   );

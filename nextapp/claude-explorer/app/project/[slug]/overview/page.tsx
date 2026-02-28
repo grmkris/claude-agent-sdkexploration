@@ -6,13 +6,15 @@ import { Suspense, use } from "react";
 import { OverviewTab } from "@/components/right-sidebar/overview-tab";
 
 // ── Search-param reader ────────────────────────────────────────────────────────
-// Reads `?commit=<hash>` and passes it to OverviewTab so the activity feed
-// auto-expands that commit.  Must live inside a <Suspense> because
-// useSearchParams() suspends during static rendering.
+// Reads `?commit=<hash>` or `?ticket=<identifier>` and passes them to
+// OverviewTab so the activity feed auto-expands the relevant item.
+// Must live inside a <Suspense> because useSearchParams() suspends during
+// static rendering.
 
 function OverviewPageInner({ slug }: { slug: string }) {
   const searchParams = useSearchParams();
   const commitHash = searchParams.get("commit") ?? undefined;
+  const ticketId = searchParams.get("ticket") ?? undefined;
 
   return (
     <div className="flex flex-1 flex-col overflow-auto">
@@ -23,6 +25,7 @@ function OverviewPageInner({ slug }: { slug: string }) {
         slug={slug}
         commitMode="expand"
         initialCommitHash={commitHash}
+        initialTicketId={ticketId}
       />
     </div>
   );
