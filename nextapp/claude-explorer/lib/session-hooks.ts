@@ -8,6 +8,10 @@ import type {
 import { execSync } from "node:child_process";
 
 import { upsertSession, getSession } from "./explorer-db";
+import { generateSessionTitle } from "./generate-title";
+
+// Track message count per session for title generation triggers
+const messageCountMap = new Map<string, number>();
 
 function hookCb(fn: (input: HookInput) => void): HookCallback {
   return async (input) => {
@@ -68,6 +72,18 @@ export function createSessionHooks(
           ? {}
           : { first_prompt: input.prompt.slice(0, 200) }),
       });
+
+      // --- Auto-generate session title via Haiku ---
+      const count = messageCountMap.get(input.session_id) ?? 0;
+      const newCount = count + 1;
+      messageCountMap.set(input.session_id, newCount);
+
+      if (newCount === 1 || newCount === 5) {
+        const prompt = existing?.first_prompt ?? input.prompt.slice(0, 300);
+        generateSessionTitle(input.session_id, prompt, newCount).catch(
+          () => {}
+        );
+      }
     }),
 
     PreToolUse: wrap((input) => {
@@ -122,6 +138,8 @@ export function createSessionHooks(
         ended_at: new Date().toISOString(),
         current_tool: null,
       });
+      // Clean up message counter
+      messageCountMap.delete(input.session_id);
     }),
 
     SessionEnd: wrap((input) => {
@@ -131,6 +149,8 @@ export function createSessionHooks(
         ended_at: new Date().toISOString(),
         current_tool: null,
       });
+      // Clean up message counter
+      messageCountMap.delete(input.session_id);
     }),
   };
 }

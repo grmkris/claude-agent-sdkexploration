@@ -24,6 +24,10 @@ export function SessionList({ projectSlug }: { projectSlug: string }) {
   const { data: facets } = useQuery({
     ...orpc.analytics.facets.queryOptions({ input: { sessionIds } }),
     enabled: sessionIds.length > 0,
+    // Re-read facet files periodically so auto-generated titles appear
+    // within ~30s of the first message (title gen takes ~6s via Haiku).
+    staleTime: 20_000,
+    refetchInterval: 30_000,
   });
   const facetMap = useMemo(() => {
     const m = new Map<

@@ -369,13 +369,11 @@ export function AgentTabBar() {
       {/* CENTER: session info (when on a session tab) or conversations trigger */}
       {isSessionTab ? (
         <div className="flex flex-1 items-stretch overflow-hidden">
-          <SessionInfoBar sessionId={activeTab.sessionId!} />
-
           {/* Running-count badge — opens the conversations popover */}
           <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
             <PopoverTrigger
               className={[
-                "flex shrink-0 items-center gap-1 border-l border-border/50 px-2.5 text-xs text-muted-foreground transition-colors hover:text-foreground",
+                "flex shrink-0 items-center gap-1 border-r border-border/50 px-2.5 text-xs text-muted-foreground transition-colors hover:text-foreground",
                 activeCount > 0 ? "" : "opacity-40",
               ]
                 .filter(Boolean)
@@ -392,6 +390,8 @@ export function AgentTabBar() {
             </PopoverTrigger>
             {popoverContent}
           </Popover>
+
+          <SessionInfoBar sessionId={activeTab.sessionId!} />
         </div>
       ) : (
         /* Non-session view: full-width conversations trigger */

@@ -924,10 +924,12 @@ const chatProc = os
           sessionId = (msg as { session_id: string }).session_id;
           // Mark this session as having an active SSE stream.
           activeStreams.add(sessionId);
-          // Explicitly set project_path — the SessionStart hook's input.cwd is
-          // unreliable (undefined at runtime), so we capture it here directly.
+          // Explicitly set project_path and model — the SessionStart hook's
+          // input.cwd / input.model can be unreliable (undefined at runtime),
+          // so we capture them here directly from the user-selected values.
           upsertSession(sessionId, {
             project_path: input.cwd ?? process.cwd(),
+            model: input.model ?? null,
           });
         }
         // Capture result metrics
@@ -1997,8 +1999,11 @@ const rootChatProc = os
           sessionId = (msg as { session_id: string }).session_id;
           // Mark this session as having an active SSE stream.
           activeStreams.add(sessionId);
-          // Explicitly set project_path for root workspace sessions.
-          upsertSession(sessionId, { project_path: USER_HOME });
+          // Explicitly set project_path and model for root workspace sessions.
+          upsertSession(sessionId, {
+            project_path: USER_HOME,
+            model: input.model ?? null,
+          });
         }
         if ("type" in msg && msg.type === "result" && sessionId) {
           const r = msg as {
