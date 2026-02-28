@@ -779,7 +779,7 @@ function UnifiedSessionsSection() {
 
 export default function DashboardPage() {
   return (
-    <div>
+    <div className="flex-1 overflow-auto">
       <UnifiedProjectGrid />
       <UnifiedSessionsSection />
     </div>
