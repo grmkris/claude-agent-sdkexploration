@@ -469,9 +469,9 @@ export function CommitItem({
             </div>
           )}
 
-          {/* Quick links bar — grouped per service */}
-          <div className="flex items-center gap-2 px-4 py-1.5 border-b border-border/30 text-[10px] flex-wrap">
-            {githubRepoUrl && (
+          {/* GitHub link bar (deployment links are in collapsed view) */}
+          {githubRepoUrl && (
+            <div className="flex items-center gap-2 px-4 py-1.5 border-b border-border/30 text-[10px]">
               <a
                 href={`${githubRepoUrl}/commit/${raw.hash}`}
                 target="_blank"
@@ -479,140 +479,15 @@ export function CommitItem({
                 className="text-blue-400 hover:text-blue-300 hover:underline inline-flex items-center gap-1"
                 onClick={(e) => e.stopPropagation()}
               >
-                <svg
-                  width="8"
-                  height="8"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="shrink-0"
-                >
+                <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
                   <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
                   <polyline points="15 3 21 3 21 9" />
                   <line x1="10" y1="14" x2="21" y2="3" />
                 </svg>
-                GitHub
+                View on GitHub
               </a>
-            )}
-
-            {/* Per-service mini-cards */}
-            {relatedDeployments?.map((dep) => {
-              const isFailed =
-                dep.status === "FAILED" || dep.status === "CRASHED";
-              const isLive = dep.status === "SUCCESS";
-              const isBuilding =
-                dep.status === "DEPLOYING" || dep.status === "BUILDING";
-              const dotColor = isFailed
-                ? "#f87171"
-                : isLive
-                  ? "#4ade80"
-                  : isBuilding
-                    ? "#facc15"
-                    : "#6b7280";
-              const hasLinks =
-                dep.logsUrl || dep.dashboardUrl || dep.serviceUrl;
-              if (!hasLinks) return null;
-
-              return (
-                <span
-                  key={dep.id}
-                  className="inline-flex items-center gap-1.5 rounded border border-border/30 bg-muted/20 px-2 py-0.5"
-                >
-                  <span
-                    className={cn(
-                      "h-1.5 w-1.5 rounded-full shrink-0",
-                      isBuilding && "animate-pulse"
-                    )}
-                    style={{ backgroundColor: dotColor }}
-                  />
-                  <span className="text-[10px] text-foreground/80 font-medium">
-                    {dep.serviceName}
-                  </span>
-                  <span className="text-border/50">|</span>
-                  {dep.logsUrl && (
-                    <a
-                      href={dep.logsUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-purple-400 hover:text-purple-300 hover:underline inline-flex items-center gap-0.5"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <svg
-                        width="8"
-                        height="8"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2.5"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        className="shrink-0"
-                      >
-                        <polyline points="4 17 10 11 4 5" />
-                        <line x1="12" y1="19" x2="20" y2="19" />
-                      </svg>
-                      logs
-                    </a>
-                  )}
-                  {dep.serviceUrl && (
-                    <a
-                      href={dep.serviceUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-green-400 hover:text-green-300 hover:underline inline-flex items-center gap-0.5"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <svg
-                        width="8"
-                        height="8"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2.5"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        className="shrink-0"
-                      >
-                        <circle cx="12" cy="12" r="10" />
-                        <line x1="2" y1="12" x2="22" y2="12" />
-                        <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
-                      </svg>
-                      live
-                    </a>
-                  )}
-                  {dep.dashboardUrl && (
-                    <a
-                      href={dep.dashboardUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-muted-foreground hover:text-foreground hover:underline inline-flex items-center gap-0.5"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <svg
-                        width="8"
-                        height="8"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2.5"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        className="shrink-0"
-                      >
-                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-                        <polyline points="15 3 21 3 21 9" />
-                        <line x1="10" y1="14" x2="21" y2="3" />
-                      </svg>
-                      railway
-                    </a>
-                  )}
-                </span>
-              );
-            })}
-          </div>
+            </div>
+          )}
 
           {/* Files list */}
           {loadingFiles ? (
