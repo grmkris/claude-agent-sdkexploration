@@ -256,42 +256,44 @@ function AddIntegrationForm({
   };
 
   return (
-    <div className="mb-3 flex flex-col gap-2">
-      <div className="flex gap-2">
-        <select
-          value={type}
-          onChange={(e) => {
-            setType(e.target.value as typeof type);
-            setTestResult(null);
-            setSelectedApiKeyId("");
-          }}
-          className="rounded border bg-background px-2 text-xs"
-        >
-          <option value="linear">Linear</option>
-          <option value="railway">Railway</option>
-          <option value="github">GitHub</option>
-        </select>
-
-        {matchingKeys.length > 0 ? (
+    <div className="mb-1 flex flex-col gap-1.5 px-2">
+      <div className="flex flex-col gap-1.5">
+        <div className="flex gap-1.5">
           <select
-            value={selectedApiKeyId}
+            value={type}
             onChange={(e) => {
-              setSelectedApiKeyId(e.target.value);
+              setType(e.target.value as typeof type);
               setTestResult(null);
+              setSelectedApiKeyId("");
             }}
-            className="flex-1 rounded border bg-background px-2 text-xs"
+            className="flex-1 rounded border bg-background px-2 py-1 text-[11px]"
           >
-            <option value="">Enter new token...</option>
-            {matchingKeys.map((k) => (
-              <option key={k.id} value={k.id}>
-                {k.label}
-              </option>
-            ))}
+            <option value="linear">Linear</option>
+            <option value="railway">Railway</option>
+            <option value="github">GitHub</option>
           </select>
-        ) : null}
+
+          {matchingKeys.length > 0 ? (
+            <select
+              value={selectedApiKeyId}
+              onChange={(e) => {
+                setSelectedApiKeyId(e.target.value);
+                setTestResult(null);
+              }}
+              className="flex-1 rounded border bg-background px-2 py-1 text-[11px]"
+            >
+              <option value="">Enter new token...</option>
+              {matchingKeys.map((k) => (
+                <option key={k.id} value={k.id}>
+                  {k.label}
+                </option>
+              ))}
+            </select>
+          ) : null}
+        </div>
 
         {!useVaultKey && (
-          <div className="flex flex-1 flex-col gap-0.5">
+          <div className="flex flex-col gap-0.5">
             <Input
               type="password"
               placeholder={
@@ -302,7 +304,7 @@ function AddIntegrationForm({
                 setToken(e.target.value);
                 setTestResult(null);
               }}
-              className="text-xs"
+              className="h-7 text-[11px]"
             />
             <a
               href={
@@ -328,6 +330,7 @@ function AddIntegrationForm({
 
         <Button
           size="sm"
+          className="w-full"
           onClick={handleTest}
           disabled={testing || (!useVaultKey && !token && type !== "github")}
         >
@@ -375,12 +378,12 @@ function AddIntegrationForm({
       )}
 
       {testResult?.ok && (
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-1.5">
           <Input
             placeholder="Name"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="w-32 text-xs"
+            className="h-7 w-full text-[11px]"
           />
           {type === "linear" &&
             testResult.meta?.teams &&
@@ -388,7 +391,7 @@ function AddIntegrationForm({
               <select
                 value={selectedTeamId}
                 onChange={(e) => setSelectedTeamId(e.target.value)}
-                className="rounded border bg-background px-2 text-xs"
+                className="w-full rounded border bg-background px-2 py-1 text-[11px]"
               >
                 <option value="">All teams</option>
                 {testResult.meta.teams.map((t) => (
@@ -404,7 +407,7 @@ function AddIntegrationForm({
               <select
                 value={selectedProjectId}
                 onChange={(e) => setSelectedProjectId(e.target.value)}
-                className="rounded border bg-background px-2 text-xs"
+                className="w-full rounded border bg-background px-2 py-1 text-[11px]"
               >
                 <option value="">Select project...</option>
                 {testResult.meta.projects.map((p) => (
@@ -416,6 +419,7 @@ function AddIntegrationForm({
             )}
           <Button
             size="sm"
+            className="w-full"
             onClick={handleSave}
             disabled={type === "railway" && !selectedProjectId}
           >
@@ -445,7 +449,7 @@ function IntegrationSuggestions({
   if (unconfigured.length === 0) return null;
 
   return (
-    <div className="mt-2 flex flex-wrap gap-1.5">
+    <div className="mt-1 flex flex-wrap gap-1.5 px-2">
       {unconfigured.map((s) => (
         <button
           key={s.type}
@@ -466,6 +470,7 @@ export function ProjectIntegrations({ slug }: { slug: string }) {
   const queryClient = useQueryClient();
   const [showSection, setShowSection] = useState(false);
   const [showForm, setShowForm] = useState(false);
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
 
   const { data: allIntegrations } = useQuery({
     ...orpc.integrations.list.queryOptions(),
@@ -562,12 +567,9 @@ export function ProjectIntegrations({ slug }: { slug: string }) {
           )}
 
           {integrations.length > 0 && (
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-1.5 px-2">
               {integrations.map((integration) => (
-                <div
-                  key={integration.id}
-                  className="rounded border px-2 py-1.5"
-                >
+                <div key={integration.id} className="rounded border px-2 py-1">
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => toggleIntegration.mutate(integration.id)}
@@ -641,13 +643,35 @@ export function ProjectIntegrations({ slug }: { slug: string }) {
                     </button>
                   </div>
                   {integration.enabled && (
-                    <div className="mt-1.5">
-                      <IntegrationWidgets integrationId={integration.id} />
-                      <IntegrationWebhooks
-                        integrationId={integration.id}
-                        provider={integration.type}
-                        projectSlug={slug}
-                      />
+                    <div className="mt-1">
+                      <button
+                        onClick={() =>
+                          setExpandedIds((prev) => {
+                            const next = new Set(prev);
+                            if (next.has(integration.id)) {
+                              next.delete(integration.id);
+                            } else {
+                              next.add(integration.id);
+                            }
+                            return next;
+                          })
+                        }
+                        className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        {expandedIds.has(integration.id)
+                          ? "hide details"
+                          : "show details"}
+                      </button>
+                      {expandedIds.has(integration.id) && (
+                        <div className="mt-1">
+                          <IntegrationWidgets integrationId={integration.id} />
+                          <IntegrationWebhooks
+                            integrationId={integration.id}
+                            provider={integration.type}
+                            projectSlug={slug}
+                          />
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
