@@ -51,6 +51,9 @@ export type RootChatStreamOpts = {
     name: string;
     scope: "user" | "project" | "local";
   }>;
+  forkSession?: boolean;
+  resumeSessionAt?: string;
+  forkSessionId?: string;
 };
 
 export function useRootChatStream(
@@ -138,6 +141,13 @@ export function useRootChatStream(
               ...(opts?.enabledOptionalMcps?.length
                 ? { enabledOptionalMcps: opts.enabledOptionalMcps }
                 : {}),
+              ...(opts?.forkSession ? { forkSession: true } : {}),
+              ...(opts?.resumeSessionAt
+                ? { resumeSessionAt: opts.resumeSessionAt }
+                : {}),
+              ...(opts?.forkSessionId
+                ? { forkSessionId: opts.forkSessionId }
+                : {}),
             },
             { signal: ac.signal }
           );
@@ -175,6 +185,9 @@ export function useRootChatStream(
       opts?.permissionMode,
       opts?.model,
       opts?.enabledOptionalMcps,
+      opts?.forkSession,
+      opts?.resumeSessionAt,
+      opts?.forkSessionId,
     ]
   );
 

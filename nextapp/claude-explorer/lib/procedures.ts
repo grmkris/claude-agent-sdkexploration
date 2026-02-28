@@ -2,7 +2,7 @@ import type { SDKUserMessage } from "@anthropic-ai/claude-agent-sdk/sdk";
 
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import { os, eventIterator } from "@orpc/server";
-import { readdir, stat } from "node:fs/promises";
+import { readdir, readFile, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join, dirname } from "node:path";
 import { z } from "zod";
@@ -74,6 +74,8 @@ import {
   setMcpPreference,
   saveSessionMcpSelections,
   getSessionMcpSelections,
+  getSessionForks,
+  getSessionAncestry,
 } from "./explorer-db";
 import {
   getFavorites,
@@ -183,6 +185,83 @@ const USER_HOME = process.env.CLAUDE_CONFIG_DIR
 // Strip CLAUDECODE to allow the Agent SDK to spawn inside a Claude Code container
 const { CLAUDECODE: _CC, ...cleanEnv } = process.env;
 
+// --- Plan file resolution helper ---
+// Resolves the plan file content for ExitPlanMode, using a 4-step cascade:
+//   1. Explicit path from SDK tool input (future-proofing)
+//   2. Session-name-based lookup (deterministic, primary strategy)
+//   3. Most recently modified file in ~/.claude/plans/ (10-min window, safety net)
+//   4. Legacy cwd/PLAN.md fallback (chatProc only, last resort)
+async function resolvePlanFile(
+  sessionId: string | undefined,
+  toolInput: Record<string, unknown>,
+  cwd?: string
+): Promise<{ planText: string; planFilePath: string }> {
+  const plansDir = join(USER_HOME, ".claude", "plans");
+  let planText = "";
+  let planFilePath = "";
+
+  // 1. Explicit path in tool input (SDK may eventually send this)
+  const explicitPath =
+    (toolInput.planFilePath as string | undefined) ??
+    (toolInput.plan_file_path as string | undefined);
+  if (explicitPath) {
+    planText = await readFile(explicitPath, "utf-8").catch(() => "");
+    if (planText) planFilePath = explicitPath;
+  }
+
+  // 2. Session-name-based lookup (deterministic — the SDK names plan files
+  //    after the session ID, e.g. "precious-waddling-glacier.md")
+  if (!planText && sessionId) {
+    const sessionPlanPath = join(plansDir, `${sessionId}.md`);
+    planText = await readFile(sessionPlanPath, "utf-8").catch(() => "");
+    if (planText) {
+      planFilePath = sessionPlanPath;
+    } else {
+      // Agent sessions have suffixed IDs like "name-agent-abc123".
+      // The plan file might be named after the base session.
+      const agentSuffixMatch = sessionId.match(/^(.+)-agent-[a-f0-9]+$/);
+      if (agentSuffixMatch) {
+        const basePlanPath = join(plansDir, `${agentSuffixMatch[1]}.md`);
+        planText = await readFile(basePlanPath, "utf-8").catch(() => "");
+        if (planText) planFilePath = basePlanPath;
+      }
+    }
+  }
+
+  // 3. Fallback: most recently modified plan file (widened to 10-min window)
+  if (!planText) {
+    try {
+      const now = Date.now();
+      const files = await readdir(plansDir);
+      const mdFiles = files.filter((f) => f.endsWith(".md"));
+      const stats = await Promise.all(
+        mdFiles.map(async (f) => ({
+          name: f,
+          mtimeMs: (await stat(join(plansDir, f))).mtimeMs,
+        }))
+      );
+      stats.sort((a, b) => b.mtimeMs - a.mtimeMs);
+      const recent = stats.find((s) => now - s.mtimeMs < 600_000); // 10 minutes
+      if (recent) {
+        const resolvedPath = join(plansDir, recent.name);
+        planText = await readFile(resolvedPath, "utf-8").catch(() => "");
+        if (planText) planFilePath = resolvedPath;
+      }
+    } catch {
+      // ~/.claude/plans/ may not exist — that's fine
+    }
+  }
+
+  // 4. Legacy cwd/PLAN.md fallback (only when cwd is provided)
+  if (!planText && cwd) {
+    const legacyPath = join(cwd, "PLAN.md");
+    planText = await readFile(legacyPath, "utf-8").catch(() => "");
+    if (planText) planFilePath = legacyPath;
+  }
+
+  return { planText, planFilePath };
+}
+
 // --- DB → Legacy mappers ---
 
 type LegacySessionState = "active" | "idle" | "stale";
@@ -219,6 +298,9 @@ function sessionRowToMeta(row: SessionRow): import("./schemas").SessionMeta {
       : `claude --resume ${row.session_id}`,
     sessionState: mapDbStateToLegacy(row.state),
     source: row.source ?? null,
+    parentSessionId: row.parent_session_id ?? null,
+    forkedAtMessageUuid: row.forked_at_message_uuid ?? null,
+    forkLabel: row.fork_label ?? null,
   };
 }
 
@@ -636,6 +718,9 @@ const chatProc = os
           })
         )
         .optional(),
+      forkSession: z.boolean().optional(),
+      resumeSessionAt: z.string().optional(),
+      forkSessionId: z.string().optional(),
     })
   )
   .output(eventIterator(z.custom<SDKMessage>()))
@@ -849,70 +934,18 @@ const chatProc = os
                 }
               }
 
-              // Try to read the plan file. Claude writes plan files to
-              // ~/.claude/plans/<name>.md, NOT to cwd/PLAN.md.
-              // Strategy:
-              //   1. Check if typedInput contains a plan file path directly.
-              //   2. Scan ~/.claude/plans/ for the most recently modified .md
-              //      file (written within the last 60 s, i.e. just now).
-              //   3. Fall back to cwd/PLAN.md for legacy compatibility.
+              // Resolve the plan file using the shared helper.
+              // Priority: explicit path → session-name match → recent file → cwd/PLAN.md
               let planText = storedPlan?.planText ?? "";
               let planFilePath = storedPlan?.planFilePath ?? "";
               if (!planText) {
-                const {
-                  readFile,
-                  readdir,
-                  stat: fsStat,
-                } = await import("node:fs/promises");
-                const homedir = (await import("node:os")).homedir();
-                const plansDir = join(homedir, ".claude", "plans");
-
-                // 1. Explicit path in tool input
-                const explicitPath =
-                  (typedInput.planFilePath as string | undefined) ??
-                  (typedInput.plan_file_path as string | undefined);
-                if (explicitPath) {
-                  planText = await readFile(explicitPath, "utf-8").catch(
-                    () => ""
-                  );
-                  if (planText) planFilePath = explicitPath;
-                }
-
-                // 2. Most recently modified plan file (written ≤ 60 s ago)
-                if (!planText) {
-                  try {
-                    const now = Date.now();
-                    const files = await readdir(plansDir);
-                    const mdFiles = files.filter((f) => f.endsWith(".md"));
-                    const stats = await Promise.all(
-                      mdFiles.map(async (f) => ({
-                        name: f,
-                        mtimeMs: (await fsStat(join(plansDir, f))).mtimeMs,
-                      }))
-                    );
-                    // Sort newest first
-                    stats.sort((a, b) => b.mtimeMs - a.mtimeMs);
-                    const recent = stats.find((s) => now - s.mtimeMs < 60_000);
-                    if (recent) {
-                      const resolvedPath = join(plansDir, recent.name);
-                      planText = await readFile(resolvedPath, "utf-8").catch(
-                        () => ""
-                      );
-                      if (planText) planFilePath = resolvedPath;
-                    }
-                  } catch {
-                    // ~/.claude/plans/ may not exist — that's fine
-                  }
-                }
-
-                // 3. Legacy cwd/PLAN.md fallback
-                if (!planText && input.cwd) {
-                  const legacyPath = join(input.cwd, "PLAN.md");
-                  planText = await readFile(legacyPath, "utf-8").catch(
-                    () => ""
-                  );
-                  if (planText) planFilePath = legacyPath;
-                }
+                const resolved = await resolvePlanFile(
+                  sessionId,
+                  typedInput,
+                  input.cwd
+                );
+                planText = resolved.planText;
+                planFilePath = resolved.planFilePath;
               }
 
               // Persist to DB so approval survives a server restart or SSE drop.
@@ -960,6 +993,11 @@ const chatProc = os
           >,
           hooks: createSessionHooks("chat"),
           ...(input.resume ? { resume: input.resume } : {}),
+          ...(input.forkSession ? { forkSession: true } : {}),
+          ...(input.resumeSessionAt
+            ? { resumeSessionAt: input.resumeSessionAt }
+            : {}),
+          ...(input.forkSessionId ? { sessionId: input.forkSessionId } : {}),
           ...(input.cwd ? { cwd: input.cwd } : {}),
         },
       });
@@ -1002,9 +1040,19 @@ const chatProc = os
           upsertSession(sessionId, {
             project_path: input.cwd ?? process.cwd(),
             model: input.model ?? null,
+            // Track fork lineage when forking a session
+            ...(input.forkSession && input.resume
+              ? {
+                  parent_session_id: input.resume,
+                  forked_at_message_uuid: input.resumeSessionAt ?? null,
+                }
+              : {}),
           });
-          // Save optional MCP selections for session resume
-          if (!input.resume && input.enabledOptionalMcps?.length) {
+          // Save optional MCP selections for session resume (also for forks)
+          if (
+            (!input.resume || input.forkSession) &&
+            input.enabledOptionalMcps?.length
+          ) {
             saveSessionMcpSelections(sessionId, input.enabledOptionalMcps);
           }
         }
@@ -1808,6 +1856,9 @@ const rootChatProc = os
           })
         )
         .optional(),
+      forkSession: z.boolean().optional(),
+      resumeSessionAt: z.string().optional(),
+      forkSessionId: z.string().optional(),
     })
   )
   .output(eventIterator(z.custom<SDKMessage>()))
@@ -1995,55 +2046,15 @@ const rootChatProc = os
                 }
               }
 
-              // Scan ~/.claude/plans/ for the most recently modified plan file,
-              // or reuse persisted plan text if this is a resume.
+              // Resolve the plan file using the shared helper.
+              // Priority: explicit path → session-name match → recent file
+              // (no cwd/PLAN.md fallback for root chat)
               let planText = storedPlan?.planText ?? "";
               let planFilePath = storedPlan?.planFilePath ?? "";
               if (!planText) {
-                const {
-                  readFile,
-                  readdir,
-                  stat: fsStat,
-                } = await import("node:fs/promises");
-                const homedir = (await import("node:os")).homedir();
-                const plansDir = join(homedir, ".claude", "plans");
-
-                // 1. Explicit path in tool input
-                const explicitPath =
-                  (typedInput.planFilePath as string | undefined) ??
-                  (typedInput.plan_file_path as string | undefined);
-                if (explicitPath) {
-                  planText = await readFile(explicitPath, "utf-8").catch(
-                    () => ""
-                  );
-                  if (planText) planFilePath = explicitPath;
-                }
-
-                // 2. Most recently modified plan file (written ≤ 60 s ago)
-                if (!planText) {
-                  try {
-                    const now = Date.now();
-                    const files = await readdir(plansDir);
-                    const mdFiles = files.filter((f) => f.endsWith(".md"));
-                    const stats = await Promise.all(
-                      mdFiles.map(async (f) => ({
-                        name: f,
-                        mtimeMs: (await fsStat(join(plansDir, f))).mtimeMs,
-                      }))
-                    );
-                    stats.sort((a, b) => b.mtimeMs - a.mtimeMs);
-                    const recent = stats.find((s) => now - s.mtimeMs < 60_000);
-                    if (recent) {
-                      const resolvedPath = join(plansDir, recent.name);
-                      planText = await readFile(resolvedPath, "utf-8").catch(
-                        () => ""
-                      );
-                      if (planText) planFilePath = resolvedPath;
-                    }
-                  } catch {
-                    // ~/.claude/plans/ may not exist — that's fine
-                  }
-                }
+                const resolved = await resolvePlanFile(sessionId, typedInput);
+                planText = resolved.planText;
+                planFilePath = resolved.planFilePath;
               }
 
               // Persist to DB so approval survives a server restart or SSE drop.
@@ -2097,6 +2108,11 @@ const rootChatProc = os
           >,
           hooks: createSessionHooks("root_chat"),
           ...(input.resume ? { resume: input.resume } : {}),
+          ...(input.forkSession ? { forkSession: true } : {}),
+          ...(input.resumeSessionAt
+            ? { resumeSessionAt: input.resumeSessionAt }
+            : {}),
+          ...(input.forkSessionId ? { sessionId: input.forkSessionId } : {}),
         },
       });
 
@@ -2133,9 +2149,19 @@ const rootChatProc = os
           upsertSession(sessionId, {
             project_path: USER_HOME,
             model: input.model ?? null,
+            // Track fork lineage when forking a session
+            ...(input.forkSession && input.resume
+              ? {
+                  parent_session_id: input.resume,
+                  forked_at_message_uuid: input.resumeSessionAt ?? null,
+                }
+              : {}),
           });
-          // Save optional MCP selections for session resume
-          if (!input.resume && input.enabledOptionalMcps?.length) {
+          // Save optional MCP selections for session resume (also for forks)
+          if (
+            (!input.resume || input.forkSession) &&
+            input.enabledOptionalMcps?.length
+          ) {
             saveSessionMcpSelections(sessionId, input.enabledOptionalMcps);
           }
         }
@@ -3584,6 +3610,24 @@ const deleteSavedPromptProc = os
     success: await removeSavedPrompt(input.id),
   }));
 
+// --- Session fork lineage procedures ---
+
+const sessionForksProc = os
+  .input(z.object({ sessionId: z.string() }))
+  .output(z.array(SessionMetaSchema))
+  .handler(async ({ input }) => {
+    const rows = getSessionForks(input.sessionId);
+    return rows.map(sessionRowToMeta);
+  });
+
+const sessionAncestryProc = os
+  .input(z.object({ sessionId: z.string() }))
+  .output(z.array(SessionMetaSchema))
+  .handler(async ({ input }) => {
+    const rows = getSessionAncestry(input.sessionId);
+    return rows.map(sessionRowToMeta);
+  });
+
 export const router = {
   projects: {
     list: listProjectsProc,
@@ -3628,6 +3672,8 @@ export const router = {
     timeline: timelineSessionsProc,
     archive: archiveSessionProc,
     preview: sessionPreviewProc,
+    forks: sessionForksProc,
+    ancestry: sessionAncestryProc,
   },
   favorites: {
     get: getFavoritesProc,

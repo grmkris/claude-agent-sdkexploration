@@ -41,6 +41,9 @@ export const SessionMetaSchema = z.object({
   resumeCommand: z.string(),
   sessionState: SessionStateSchema.optional(),
   source: z.string().nullable().optional(),
+  parentSessionId: z.string().nullable().optional(),
+  forkedAtMessageUuid: z.string().nullable().optional(),
+  forkLabel: z.string().nullable().optional(),
 });
 
 export const ParsedMessageSchema = z.object({

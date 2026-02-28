@@ -56,6 +56,9 @@ export type ChatStreamOpts = {
     name: string;
     scope: "user" | "project" | "local";
   }>;
+  forkSession?: boolean;
+  resumeSessionAt?: string;
+  forkSessionId?: string;
 };
 
 export function useChatStream(opts?: ChatStreamOpts): UseChatStreamReturn {
@@ -145,6 +148,13 @@ export function useChatStream(opts?: ChatStreamOpts): UseChatStreamReturn {
               ...(opts?.enabledOptionalMcps?.length
                 ? { enabledOptionalMcps: opts.enabledOptionalMcps }
                 : {}),
+              ...(opts?.forkSession ? { forkSession: true } : {}),
+              ...(opts?.resumeSessionAt
+                ? { resumeSessionAt: opts.resumeSessionAt }
+                : {}),
+              ...(opts?.forkSessionId
+                ? { forkSessionId: opts.forkSessionId }
+                : {}),
             },
             { signal: ac.signal }
           );
@@ -183,6 +193,9 @@ export function useChatStream(opts?: ChatStreamOpts): UseChatStreamReturn {
       opts?.permissionMode,
       opts?.model,
       opts?.enabledOptionalMcps,
+      opts?.forkSession,
+      opts?.resumeSessionAt,
+      opts?.forkSessionId,
     ]
   );
 

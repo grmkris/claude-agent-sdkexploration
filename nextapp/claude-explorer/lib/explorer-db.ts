@@ -303,11 +303,14 @@ export function upsertSession(sessionId: string, patch: SessionPatch): void {
       is_archived: patch.is_archived ?? 0,
       context_window: patch.context_window ?? null,
       max_context_window: patch.max_context_window ?? null,
+      parent_session_id: patch.parent_session_id ?? null,
+      forked_at_message_uuid: patch.forked_at_message_uuid ?? null,
+      fork_label: patch.fork_label ?? null,
     };
 
     d.query(
-      `INSERT INTO sessions (session_id, project_path, state, current_tool, source, model, first_prompt, git_branch, started_at, updated_at, ended_at, cost_usd, input_tokens, output_tokens, num_turns, duration_ms, error, is_archived, context_window, max_context_window)
-       VALUES ($session_id, $project_path, $state, $current_tool, $source, $model, $first_prompt, $git_branch, $started_at, $updated_at, $ended_at, $cost_usd, $input_tokens, $output_tokens, $num_turns, $duration_ms, $error, $is_archived, $context_window, $max_context_window)`
+      `INSERT INTO sessions (session_id, project_path, state, current_tool, source, model, first_prompt, git_branch, started_at, updated_at, ended_at, cost_usd, input_tokens, output_tokens, num_turns, duration_ms, error, is_archived, context_window, max_context_window, parent_session_id, forked_at_message_uuid, fork_label)
+       VALUES ($session_id, $project_path, $state, $current_tool, $source, $model, $first_prompt, $git_branch, $started_at, $updated_at, $ended_at, $cost_usd, $input_tokens, $output_tokens, $num_turns, $duration_ms, $error, $is_archived, $context_window, $max_context_window, $parent_session_id, $forked_at_message_uuid, $fork_label)`
     ).run({
       $session_id: row.session_id,
       $project_path: row.project_path,
@@ -329,6 +332,9 @@ export function upsertSession(sessionId: string, patch: SessionPatch): void {
       $is_archived: row.is_archived,
       $context_window: row.context_window,
       $max_context_window: row.max_context_window,
+      $parent_session_id: row.parent_session_id,
+      $forked_at_message_uuid: row.forked_at_message_uuid,
+      $fork_label: row.fork_label,
     });
   } else {
     // UPDATE only provided fields
@@ -410,6 +416,28 @@ export function getActiveSessions(): SessionRow[] {
       "SELECT * FROM sessions WHERE state NOT IN ('done', 'stopped', 'error') AND is_archived = 0 ORDER BY updated_at DESC"
     )
     .all();
+}
+
+/** Get all sessions forked from a given parent session */
+export function getSessionForks(parentSessionId: string): SessionRow[] {
+  return getDB()
+    .query<SessionRow, [string]>(
+      "SELECT * FROM sessions WHERE parent_session_id = ? ORDER BY started_at ASC"
+    )
+    .all(parentSessionId);
+}
+
+/** Get the full ancestry chain (current -> parent -> grandparent -> ...) */
+export function getSessionAncestry(sessionId: string): SessionRow[] {
+  const chain: SessionRow[] = [];
+  let current = getSession(sessionId);
+  while (current?.parent_session_id) {
+    const parent = getSession(current.parent_session_id);
+    if (!parent) break;
+    chain.push(parent);
+    current = parent;
+  }
+  return chain;
 }
 
 export function getProjectSessions(
