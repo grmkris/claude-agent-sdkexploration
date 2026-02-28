@@ -100,98 +100,150 @@ export function TicketItem({
         </div>
 
         {/* Content */}
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <span className="shrink-0 font-mono text-[10px] font-medium text-muted-foreground bg-muted px-1 py-0.5 rounded">
-              {raw.identifier}
-            </span>
-            {priority && (
-              <span
-                className={cn(
-                  "shrink-0 text-[10px] font-bold",
-                  priority.className
-                )}
-              >
-                {priority.icon}
-              </span>
-            )}
-          </div>
-
-          {/* Title with full title + description tooltip */}
-          <Tooltip>
-            <TooltipTrigger render={<span />}>
-              <span className="mt-0.5 text-xs text-foreground leading-snug line-clamp-2 cursor-default block">
-                {raw.title}
-              </span>
-            </TooltipTrigger>
-            <TooltipContent
-              side="top"
-              className="max-w-[320px] whitespace-pre-wrap break-words"
-            >
-              <span className="font-medium">{raw.title}</span>
-              {raw.description?.trim() && (
-                <>
-                  {"\n"}
-                  <span className="opacity-70 whitespace-pre-wrap">
-                    {raw.description.trim()}
+        {compact ? (
+          /* ── Compact sidebar layout: 2 tight lines ─────────────────── */
+          <div className="min-w-0 flex-1">
+            {/* Line 1: identifier badge + title (single truncated line) */}
+            <Tooltip>
+              <TooltipTrigger render={<div />}>
+                <div className="flex items-center gap-1.5">
+                  <span className="shrink-0 font-mono text-[10px] font-medium text-muted-foreground bg-muted px-1 rounded">
+                    {raw.identifier}
                   </span>
-                </>
-              )}
-            </TooltipContent>
-          </Tooltip>
-
-          {/* Correlated commit badges */}
-          {relatedCommits && relatedCommits.length > 0 && (
-            <div className="mt-1 flex flex-wrap gap-1">
-              {relatedCommits.map((commit) => (
-                <Tooltip key={commit.hash}>
-                  <TooltipTrigger>
-                    <span className="inline-flex items-center gap-1 text-[10px] font-mono px-1 py-0.5 rounded bg-violet-500/10 text-violet-400 font-medium cursor-default">
-                      <svg
-                        width="8"
-                        height="8"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2.5"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <circle cx="12" cy="12" r="3" />
-                        <line x1="3" y1="12" x2="9" y2="12" />
-                        <line x1="15" y1="12" x2="21" y2="12" />
-                      </svg>
-                      {commit.shortHash}
+                  <span className="text-xs text-foreground truncate">
+                    {raw.title}
+                  </span>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent
+                side="top"
+                className="max-w-[320px] whitespace-pre-wrap break-words"
+              >
+                <span className="font-medium">{raw.title}</span>
+                {raw.description?.trim() && (
+                  <>
+                    {"\n"}
+                    <span className="opacity-70 whitespace-pre-wrap">
+                      {raw.description.trim()}
                     </span>
-                  </TooltipTrigger>
-                  <TooltipContent
-                    side="top"
-                    className="max-w-xs whitespace-pre-wrap"
-                  >
-                    <span className="font-medium">{commit.subject}</span>
-                    {commit.body?.trim() && (
-                      <>
-                        {"\n"}
-                        <span className="opacity-70 whitespace-pre-wrap">
-                          {commit.body.trim()}
-                        </span>
-                      </>
-                    )}
-                  </TooltipContent>
-                </Tooltip>
-              ))}
+                  </>
+                )}
+              </TooltipContent>
+            </Tooltip>
+            {/* Line 2: priority + status · assignee · time */}
+            <div className="mt-0.5 flex items-center gap-1.5 text-[10px] text-muted-foreground overflow-hidden">
+              {priority && (
+                <span className={cn("shrink-0 font-bold", priority.className)}>
+                  {priority.icon}
+                </span>
+              )}
+              <span className="ml-auto shrink-0 whitespace-nowrap">
+                {raw.status}
+                {raw.assignee && ` \u00b7 ${raw.assignee}`}
+                {raw.updatedAt && ` \u00b7 ${relativeTime(raw.updatedAt)}`}
+              </span>
             </div>
-          )}
+          </div>
+        ) : (
+          /* ── Full layout (overview page, expandable) ────────────────── */
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="shrink-0 font-mono text-[10px] font-medium text-muted-foreground bg-muted px-1 py-0.5 rounded">
+                {raw.identifier}
+              </span>
+              {priority && (
+                <span
+                  className={cn(
+                    "shrink-0 text-[10px] font-bold",
+                    priority.className
+                  )}
+                >
+                  {priority.icon}
+                </span>
+              )}
+            </div>
 
-          <p className="mt-0.5 text-[10px] text-muted-foreground">
-            {raw.status}
-            {raw.assignee && ` \u00b7 ${raw.assignee}`}
-            {raw.updatedAt && ` \u00b7 ${relativeTime(raw.updatedAt)}`}
-          </p>
-        </div>
+            {/* Title with full title + description tooltip */}
+            <Tooltip>
+              <TooltipTrigger render={<span />}>
+                <span className="mt-0.5 text-xs text-foreground leading-snug line-clamp-2 cursor-default block">
+                  {raw.title}
+                </span>
+              </TooltipTrigger>
+              <TooltipContent
+                side="top"
+                className="max-w-[320px] whitespace-pre-wrap break-words"
+              >
+                <span className="font-medium">{raw.title}</span>
+                {raw.description?.trim() && (
+                  <>
+                    {"\n"}
+                    <span className="opacity-70 whitespace-pre-wrap">
+                      {raw.description.trim()}
+                    </span>
+                  </>
+                )}
+              </TooltipContent>
+            </Tooltip>
+
+            {/* Correlated commit badges */}
+            {relatedCommits && relatedCommits.length > 0 && (
+              <div className="mt-1 flex flex-wrap gap-1">
+                {relatedCommits.map((commit) => (
+                  <Tooltip key={commit.hash}>
+                    <TooltipTrigger>
+                      <span className="inline-flex items-center gap-1 text-[10px] font-mono px-1 py-0.5 rounded bg-violet-500/10 text-violet-400 font-medium cursor-default">
+                        <svg
+                          width="8"
+                          height="8"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2.5"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <circle cx="12" cy="12" r="3" />
+                          <line x1="3" y1="12" x2="9" y2="12" />
+                          <line x1="15" y1="12" x2="21" y2="12" />
+                        </svg>
+                        {commit.shortHash}
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent
+                      side="top"
+                      className="max-w-xs whitespace-pre-wrap"
+                    >
+                      <span className="font-medium">{commit.subject}</span>
+                      {commit.body?.trim() && (
+                        <>
+                          {"\n"}
+                          <span className="opacity-70 whitespace-pre-wrap">
+                            {commit.body.trim()}
+                          </span>
+                        </>
+                      )}
+                    </TooltipContent>
+                  </Tooltip>
+                ))}
+              </div>
+            )}
+
+            <p className="mt-0.5 text-[10px] text-muted-foreground">
+              {raw.status}
+              {raw.assignee && ` \u00b7 ${raw.assignee}`}
+              {raw.updatedAt && ` \u00b7 ${relativeTime(raw.updatedAt)}`}
+            </p>
+          </div>
+        )}
 
         {/* Hover actions */}
-        <div className="shrink-0 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div
+          className={cn(
+            "shrink-0 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity",
+            compact && "mt-0.5"
+          )}
+        >
           <a
             href={raw.url}
             target="_blank"
@@ -215,7 +267,7 @@ export function TicketItem({
               <line x1="10" y1="14" x2="21" y2="3" />
             </svg>
           </a>
-          {onAddToTray && (
+          {!compact && onAddToTray && (
             <button
               type="button"
               onClick={(e) => {
@@ -228,17 +280,19 @@ export function TicketItem({
               📎 Add
             </button>
           )}
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onStartChat();
-            }}
-            className="rounded px-2 py-0.5 text-[10px] font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
-            title="Start a chat about this issue"
-          >
-            ✦ Chat
-          </button>
+          {!compact && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onStartChat();
+              }}
+              className="rounded px-2 py-0.5 text-[10px] font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+              title="Start a chat about this issue"
+            >
+              ✦ Chat
+            </button>
+          )}
         </div>
       </div>
 
