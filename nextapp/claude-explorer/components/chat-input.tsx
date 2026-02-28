@@ -10,12 +10,14 @@ import {
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useState, useRef, useCallback } from "react";
 
+import type { ContextChip } from "@/lib/context-chips";
 import type { AttachedImage } from "@/lib/types";
 
 import { PromptStorePopover } from "@/components/prompt-store-popover";
 import { Button } from "@/components/ui/button";
 import { useInputDraft } from "@/hooks/use-input-draft";
 import { useSpeechToText } from "@/hooks/use-speech-to-text";
+import { getChipVisuals, resolveChipsToPrompt } from "@/lib/context-chips";
 import { cn } from "@/lib/utils";
 
 // ─── Image attachment constants ──────────────────────────────────────────────
@@ -58,16 +60,21 @@ export function ChatInput({
   disabled,
   isStreaming,
   storageKey,
+  initialChips,
 }: {
   onSend: (prompt: string, images?: AttachedImage[]) => void;
   onStop?: () => void;
   disabled?: boolean;
   isStreaming?: boolean;
   storageKey: string;
+  initialChips?: ContextChip[];
 }) {
   const { value, setValue, clearDraft } = useInputDraft(storageKey);
   const [focused, setFocused] = useState(false);
   const [attachedImages, setAttachedImages] = useState<AttachedImage[]>([]);
+  const [contextChips, setContextChips] = useState<ContextChip[]>(
+    initialChips ?? []
+  );
   const [isDragOver, setIsDragOver] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -129,13 +136,29 @@ export function ChatInput({
     setAttachedImages((prev) => [...prev, ...valid].slice(0, MAX_IMAGES));
   }, []);
 
+  const removeChip = useCallback((id: string) => {
+    setContextChips((prev) => prev.filter((c) => c.id !== id));
+  }, []);
+
   const handleSubmit = () => {
     const trimmed = value.trim();
-    if ((!trimmed && attachedImages.length === 0) || disabled || isStreaming)
+    if (
+      (!trimmed && attachedImages.length === 0 && contextChips.length === 0) ||
+      disabled ||
+      isStreaming
+    )
       return;
-    onSend(trimmed, attachedImages.length > 0 ? attachedImages : undefined);
+
+    // Resolve context chips into a prompt prefix
+    const contextPrefix = resolveChipsToPrompt(contextChips);
+    const finalPrompt = contextPrefix
+      ? `${contextPrefix}\n\n---\n\n${trimmed}`
+      : trimmed;
+
+    onSend(finalPrompt, attachedImages.length > 0 ? attachedImages : undefined);
     clearDraft();
     setAttachedImages([]);
+    setContextChips([]);
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
     }
@@ -210,7 +233,9 @@ export function ChatInput({
   }, []);
 
   const canSend =
-    !disabled && !isStreaming && (!!value.trim() || attachedImages.length > 0);
+    !disabled &&
+    !isStreaming &&
+    (!!value.trim() || attachedImages.length > 0 || contextChips.length > 0);
 
   return (
     <div
@@ -222,6 +247,37 @@ export function ChatInput({
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
+      {/* Context chip strip */}
+      {contextChips.length > 0 && (
+        <div className="flex gap-1.5 px-3 pt-2 flex-wrap">
+          {contextChips.map((chip) => {
+            const { icon, colorClass } = getChipVisuals(chip.type);
+            return (
+              <span
+                key={chip.id}
+                className="group/chip inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium bg-muted/50 transition-colors hover:bg-muted"
+              >
+                <HugeiconsIcon
+                  icon={icon}
+                  size={10}
+                  strokeWidth={1.5}
+                  className={colorClass}
+                />
+                <span className="truncate max-w-[120px]">{chip.label}</span>
+                <button
+                  type="button"
+                  onClick={() => removeChip(chip.id)}
+                  className="ml-0.5 text-muted-foreground/50 hover:text-foreground transition-colors"
+                  aria-label={`Remove ${chip.label}`}
+                >
+                  ✕
+                </button>
+              </span>
+            );
+          })}
+        </div>
+      )}
+
       {/* Image thumbnail strip */}
       {attachedImages.length > 0 && (
         <div className="flex gap-2 px-3 pt-2 flex-wrap">

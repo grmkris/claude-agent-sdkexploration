@@ -16,6 +16,7 @@ interface CommitItemProps {
   slug: string;
   compact?: boolean;
   onStartChat: () => void;
+  onAddToTray?: () => void;
   onViewExternal?: () => void;
   relatedDeployments?: DeploymentRaw[];
   relatedTickets?: TicketRaw[];
@@ -37,6 +38,7 @@ export function CommitItem({
   slug: _slug,
   compact,
   onStartChat,
+  onAddToTray,
   onViewExternal: _onViewExternal,
   relatedDeployments,
   relatedTickets,
@@ -373,6 +375,19 @@ export function CommitItem({
                 <line x1="12" y1="19" x2="20" y2="19" />
               </svg>
             </a>
+          )}
+          {!compact && onAddToTray && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onAddToTray();
+              }}
+              className="rounded px-2 py-0.5 text-[10px] font-medium border border-border hover:bg-muted transition-colors"
+              title="Add to context tray"
+            >
+              📎 Add
+            </button>
           )}
           {!compact && (
             <button

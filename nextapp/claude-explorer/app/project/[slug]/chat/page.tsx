@@ -4,6 +4,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, use, useEffect, useRef, useState } from "react";
 
+import type { ContextChip } from "@/lib/context-chips";
+
 import { ChatInput } from "@/components/chat-input";
 import {
   ChatSettingsBar,
@@ -29,10 +31,12 @@ type ForkParams = {
 function NewChatContent({
   slug,
   initialPrompt,
+  initialChips,
   forkParams,
 }: {
   slug: string;
   initialPrompt?: string;
+  initialChips?: ContextChip[];
   forkParams?: ForkParams;
 }) {
   const router = useRouter();
@@ -164,6 +168,7 @@ function NewChatContent({
         isStreaming={isStreaming}
         disabled={!data?.path}
         storageKey={`${slug}:new`}
+        initialChips={initialChips}
       />
     </div>
   );
@@ -179,6 +184,19 @@ function NewChatPageInner({ slug }: { slug: string }) {
   const newKey =
     searchParams.get("_new") ?? searchParams.get("_fork") ?? "initial";
   const initialPrompt = searchParams.get("prompt") ?? undefined;
+
+  // Context chips from query string (e.g. from "Ask Claude" file viewer button)
+  const chipsParam = searchParams.get("chips");
+  let initialChips: ContextChip[] | undefined;
+  if (chipsParam) {
+    try {
+      initialChips = (
+        JSON.parse(decodeURIComponent(chipsParam)) as Partial<ContextChip>[]
+      ).map((c) => ({ ...c, id: crypto.randomUUID() }) as ContextChip);
+    } catch {
+      // ignore malformed chips param
+    }
+  }
 
   // Fork params from query string
   const isFork = searchParams.get("_fork") === "1";
@@ -196,6 +214,7 @@ function NewChatPageInner({ slug }: { slug: string }) {
       key={newKey}
       slug={slug}
       initialPrompt={initialPrompt}
+      initialChips={initialChips}
       forkParams={forkParams}
     />
   );

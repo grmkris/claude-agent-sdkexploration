@@ -3,8 +3,9 @@
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
+import { useContextTray } from "@/components/context-tray/context-tray-context";
 import { getFileIcon } from "@/components/right-sidebar/file-type-icon";
 import { orpc } from "@/lib/orpc";
 import { cn } from "@/lib/utils";
@@ -27,6 +28,7 @@ function FileNode({
   expandedPaths,
   onToggle,
   onFileClick,
+  onFileContextMenu,
   depth,
   filter,
 }: {
@@ -38,6 +40,7 @@ function FileNode({
   expandedPaths: ExpandedPaths;
   onToggle: (path: string) => void;
   onFileClick: (path: string) => void;
+  onFileContextMenu: (e: React.MouseEvent, path: string, name: string) => void;
   depth: number;
   filter: string;
 }) {
@@ -76,6 +79,9 @@ function FileNode({
         )}
         style={{ paddingLeft: `${8 + depth * 12}px` }}
         onClick={handleClick}
+        onContextMenu={
+          !isDirectory ? (e) => onFileContextMenu(e, path, name) : undefined
+        }
       >
         <HugeiconsIcon
           icon={icon}
@@ -104,6 +110,7 @@ function FileNode({
               expandedPaths={expandedPaths}
               onToggle={onToggle}
               onFileClick={onFileClick}
+              onFileContextMenu={onFileContextMenu}
               depth={depth + 1}
               filter={filter}
             />
@@ -124,8 +131,15 @@ function FileNode({
 
 export function FileTreeTab({ slug }: { slug: string | null }) {
   const router = useRouter();
+  const { addChip } = useContextTray();
   const [expandedPaths, setExpandedPaths] = useState<ExpandedPaths>(new Set());
   const [filter, setFilter] = useState("");
+  const [contextMenu, setContextMenu] = useState<{
+    x: number;
+    y: number;
+    path: string;
+    name: string;
+  } | null>(null);
 
   const { data: rootEntries, isLoading } = useQuery({
     ...orpc.projects.files.queryOptions({ input: { slug: slug ?? "" } }),
@@ -152,6 +166,23 @@ export function FileTreeTab({ slug }: { slug: string | null }) {
     },
     [slug, router]
   );
+
+  const handleFileContextMenu = useCallback(
+    (e: React.MouseEvent, path: string, name: string) => {
+      e.preventDefault();
+      setContextMenu({ x: e.clientX, y: e.clientY, path, name });
+    },
+    []
+  );
+
+  useEffect(() => {
+    if (!contextMenu) return;
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setContextMenu(null);
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [contextMenu]);
 
   if (!slug) {
     return (
@@ -209,6 +240,7 @@ export function FileTreeTab({ slug }: { slug: string | null }) {
             expandedPaths={expandedPaths}
             onToggle={handleToggle}
             onFileClick={handleFileClick}
+            onFileContextMenu={handleFileContextMenu}
             depth={0}
             filter={filter}
           />
@@ -219,6 +251,67 @@ export function FileTreeTab({ slug }: { slug: string | null }) {
           </div>
         )}
       </div>
+
+      {/* Context menu */}
+      {contextMenu && (
+        <>
+          <div
+            className="fixed inset-0 z-[100]"
+            onClick={() => setContextMenu(null)}
+          />
+          <div
+            className="fixed z-[101] min-w-[180px] rounded-md border bg-popover p-1 shadow-md text-xs"
+            style={{ top: contextMenu.y, left: contextMenu.x }}
+          >
+            <button
+              type="button"
+              className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 hover:bg-accent transition-colors"
+              onClick={() => {
+                addChip({
+                  id: crypto.randomUUID(),
+                  type: "file",
+                  label: contextMenu.name,
+                  subtitle: contextMenu.path,
+                  filePath: contextMenu.path,
+                });
+                setContextMenu(null);
+              }}
+            >
+              📎 Add to context tray
+            </button>
+            <button
+              type="button"
+              className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 hover:bg-accent transition-colors"
+              onClick={() => {
+                const chips = JSON.stringify([
+                  {
+                    type: "file",
+                    filePath: contextMenu.path,
+                    label: contextMenu.name,
+                  },
+                ]);
+                router.push(
+                  `/project/${slug}/chat?chips=${encodeURIComponent(chips)}`
+                );
+                setContextMenu(null);
+              }}
+            >
+              ✦ Ask Claude about this file
+            </button>
+            <div className="my-1 border-t" />
+            <button
+              type="button"
+              className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 hover:bg-accent transition-colors"
+              onClick={() => {
+                void navigator.clipboard.writeText(contextMenu.path);
+                setContextMenu(null);
+              }}
+            >
+              Copy file path
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 }

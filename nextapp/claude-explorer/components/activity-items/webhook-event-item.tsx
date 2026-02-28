@@ -13,6 +13,7 @@ interface WebhookEventItemProps {
   raw: WebhookEventRaw;
   onOpen: () => void;
   onStartChat: () => void;
+  onAddToTray?: () => void;
 }
 
 const PROVIDER_COLORS: Record<string, string> = {
@@ -26,6 +27,7 @@ export function WebhookEventItem({
   raw,
   onOpen,
   onStartChat,
+  onAddToTray,
 }: WebhookEventItemProps) {
   const isError = raw.status === "error";
   const isRunning = raw.status === "running";
@@ -131,6 +133,19 @@ export function WebhookEventItem({
           className="shrink-0 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
           onClick={(e) => e.stopPropagation()}
         >
+          {onAddToTray && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onAddToTray();
+              }}
+              className="rounded px-2 py-0.5 text-[10px] font-medium border border-border hover:bg-muted transition-colors"
+              title="Add to context tray"
+            >
+              📎 Add
+            </button>
+          )}
           {raw.sessionId && (
             <button
               type="button"

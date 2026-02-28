@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 interface TicketItemProps {
   raw: TicketRaw;
   onStartChat: () => void;
+  onAddToTray?: () => void;
   relatedCommits?: CommitRaw[];
   /** Whether ticket is expanded inline (overview page) */
   isExpanded?: boolean;
@@ -33,6 +34,7 @@ const PRIORITY_ICON: Record<number, { icon: string; className: string }> = {
 export function TicketItem({
   raw,
   onStartChat,
+  onAddToTray,
   relatedCommits,
   isExpanded = false,
   onToggleExpand,
@@ -210,6 +212,19 @@ export function TicketItem({
               <line x1="10" y1="14" x2="21" y2="3" />
             </svg>
           </a>
+          {onAddToTray && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onAddToTray();
+              }}
+              className="rounded px-2 py-0.5 text-[10px] font-medium border border-border hover:bg-muted transition-colors"
+              title="Add to context tray"
+            >
+              📎 Add
+            </button>
+          )}
           <button
             type="button"
             onClick={(e) => {

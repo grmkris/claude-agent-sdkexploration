@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { AgentTabProvider } from "@/components/agent-tabs/tab-context";
+import { ContextTrayProvider } from "@/components/context-tray/context-tray-context";
 import { useLiveUpdates } from "@/hooks/use-live-updates";
 import { CompactProvider } from "@/lib/session-compact-context";
 
@@ -34,7 +35,9 @@ export function Providers({
     <QueryClientProvider client={queryClient}>
       <LiveUpdatesProvider>
         <AgentTabProvider defaultVisible={tabBarVisible}>
-          <CompactProvider>{children}</CompactProvider>
+          <CompactProvider>
+            <ContextTrayProvider>{children}</ContextTrayProvider>
+          </CompactProvider>
         </AgentTabProvider>
       </LiveUpdatesProvider>
     </QueryClientProvider>

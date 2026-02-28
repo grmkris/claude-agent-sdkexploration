@@ -14,12 +14,14 @@ interface CronEventItemProps {
   slug: string;
   onOpen: () => void;
   onStartChat: () => void;
+  onAddToTray?: () => void;
 }
 
 export function CronEventItem({
   raw,
   onOpen,
   onStartChat,
+  onAddToTray,
 }: CronEventItemProps) {
   const isError = raw.status === "error";
   const isRunning = raw.status === "running";
@@ -115,6 +117,19 @@ export function CronEventItem({
           className="shrink-0 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
           onClick={(e) => e.stopPropagation()}
         >
+          {onAddToTray && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onAddToTray();
+              }}
+              className="rounded px-2 py-0.5 text-[10px] font-medium border border-border hover:bg-muted transition-colors"
+              title="Add to context tray"
+            >
+              📎 Add
+            </button>
+          )}
           <button
             type="button"
             onClick={(e) => {

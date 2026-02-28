@@ -22,6 +22,7 @@ import { EmailEventItem } from "@/components/activity-items/email-event-item";
 import { TicketItem } from "@/components/activity-items/ticket-item";
 import { WebhookEventItem } from "@/components/activity-items/webhook-event-item";
 import { ChatContextSheet } from "@/components/chat-context-sheet";
+import { useContextTray } from "@/components/context-tray/context-tray-context";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useCommitExpand } from "@/hooks/use-commit-expand";
 import { orpc } from "@/lib/orpc";
@@ -461,6 +462,7 @@ export function ActivityFeed({
   initialTicketId?: string | null;
 }) {
   const router = useRouter();
+  const { addChip } = useContextTray();
 
   // Filter state — deployments excluded (they surface inline on commit badges)
   const [activeTypes, setActiveTypes] = useState<Set<ActivityItemType>>(
@@ -966,6 +968,15 @@ export function ActivityFeed({
                           slug={slug}
                           compact={mode === "navigate"}
                           onStartChat={() => handleStartChat(item)}
+                          onAddToTray={() =>
+                            addChip({
+                              id: crypto.randomUUID(),
+                              type: "commit",
+                              label: raw.subject,
+                              subtitle: raw.shortHash,
+                              raw,
+                            })
+                          }
                           relatedDeployments={commitToDeployments.get(raw.hash)}
                           relatedTickets={commitToTickets.get(raw.hash)}
                           isExpanded={isExpanded}
@@ -1022,6 +1033,15 @@ export function ActivityFeed({
                             }
                           }}
                           onStartChat={() => handleStartChat(item)}
+                          onAddToTray={() =>
+                            addChip({
+                              id: crypto.randomUUID(),
+                              type: "ticket",
+                              label: `${raw.identifier}: ${raw.title}`,
+                              subtitle: raw.status,
+                              raw,
+                            })
+                          }
                           relatedCommits={ticketToCommits.get(
                             raw.identifier.toUpperCase()
                           )}
@@ -1036,6 +1056,15 @@ export function ActivityFeed({
                           raw={raw}
                           onOpen={() => setDetailItem(item)}
                           onStartChat={() => handleStartChat(item)}
+                          onAddToTray={() =>
+                            addChip({
+                              id: crypto.randomUUID(),
+                              type: "email",
+                              label: raw.subject ?? "(no subject)",
+                              subtitle: `${raw.direction} · ${raw.from}`,
+                              raw,
+                            })
+                          }
                         />
                       );
                     }
@@ -1047,6 +1076,15 @@ export function ActivityFeed({
                           raw={raw}
                           onOpen={() => setDetailItem(item)}
                           onStartChat={() => handleStartChat(item)}
+                          onAddToTray={() =>
+                            addChip({
+                              id: crypto.randomUUID(),
+                              type: "webhook",
+                              label: `${raw.eventType}${raw.action ? ` · ${raw.action}` : ""}`,
+                              subtitle: raw.provider,
+                              raw,
+                            })
+                          }
                         />
                       );
                     }
@@ -1059,6 +1097,15 @@ export function ActivityFeed({
                           slug={slug}
                           onOpen={() => setDetailItem(item)}
                           onStartChat={() => handleStartChat(item)}
+                          onAddToTray={() =>
+                            addChip({
+                              id: crypto.randomUUID(),
+                              type: "cron",
+                              label: `Cron · ${raw.expression}`,
+                              subtitle: raw.status,
+                              raw,
+                            })
+                          }
                         />
                       );
                     }

@@ -3,13 +3,16 @@
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { use } from "react";
 
+import { useContextTray } from "@/components/context-tray/context-tray-context";
 import { FileViewer } from "@/components/file-viewer/file-viewer";
 import {
   getFileIcon,
   isBinaryFile,
 } from "@/components/right-sidebar/file-type-icon";
+import { Button } from "@/components/ui/button";
 import { orpc } from "@/lib/orpc";
 
 // Extensions that need a text content fetch (rendered via code/markdown viewers)
@@ -119,6 +122,9 @@ export default function FilePage({
 }: {
   params: Promise<{ slug: string; path: string[] }>;
 }) {
+  const router = useRouter();
+  const { addChip } = useContextTray();
+
   const { slug, path: pathSegments } = use(params);
   const filePath = pathSegments.join("/");
   const fileName = pathSegments.at(-1) ?? filePath;
@@ -162,21 +168,54 @@ export default function FilePage({
           className={colorClass}
         />
         <span className="font-mono text-sm text-foreground">{filePath}</span>
-        {textData && (
-          <span className="ml-auto text-xs text-muted-foreground">
-            {lines.length} lines ·{" "}
-            {formatSize(new Blob([textData.content]).size)}
-          </span>
-        )}
-        {(needsUrl || binary) && (
-          <a
-            href={fileSrc}
-            download={fileName}
-            className="ml-auto text-xs text-muted-foreground transition-colors hover:text-foreground"
+        <div className="ml-auto flex items-center gap-2">
+          {textData && (
+            <span className="text-xs text-muted-foreground">
+              {lines.length} lines ·{" "}
+              {formatSize(new Blob([textData.content]).size)}
+            </span>
+          )}
+          {(needsUrl || binary) && (
+            <a
+              href={fileSrc}
+              download={fileName}
+              className="text-xs text-muted-foreground transition-colors hover:text-foreground"
+            >
+              ↓ Download
+            </a>
+          )}
+          <Button
+            size="sm"
+            variant="ghost"
+            className="text-xs gap-1.5 h-7"
+            onClick={() => {
+              addChip({
+                id: crypto.randomUUID(),
+                type: "file",
+                label: fileName,
+                subtitle: filePath,
+                filePath,
+              });
+            }}
           >
-            ↓ Download
-          </a>
-        )}
+            📎 Add to tray
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="text-xs gap-1.5 h-7"
+            onClick={() => {
+              const chips = JSON.stringify([
+                { type: "file", filePath, label: fileName },
+              ]);
+              router.push(
+                `/project/${slug}/chat?chips=${encodeURIComponent(chips)}`
+              );
+            }}
+          >
+            ✦ Ask Claude
+          </Button>
+        </div>
       </div>
 
       {/* Content */}
