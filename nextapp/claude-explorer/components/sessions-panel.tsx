@@ -496,15 +496,18 @@ export function SessionsPanel({
       : "No sessions yet";
 
   return (
-    <SidebarGroupContent onMouseMove={handlePanelActivity} onMouseLeave={() => {
-      // Start the idle countdown immediately when the mouse leaves the panel
-      if (!idleTimerRef.current) {
-        idleTimerRef.current = setTimeout(() => {
-          isUserActiveRef.current = false;
-          setIdleTick((n) => n + 1);
-        }, IDLE_MS);
-      }
-    }}>
+    <SidebarGroupContent
+      onMouseMove={handlePanelActivity}
+      onMouseLeave={() => {
+        // Start the idle countdown immediately when the mouse leaves the panel
+        if (!idleTimerRef.current) {
+          idleTimerRef.current = setTimeout(() => {
+            isUserActiveRef.current = false;
+            setIdleTick((n) => n + 1);
+          }, IDLE_MS);
+        }
+      }}
+    >
       {/* Root-view toolbar: project filter dropdown + group-by toggle */}
       {isRootView && (
         <div className="px-2 pb-1.5 pt-0.5 flex items-center gap-1.5">
