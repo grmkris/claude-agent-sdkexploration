@@ -615,19 +615,27 @@ export function generateStackContextPrompt(stack: StackState): string {
   // Build framework-specific setup instructions
   const instructions = getSetupInstructions(stack);
 
+  const pm =
+    stack.packageManager === "npm"
+      ? "npm"
+      : stack.packageManager === "pnpm"
+        ? "pnpm"
+        : "bun";
+
   return [
-    `Bootstrap a new Better T Stack project with the following stack:`,
+    `This is a freshly scaffolded Better T Stack project with the following stack:`,
     "",
     stackList,
     "",
-    "## Setup Instructions",
+    "The project was just created with `bun create better-t-stack@latest`.",
+    "Dependencies have **not** been installed yet (`--no-install` was used).",
     "",
-    `Run the scaffolding command, then review the project structure and get it fully working.`,
+    "## Next Steps",
     "",
-    ...instructions,
-    "",
-    "Make sure all dependencies are installed and the project runs successfully.",
-    "Include a README.md describing the stack and how to run the project.",
+    `1. Install dependencies with \`${pm} install\`.`,
+    "2. Review the project structure and verify everything looks correct.",
+    ...instructions.map((line) => `   ${line}`),
+    "3. Make sure the project builds and runs successfully.",
   ].join("\n");
 }
 
