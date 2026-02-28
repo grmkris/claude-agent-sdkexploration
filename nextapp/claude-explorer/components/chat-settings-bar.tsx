@@ -1,15 +1,34 @@
 "use client";
 
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+export const MODELS = [
+  { value: "claude-haiku-4-5", label: "Haiku 4.5" },
+  { value: "claude-sonnet-4-5", label: "Sonnet 4.5" },
+  { value: "claude-opus-4-5", label: "Opus 4.5" },
+  { value: "claude-haiku-4-6", label: "Haiku 4.6" },
+  { value: "claude-sonnet-4-6", label: "Sonnet 4.6" },
+  { value: "claude-opus-4-6", label: "Opus 4.6" },
+] as const;
+
 export type ChatSettings = {
   thinkingEnabled: boolean;
   bypassPermissions: boolean;
   planMode: boolean;
+  model: string;
 };
 
 export const DEFAULT_CHAT_SETTINGS: ChatSettings = {
   thinkingEnabled: false,
   bypassPermissions: true,
   planMode: false,
+  model: "claude-sonnet-4-6",
 };
 
 // ---------------------------------------------------------------------------
@@ -94,7 +113,7 @@ export function ChatSettingsBar({
         </div>
       )}
 
-      <div className="flex items-center gap-1.5 px-3 py-1.5">
+      <div className="flex items-center gap-1.5 px-3 py-1.5 flex-wrap">
         {/* Thinking chip */}
         <ModeChip
           active={settings.thinkingEnabled}
@@ -188,6 +207,28 @@ export function ChatSettingsBar({
             </svg>
           }
         />
+
+        {/* Model selector */}
+        <div className="ml-auto">
+          <Select
+            value={settings.model}
+            onValueChange={(value) =>
+              onSettingsChange({ ...settings, model: value ?? settings.model })
+            }
+            disabled={disabled}
+          >
+            <SelectTrigger className="h-6 gap-1 rounded-full border border-transparent bg-muted/50 px-2.5 py-0.5 text-xs font-medium text-muted-foreground shadow-none hover:bg-muted hover:text-foreground focus:ring-0 data-[state=open]:bg-muted data-[state=open]:text-foreground [&>svg]:h-3 [&>svg]:w-3">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent align="end">
+              {MODELS.map((m) => (
+                <SelectItem key={m.value} value={m.value} className="text-xs">
+                  {m.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
     </div>
   );

@@ -65,7 +65,7 @@ export default async function RootLayout({
             <SidebarProvider defaultOpen={leftSidebarOpen}>
               <RightSidebarProvider defaultOpen={rightSidebarOpen}>
                 <ProjectSidebar />
-                <SidebarInset>
+                <SidebarInset className="overflow-hidden h-svh">
                   <AgentTabBar />
                   <div className="flex flex-1 flex-col overflow-hidden">
                     {children}

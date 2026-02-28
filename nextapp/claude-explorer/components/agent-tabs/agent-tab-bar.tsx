@@ -359,7 +359,7 @@ export function AgentTabBar() {
   return (
     <div
       data-slot="agent-tab-bar"
-      className="flex h-9 shrink-0 items-stretch border-b bg-background"
+      className="flex h-9 shrink-0 sticky top-0 z-10 items-stretch border-b bg-background"
     >
       {/* LEFT: sidebar trigger (mobile only; desktop uses the trigger inside the sidebar header) */}
       <div className="flex shrink-0 items-center gap-0.5 border-r border-border/50 px-1.5 md:hidden">
