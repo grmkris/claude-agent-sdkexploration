@@ -95,6 +95,13 @@ function normalizeDeployments(
   const deploysWidget = widgets.find((w) => w.id === "railway-deploys");
   if (!deploysWidget) return [];
 
+  // Build service-name → live URL map from the railway-services widget
+  const servicesWidget = widgets.find((w) => w.id === "railway-services");
+  const serviceUrlByName = new Map<string, string>();
+  for (const svc of servicesWidget?.items ?? []) {
+    if (svc.secondaryUrl) serviceUrlByName.set(svc.title, svc.secondaryUrl);
+  }
+
   return deploysWidget.items.map((item) => {
     const raw: DeploymentRaw = {
       id: item.id,
@@ -108,6 +115,7 @@ function normalizeDeployments(
         : undefined,
       dashboardUrl: item.url,
       githubUrl: item.secondaryUrl,
+      serviceUrl: serviceUrlByName.get(item.title),
     };
     return {
       id: `deploy:${item.id}`,
@@ -856,117 +864,121 @@ export function ActivityFeed({ slug }: { slug: string }) {
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
-      {/* Filter bar */}
-      <div className="flex flex-col gap-2 border-b px-3 py-2.5">
-        {/* Type filters */}
-        {availableTypes.size > 1 && (
-          <div className="flex flex-wrap items-center gap-1.5">
-            {availableTypes.has("commit") && (
-              <FilterChip
-                label="Commits"
-                active={activeTypes.has("commit")}
-                count={typeCount("commit")}
-                color="#8b5cf6"
-                onClick={() => toggleType("commit")}
-              />
-            )}
-            {availableTypes.has("deployment") && (
-              <FilterChip
-                label="Deployments"
-                active={activeTypes.has("deployment")}
-                count={typeCount("deployment")}
-                color="#22c55e"
-                onClick={() => toggleType("deployment")}
-              />
-            )}
-            {availableTypes.has("ticket") && (
-              <FilterChip
-                label="Tickets"
-                active={activeTypes.has("ticket")}
-                count={typeCount("ticket")}
-                color="#3b82f6"
-                onClick={() => toggleType("ticket")}
-              />
-            )}
-            {availableTypes.has("email") && (
-              <FilterChip
-                label="Emails"
-                active={activeTypes.has("email")}
-                count={typeCount("email")}
-                color="#6366f1"
-                onClick={() => toggleType("email")}
-              />
-            )}
-            {availableTypes.has("webhook") && (
-              <FilterChip
-                label="Webhooks"
-                active={activeTypes.has("webhook")}
-                count={typeCount("webhook")}
-                color="#f97316"
-                onClick={() => toggleType("webhook")}
-              />
-            )}
-            {availableTypes.has("cron") && (
-              <FilterChip
-                label="Crons"
-                active={activeTypes.has("cron")}
-                count={typeCount("cron")}
-                color="#14b8a6"
-                onClick={() => toggleType("cron")}
-              />
-            )}
+      {/* Filter bar — only render when there is something to show */}
+      {(availableTypes.size > 1 ||
+        (activeTypes.has("deployment") && deployStatuses.size > 1) ||
+        (activeTypes.has("ticket") && ticketStatuses.size > 1)) && (
+        <div className="flex flex-col gap-2 border-b px-3 py-2.5">
+          {/* Type filters */}
+          {availableTypes.size > 1 && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              {availableTypes.has("commit") && (
+                <FilterChip
+                  label="Commits"
+                  active={activeTypes.has("commit")}
+                  count={typeCount("commit")}
+                  color="#8b5cf6"
+                  onClick={() => toggleType("commit")}
+                />
+              )}
+              {availableTypes.has("deployment") && (
+                <FilterChip
+                  label="Deployments"
+                  active={activeTypes.has("deployment")}
+                  count={typeCount("deployment")}
+                  color="#22c55e"
+                  onClick={() => toggleType("deployment")}
+                />
+              )}
+              {availableTypes.has("ticket") && (
+                <FilterChip
+                  label="Tickets"
+                  active={activeTypes.has("ticket")}
+                  count={typeCount("ticket")}
+                  color="#3b82f6"
+                  onClick={() => toggleType("ticket")}
+                />
+              )}
+              {availableTypes.has("email") && (
+                <FilterChip
+                  label="Emails"
+                  active={activeTypes.has("email")}
+                  count={typeCount("email")}
+                  color="#6366f1"
+                  onClick={() => toggleType("email")}
+                />
+              )}
+              {availableTypes.has("webhook") && (
+                <FilterChip
+                  label="Webhooks"
+                  active={activeTypes.has("webhook")}
+                  count={typeCount("webhook")}
+                  color="#f97316"
+                  onClick={() => toggleType("webhook")}
+                />
+              )}
+              {availableTypes.has("cron") && (
+                <FilterChip
+                  label="Crons"
+                  active={activeTypes.has("cron")}
+                  count={typeCount("cron")}
+                  color="#14b8a6"
+                  onClick={() => toggleType("cron")}
+                />
+              )}
 
-            {/* Clear sub-filters */}
-            {(activeDeployStatuses.size > 0 ||
-              activeTicketStatuses.size > 0) && (
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveDeployStatuses(new Set());
-                  setActiveTicketStatuses(new Set());
-                }}
-                className="text-[11px] text-muted-foreground hover:text-foreground transition-colors ml-1"
-              >
-                Clear filters ×
-              </button>
-            )}
-          </div>
-        )}
+              {/* Clear sub-filters */}
+              {(activeDeployStatuses.size > 0 ||
+                activeTicketStatuses.size > 0) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveDeployStatuses(new Set());
+                    setActiveTicketStatuses(new Set());
+                  }}
+                  className="text-[11px] text-muted-foreground hover:text-foreground transition-colors ml-1"
+                >
+                  Clear filters ×
+                </button>
+              )}
+            </div>
+          )}
 
-        {/* Deployment status sub-filters */}
-        {activeTypes.has("deployment") && deployStatuses.size > 1 && (
-          <div className="flex flex-wrap items-center gap-1">
-            <span className="text-[10px] text-muted-foreground mr-0.5">
-              Status:
-            </span>
-            {Array.from(deployStatuses).map((s) => (
-              <FilterChip
-                key={s}
-                label={s.charAt(0) + s.slice(1).toLowerCase()}
-                active={activeDeployStatuses.has(s)}
-                onClick={() => toggleDeployStatus(s)}
-              />
-            ))}
-          </div>
-        )}
+          {/* Deployment status sub-filters */}
+          {activeTypes.has("deployment") && deployStatuses.size > 1 && (
+            <div className="flex flex-wrap items-center gap-1">
+              <span className="text-[10px] text-muted-foreground mr-0.5">
+                Status:
+              </span>
+              {Array.from(deployStatuses).map((s) => (
+                <FilterChip
+                  key={s}
+                  label={s.charAt(0) + s.slice(1).toLowerCase()}
+                  active={activeDeployStatuses.has(s)}
+                  onClick={() => toggleDeployStatus(s)}
+                />
+              ))}
+            </div>
+          )}
 
-        {/* Ticket status sub-filters */}
-        {activeTypes.has("ticket") && ticketStatuses.size > 1 && (
-          <div className="flex flex-wrap items-center gap-1">
-            <span className="text-[10px] text-muted-foreground mr-0.5">
-              Status:
-            </span>
-            {Array.from(ticketStatuses).map((s) => (
-              <FilterChip
-                key={s}
-                label={s}
-                active={activeTicketStatuses.has(s)}
-                onClick={() => toggleTicketStatus(s)}
-              />
-            ))}
-          </div>
-        )}
-      </div>
+          {/* Ticket status sub-filters */}
+          {activeTypes.has("ticket") && ticketStatuses.size > 1 && (
+            <div className="flex flex-wrap items-center gap-1">
+              <span className="text-[10px] text-muted-foreground mr-0.5">
+                Status:
+              </span>
+              {Array.from(ticketStatuses).map((s) => (
+                <FilterChip
+                  key={s}
+                  label={s}
+                  active={activeTicketStatuses.has(s)}
+                  onClick={() => toggleTicketStatus(s)}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Feed */}
       <TooltipProvider delay={400}>

@@ -26,6 +26,8 @@ export interface DeploymentRaw {
   commitHash?: string;
   dashboardUrl?: string;
   githubUrl?: string;
+  /** Live service URL, e.g. https://myapp.railway.app */
+  serviceUrl?: string;
 }
 
 export interface TicketRaw {
