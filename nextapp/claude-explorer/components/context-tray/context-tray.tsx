@@ -175,9 +175,6 @@ export function ContextTray() {
     [handleStartSession]
   );
 
-  // Don't render anything when empty
-  if (chipCount === 0 && !expanded) return null;
-
   // ── Collapsed pill ──────────────────────────────────────────────────────
 
   if (!expanded) {
@@ -187,21 +184,30 @@ export function ContextTray() {
         onClick={toggleExpanded}
         className={cn(
           "fixed bottom-6 right-6 z-50",
-          "flex items-center gap-2 rounded-full border bg-background px-3.5 py-2 shadow-lg",
+          "flex items-center gap-2 rounded-full border bg-background shadow-lg",
           "transition-all duration-200 hover:shadow-xl hover:bg-accent",
+          chipCount > 0
+            ? "px-3.5 py-2"
+            : "px-2.5 py-1.5 opacity-60 hover:opacity-100",
           flash && "ring-2 ring-primary/50 ring-offset-2 ring-offset-background"
         )}
       >
         <HugeiconsIcon
           icon={Attachment01Icon}
-          size={14}
+          size={chipCount > 0 ? 14 : 12}
           strokeWidth={1.5}
           className="text-muted-foreground"
         />
-        <span className="text-xs font-medium">
-          {chipCount} {chipCount === 1 ? "item" : "items"}
-        </span>
-        <span className="text-[10px] text-muted-foreground">Chat ▸</span>
+        {chipCount > 0 ? (
+          <>
+            <span className="text-xs font-medium">
+              {chipCount} {chipCount === 1 ? "item" : "items"}
+            </span>
+            <span className="text-[10px] text-muted-foreground">Chat ▸</span>
+          </>
+        ) : (
+          <span className="text-[10px] text-muted-foreground">Tray</span>
+        )}
       </button>
     );
   }
