@@ -79,6 +79,7 @@ function normalizeDeployments(
           url?: string;
           secondaryUrl?: string;
           secondaryLabel?: string;
+          logsUrl?: string;
           timestamp?: string;
         }[];
       }[]
@@ -109,6 +110,7 @@ function normalizeDeployments(
       dashboardUrl: item.url,
       githubUrl: item.secondaryUrl,
       serviceUrl: serviceUrlByName.get(item.title),
+      logsUrl: item.logsUrl,
     };
     return {
       id: `deploy:${item.id}`,
@@ -955,6 +957,7 @@ export function ActivityFeed({
                           key={item.id}
                           raw={raw}
                           slug={slug}
+                          compact={mode === "navigate"}
                           onStartChat={() => handleStartChat(item)}
                           relatedDeployments={commitToDeployments.get(raw.hash)}
                           relatedTickets={commitToTickets.get(raw.hash)}

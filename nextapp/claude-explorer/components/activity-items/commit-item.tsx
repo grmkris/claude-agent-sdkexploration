@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 interface CommitItemProps {
   raw: CommitRaw;
   slug: string;
+  compact?: boolean;
   onStartChat: () => void;
   onViewExternal?: () => void;
   relatedDeployments?: DeploymentRaw[];
@@ -34,6 +35,7 @@ interface CommitItemProps {
 export function CommitItem({
   raw,
   slug: _slug,
+  compact,
   onStartChat,
   onViewExternal: _onViewExternal,
   relatedDeployments,
@@ -54,7 +56,11 @@ export function CommitItem({
       <div
         className={cn(
           "flex items-start gap-2.5 px-3 py-2.5 cursor-pointer transition-colors",
-          isExpanded ? "bg-muted/20" : "hover:bg-muted/10"
+          compact
+            ? "hover:bg-muted/5"
+            : isExpanded
+              ? "bg-muted/20"
+              : "hover:bg-muted/10"
         )}
         onClick={onToggleExpand}
         role="button"
@@ -66,10 +72,12 @@ export function CommitItem({
           }
         }}
       >
-        {/* Chevron */}
-        <span className="mt-1 shrink-0 text-[10px] text-muted-foreground/60 w-2.5 text-center select-none">
-          {isExpanded ? "\u25BE" : "\u25B8"}
-        </span>
+        {/* Chevron — hidden in compact/sidebar mode */}
+        {!compact && (
+          <span className="mt-1 shrink-0 text-[10px] text-muted-foreground/60 w-2.5 text-center select-none">
+            {isExpanded ? "\u25BE" : "\u25B8"}
+          </span>
+        )}
 
         {/* Icon */}
         <div className="mt-0.5 shrink-0 flex h-5 w-5 items-center justify-center rounded-full bg-violet-500/10 text-violet-400">
@@ -252,9 +260,13 @@ export function CommitItem({
             </a>
           )}
           {/* Railway logs (first related deployment) */}
-          {relatedDeployments?.[0]?.dashboardUrl && (
+          {(relatedDeployments?.[0]?.logsUrl ||
+            relatedDeployments?.[0]?.dashboardUrl) && (
             <a
-              href={`${relatedDeployments[0].dashboardUrl}/logs`}
+              href={
+                relatedDeployments[0].logsUrl ??
+                relatedDeployments[0].dashboardUrl!
+              }
               target="_blank"
               rel="noopener noreferrer"
               onClick={(e) => e.stopPropagation()}
@@ -332,10 +344,10 @@ export function CommitItem({
               </a>
             )}
             {relatedDeployments?.map((dep) =>
-              dep.dashboardUrl ? (
+              dep.logsUrl || dep.dashboardUrl ? (
                 <a
                   key={dep.id}
-                  href={`${dep.dashboardUrl}/logs`}
+                  href={dep.logsUrl ?? dep.dashboardUrl!}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-purple-400 hover:text-purple-300 hover:underline inline-flex items-center gap-1"

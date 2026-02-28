@@ -28,6 +28,8 @@ export interface DeploymentRaw {
   githubUrl?: string;
   /** Live service URL, e.g. https://myapp.railway.app */
   serviceUrl?: string;
+  /** Railway logs URL with environment + service filter */
+  logsUrl?: string;
 }
 
 export interface TicketRaw {

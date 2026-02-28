@@ -69,6 +69,7 @@ interface DeploymentsResponse {
           staticUrl: string | null;
           meta: DeploymentMeta | null;
           service: { id: string; name: string } | null;
+          environment: { id: string } | null;
         };
       }[];
     };
@@ -160,6 +161,9 @@ const DEPLOYS_QUERY = gql`
             service {
               id
               name
+            }
+            environment {
+              id
             }
           }
         }
@@ -292,6 +296,14 @@ export class RailwayProvider implements IntegrationProvider {
           ? `https://railway.com/project/${projectId}/service/${serviceId}`
           : undefined;
 
+        // Logs URL → project-level logs filtered by environment + service
+        const envId = d.environment?.id;
+        const serviceName = d.service?.name;
+        const logsUrl =
+          envId && serviceName
+            ? `https://railway.com/project/${projectId}/logs?environmentId=${envId}&filter=${encodeURIComponent(`@service:"${serviceName}"`)}`
+            : undefined;
+
         // Secondary URL → GitHub commit link when available
         let secondaryUrl: string | undefined;
         let secondaryLabel: string | undefined;
@@ -309,6 +321,7 @@ export class RailwayProvider implements IntegrationProvider {
           url: dashboardUrl,
           secondaryUrl,
           secondaryLabel,
+          logsUrl,
           timestamp: d.createdAt,
         };
       });
