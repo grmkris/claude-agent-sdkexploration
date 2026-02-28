@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 
@@ -381,7 +382,13 @@ function FilterChip({
 // Empty state
 // ─────────────────────────────────────────────────────────────────────────────
 
-function EmptyState({ hasIntegrations }: { hasIntegrations: boolean }) {
+function EmptyState({
+  hasIntegrations,
+  slug,
+}: {
+  hasIntegrations: boolean;
+  slug: string;
+}) {
   if (!hasIntegrations) {
     return (
       <div className="flex flex-col items-center justify-center gap-2 py-16 px-6 text-center">
@@ -393,6 +400,12 @@ function EmptyState({ hasIntegrations }: { hasIntegrations: boolean }) {
           Connect Railway or Linear integrations to see deployments and tickets
           here alongside your git commits.
         </p>
+        <Link
+          href={`/project/${slug}/automations`}
+          className="mt-1 text-xs text-muted-foreground hover:text-foreground underline"
+        >
+          Add integration
+        </Link>
       </div>
     );
   }
@@ -954,7 +967,7 @@ export function ActivityFeed({
               ))}
             </div>
           ) : filteredItems.length === 0 ? (
-            <EmptyState hasIntegrations={hasIntegrations} />
+            <EmptyState hasIntegrations={hasIntegrations} slug={slug} />
           ) : (
             groupedItems.map(({ date, items }) => (
               <div key={date}>

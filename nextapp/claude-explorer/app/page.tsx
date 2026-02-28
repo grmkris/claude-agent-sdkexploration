@@ -306,7 +306,8 @@ function NewProjectForm({
         <div className="flex flex-col gap-2 rounded border border-dashed p-2">
           {githubIntegrations.length === 0 ? (
             <p className="text-[11px] text-muted-foreground">
-              No GitHub integrations configured. Add one in Settings.
+              No GitHub integrations configured. Add one from a project&apos;s
+              Automations tab.
             </p>
           ) : (
             <>

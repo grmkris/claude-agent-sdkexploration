@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 
+import { ProjectIntegrations } from "@/components/project-integrations";
 import { SidebarGroup, SidebarGroupContent } from "@/components/ui/sidebar";
 import { orpc } from "@/lib/orpc";
 
@@ -31,6 +32,11 @@ export function AutomationsTab({ slug }: { slug: string | null }) {
 
   return (
     <div className="flex flex-col gap-2 py-2">
+      {/* Integrations */}
+      <SidebarGroup>
+        <ProjectIntegrations slug={slug} />
+      </SidebarGroup>
+
       {/* Crons */}
       <SidebarGroup>
         <div className="flex items-center justify-between px-2 pb-1">
