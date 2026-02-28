@@ -1273,6 +1273,7 @@ export interface McpServerConfig {
   args?: string[];
   url?: string;
   env?: Record<string, string>;
+  headers?: Record<string, string>;
 }
 
 export async function inspectMcpTools(
@@ -1304,12 +1305,22 @@ export async function inspectMcpTools(
     const { StreamableHTTPClientTransport } =
       await import("@modelcontextprotocol/sdk/client/streamableHttp.js");
     if (!serverConfig.url) throw new Error("No URL specified for http server");
-    mcpTransport = new StreamableHTTPClientTransport(new URL(serverConfig.url));
+    mcpTransport = new StreamableHTTPClientTransport(
+      new URL(serverConfig.url),
+      serverConfig.headers
+        ? { requestInit: { headers: serverConfig.headers } }
+        : {}
+    );
   } else if (transport === "sse") {
     const { SSEClientTransport } =
       await import("@modelcontextprotocol/sdk/client/sse.js");
     if (!serverConfig.url) throw new Error("No URL specified for sse server");
-    mcpTransport = new SSEClientTransport(new URL(serverConfig.url));
+    mcpTransport = new SSEClientTransport(
+      new URL(serverConfig.url),
+      serverConfig.headers
+        ? { requestInit: { headers: serverConfig.headers } }
+        : {}
+    );
   } else {
     throw new Error(`Unsupported transport: ${transport}`);
   }

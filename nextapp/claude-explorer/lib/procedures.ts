@@ -3063,15 +3063,17 @@ const addMcpServerProc = os
       args: z.array(z.string()).optional(),
       url: z.string().optional(),
       env: z.record(z.string(), z.string()).optional(),
+      headers: z.record(z.string(), z.string()).optional(),
       slug: z.string().optional(),
     })
   )
   .output(z.object({ success: z.boolean(), error: z.string().optional() }))
   .handler(async ({ input }) => {
-    const cliArgs: string[] = ["mcp", "add", "--scope", input.scope];
+    const hasEnv = input.env && Object.keys(input.env).length > 0;
+    const hasHeaders = input.headers && Object.keys(input.headers).length > 0;
 
-    if (input.env && Object.keys(input.env).length > 0) {
-      // Use add-json for env vars since CLI doesn't support env via flags easily
+    if (hasEnv || hasHeaders) {
+      // Use add-json for env vars / headers since CLI doesn't support these via flags
       const jsonConfig: Record<string, unknown> = { type: input.transport };
       if (input.transport === "stdio") {
         jsonConfig.command = input.command;
@@ -3079,7 +3081,8 @@ const addMcpServerProc = os
       } else {
         jsonConfig.url = input.url;
       }
-      jsonConfig.env = input.env;
+      if (hasEnv) jsonConfig.env = input.env;
+      if (hasHeaders) jsonConfig.headers = input.headers;
 
       const addJsonArgs = [
         "mcp",
@@ -3097,6 +3100,7 @@ const addMcpServerProc = os
       return runClaudeCli(addJsonArgs, cwd);
     }
 
+    const cliArgs: string[] = ["mcp", "add", "--scope", input.scope];
     cliArgs.push("--transport", input.transport);
     cliArgs.push(input.name);
 
@@ -3184,6 +3188,7 @@ const inspectToolsProc = os
         args: cfg.args as string[] | undefined,
         url: cfg.url as string | undefined,
         env: cfg.env as Record<string, string> | undefined,
+        headers: cfg.headers as Record<string, string> | undefined,
       });
 
       return { tools };

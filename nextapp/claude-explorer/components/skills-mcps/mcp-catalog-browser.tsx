@@ -92,6 +92,22 @@ export function McpCatalogBrowser({
             )
           : undefined;
 
+      // For http/sse servers with headersTemplate, interpolate env values into headers
+      let headers: Record<string, string> | undefined;
+      if (entry.headersTemplate && Object.keys(envValues).length > 0) {
+        headers = {};
+        for (const [key, tmpl] of Object.entries(entry.headersTemplate)) {
+          headers[key] = tmpl.replace(
+            /\{\{(\w+)\}\}/g,
+            (_, varName) => envValues[varName] ?? ""
+          );
+        }
+      }
+
+      // For http/sse servers with headersTemplate, pass headers instead of env
+      // (env values were only needed to construct the headers)
+      const useHeaders = entry.transport !== "stdio" && headers;
+
       return client.mcpServers.add({
         name: entry.id,
         scope,
@@ -100,7 +116,8 @@ export function McpCatalogBrowser({
           ? { command: entry.command, args: entry.args }
           : {}),
         ...(entry.transport !== "stdio" ? { url: entry.url } : {}),
-        ...(env && Object.keys(env).length > 0 ? { env } : {}),
+        ...(!useHeaders && env && Object.keys(env).length > 0 ? { env } : {}),
+        ...(useHeaders ? { headers } : {}),
         ...(scope !== "user" && effectiveSlug ? { slug: effectiveSlug } : {}),
       });
     },

@@ -24,6 +24,19 @@ function parseEnv(text: string): Record<string, string> {
   return env;
 }
 
+function parseHeaders(text: string): Record<string, string> {
+  const headers: Record<string, string> = {};
+  for (const line of text.split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const colon = trimmed.indexOf(":");
+    if (colon > 0) {
+      headers[trimmed.slice(0, colon).trim()] = trimmed.slice(colon + 1).trim();
+    }
+  }
+  return headers;
+}
+
 export function AddMcpForm({
   slug,
   defaultScope,
@@ -53,12 +66,17 @@ export function AddMcpForm({
   const [selectedSlug, setSelectedSlug] = useState(slug ?? "");
   const [envText, setEnvText] = useState("");
   const [showEnv, setShowEnv] = useState(false);
+  const [headersText, setHeadersText] = useState("");
+  const [showHeaders, setShowHeaders] = useState(false);
 
   const effectiveSlug = slug ?? selectedSlug;
 
   const add = useMutation({
     mutationFn: () => {
       const env = envText.trim() ? parseEnv(envText) : undefined;
+      const headers = headersText.trim()
+        ? parseHeaders(headersText)
+        : undefined;
       return client.mcpServers.add({
         name,
         scope,
@@ -68,6 +86,7 @@ export function AddMcpForm({
           : {}),
         ...(transport !== "stdio" ? { url } : {}),
         ...(env && Object.keys(env).length > 0 ? { env } : {}),
+        ...(headers && Object.keys(headers).length > 0 ? { headers } : {}),
         ...(scope !== "user" && effectiveSlug ? { slug: effectiveSlug } : {}),
       });
     },
@@ -93,6 +112,8 @@ export function AddMcpForm({
       setUrl("");
       setEnvText("");
       setShowEnv(false);
+      setHeadersText("");
+      setShowHeaders(false);
       onDone?.();
     },
   });
@@ -150,6 +171,23 @@ export function AddMcpForm({
             placeholder={"KEY=value\nANOTHER=value"}
             value={envText}
             onChange={(e) => setEnvText(e.target.value)}
+            rows={2}
+            className="rounded border bg-background px-2 py-1 text-[10px] font-mono placeholder:text-muted-foreground focus:outline-none"
+          />
+        )}
+        {transport !== "stdio" && !showHeaders && (
+          <button
+            onClick={() => setShowHeaders(true)}
+            className="text-left text-[10px] text-muted-foreground hover:text-foreground"
+          >
+            + Headers
+          </button>
+        )}
+        {transport !== "stdio" && showHeaders && (
+          <textarea
+            placeholder={"Authorization: Bearer token\nX-Custom: value"}
+            value={headersText}
+            onChange={(e) => setHeadersText(e.target.value)}
             rows={2}
             className="rounded border bg-background px-2 py-1 text-[10px] font-mono placeholder:text-muted-foreground focus:outline-none"
           />
@@ -273,6 +311,24 @@ export function AddMcpForm({
           />
         )}
       </div>
+      {transport !== "stdio" && (
+        <div>
+          <button
+            onClick={() => setShowHeaders(!showHeaders)}
+            className="text-xs text-muted-foreground hover:text-foreground"
+          >
+            {showHeaders ? "Hide headers" : "+ Headers (optional)"}
+          </button>
+          {showHeaders && (
+            <textarea
+              placeholder={"Authorization: Bearer token\nX-Custom: value"}
+              value={headersText}
+              onChange={(e) => setHeadersText(e.target.value)}
+              className="mt-1 w-full min-h-[60px] rounded border bg-background px-3 py-2 text-sm font-mono"
+            />
+          )}
+        </div>
+      )}
       <Button
         size="sm"
         className="w-fit"

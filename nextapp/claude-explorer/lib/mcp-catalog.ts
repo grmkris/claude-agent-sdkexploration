@@ -68,6 +68,8 @@ export interface McpCatalogEntry {
   args?: string[];
   url?: string;
   envTemplate?: Record<string, string>;
+  /** For http/sse servers: maps env template values into HTTP headers via {{VAR}} interpolation */
+  headersTemplate?: Record<string, string>;
   docsUrl?: string;
   authNote?: string;
 }
@@ -114,9 +116,11 @@ export const MCP_CATALOG: McpCatalogEntry[] = [
     emoji: "📐",
     category: "pm",
     transport: "http",
-    url: "https://mcp.linear.app/sse",
+    url: "https://mcp.linear.app/mcp",
+    envTemplate: { LINEAR_API_KEY: "" },
+    headersTemplate: { Authorization: "Bearer {{LINEAR_API_KEY}}" },
     docsUrl: "https://linear.app/docs",
-    authNote: "Authenticates via browser on first use",
+    authNote: "Requires a Linear API key (Settings → Account → API Keys)",
   },
   {
     id: "shadcn",
