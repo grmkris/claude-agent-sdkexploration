@@ -5,7 +5,6 @@ import { useQuery } from "@tanstack/react-query";
 import { ActivityFeed } from "@/components/activity-feed";
 import { WorktreeInfoSection } from "@/components/right-sidebar/worktree-info-section";
 import { TmuxSessionsPanel } from "@/components/tmux-sessions-panel";
-import { SidebarGroup, SidebarGroupContent } from "@/components/ui/sidebar";
 import { orpc } from "@/lib/orpc";
 
 // ── Tmux: active sessions list ───────────────────────────────────────────────
@@ -14,14 +13,9 @@ function TmuxSection({ slug }: { slug: string }) {
   const { data: projects } = useQuery(orpc.projects.list.queryOptions());
   const project = projects?.find((p) => p.slug === slug);
 
-  return (
-    <SidebarGroup>
-      {/* Active sessions list — returns null when empty */}
-      <SidebarGroupContent>
-        <TmuxSessionsPanel filterProjectPath={project?.path} />
-      </SidebarGroupContent>
-    </SidebarGroup>
-  );
+  // TmuxSessionsPanel returns null when there are no sessions — no wrapper
+  // div here so we don't leave behind padded empty space.
+  return <TmuxSessionsPanel filterProjectPath={project?.path} />;
 }
 
 // ── Main export ──────────────────────────────────────────────────────────────
