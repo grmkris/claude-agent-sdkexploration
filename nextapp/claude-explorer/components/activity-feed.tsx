@@ -18,7 +18,6 @@ import type {
 import { ActivityDetailSheet } from "@/components/activity-detail-sheet";
 import { CommitItem } from "@/components/activity-items/commit-item";
 import { CronEventItem } from "@/components/activity-items/cron-event-item";
-import { DeploymentItem } from "@/components/activity-items/deployment-item";
 import { EmailEventItem } from "@/components/activity-items/email-event-item";
 import { TicketItem } from "@/components/activity-items/ticket-item";
 import { WebhookEventItem } from "@/components/activity-items/webhook-event-item";
@@ -923,17 +922,6 @@ export function ActivityFeed({ slug }: { slug: string }) {
                           onStartChat={() => handleStartChat(item)}
                           relatedDeployments={commitToDeployments.get(raw.hash)}
                           relatedTickets={commitToTickets.get(raw.hash)}
-                        />
-                      );
-                    }
-                    case "deployment": {
-                      const raw = item.raw as DeploymentRaw;
-                      return (
-                        <DeploymentItem
-                          key={item.id}
-                          raw={raw}
-                          onStartChat={() => handleStartChat(item)}
-                          relatedCommit={deploymentToCommit.get(raw.id)}
                         />
                       );
                     }
