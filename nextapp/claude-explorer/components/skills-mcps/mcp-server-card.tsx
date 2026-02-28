@@ -77,7 +77,8 @@ export function McpServerCard({
       : "bg-green-400"
     : "bg-muted-foreground/30";
 
-  const canRemove = !isSystem && (scope === "local" || scope === "project");
+  const canRemove =
+    !isSystem && (scope === "local" || scope === "project" || scope === "user");
 
   const handleToggle = () => {
     if (expanded) {
