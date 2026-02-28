@@ -92,9 +92,6 @@ export function generateCliCommand(stack: StackState): {
   // No install — let the user decide in the project
   args.push("--no-install");
 
-  // Skip interactive prompts
-  args.push("--yes");
-
   const command: "bun" | "npx" | "pnpm" =
     stack.packageManager === "npm"
       ? "npx"
