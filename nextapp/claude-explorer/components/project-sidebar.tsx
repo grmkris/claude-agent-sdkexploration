@@ -149,6 +149,20 @@ function ProjectHeader({ slug }: { slug: string }) {
           sideOffset={4}
           className="w-56 p-1.5"
         >
+          {/* Home / All Projects */}
+          <button
+            onClick={() => router.push("/")}
+            className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-xs transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+          >
+            <HugeiconsIcon
+              icon={Home01Icon}
+              size={12}
+              strokeWidth={2}
+              className="shrink-0 text-muted-foreground"
+            />
+            <span className="flex-1 text-left">All Projects</span>
+          </button>
+          <div className="my-1 border-t border-border" />
           {/* Search */}
           <input
             type="text"
