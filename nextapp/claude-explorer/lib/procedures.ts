@@ -54,6 +54,7 @@ import {
   getGitCommitDiff,
   getGitWorktrees,
   gitClone,
+  runShellCommand,
 } from "./claude-fs";
 import { sendEmail } from "./email";
 import {
@@ -1339,6 +1340,12 @@ const createProjectProc = os
       skills: z.array(z.string()).optional(),
       cloneIntegrationId: z.string().optional(),
       cloneUrl: z.string().optional(),
+      bootstrapCommand: z
+        .object({
+          command: z.enum(["bun", "npx", "pnpm"]),
+          args: z.array(z.string()),
+        })
+        .optional(),
     })
   )
   .output(
@@ -1364,7 +1371,23 @@ const createProjectProc = os
     }
     const projectPath = join(input.parentDir, input.name);
 
-    if (input.cloneUrl && input.cloneIntegrationId) {
+    if (input.bootstrapCommand) {
+      // Validate that args look like a create command for safety
+      const firstArg = input.bootstrapCommand.args[0];
+      if (!firstArg?.startsWith("create")) {
+        throw new Error("Bootstrap args must start with 'create'");
+      }
+      // The CLI creates the directory — run from parentDir
+      const result = await runShellCommand(
+        input.bootstrapCommand.command,
+        input.bootstrapCommand.args,
+        input.parentDir,
+        180_000 // 3 minute timeout for scaffolding
+      );
+      if (!result.success) {
+        throw new Error(`Bootstrap failed: ${result.error}`);
+      }
+    } else if (input.cloneUrl && input.cloneIntegrationId) {
       // Resolve token server-side — never exposed to the client
       const all = await getIntegrations();
       const integration = all.find((i) => i.id === input.cloneIntegrationId);

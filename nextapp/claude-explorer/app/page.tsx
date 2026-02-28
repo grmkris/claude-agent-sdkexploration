@@ -5,12 +5,19 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 
+import type { StackState } from "@/components/stack-builder";
 import type { TmuxPane } from "@/lib/types";
 
 import { CopyButton } from "@/components/copy-button";
 import { PlusIcon, StarIcon, StarFilledIcon } from "@/components/icons";
 import { ResumeSessionPopover } from "@/components/resume-session-popover";
 import { StateBadgeInline } from "@/components/session-state-badge";
+import {
+  StackBuilderPanel,
+  generateStackContextPrompt,
+  inferMcpsForStack,
+  inferSkillsForStack,
+} from "@/components/stack-builder";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -25,6 +32,8 @@ import { PROJECT_TEMPLATES } from "@/lib/mcp-catalog";
 import { orpc } from "@/lib/orpc";
 import { client } from "@/lib/orpc-client";
 import { getTimeAgo } from "@/lib/utils";
+
+type CreationMode = "templates" | "stackBuilder" | "clone";
 
 /**
  * Finds the best-matching registered project slug for a given working directory.
@@ -96,6 +105,14 @@ function NewProjectForm({
   const [initialPrompt, setInitialPrompt] = useState("");
   const [selectedTemplate, setSelectedTemplate] = useState("blank");
   const [selectedMcps, setSelectedMcps] = useState<string[]>([]);
+  const [mode, setMode] = useState<CreationMode>("templates");
+
+  // Stack Builder state
+  const [stackBuilderCommand, setStackBuilderCommand] = useState<{
+    command: "bun" | "npx" | "pnpm";
+    args: string[];
+  } | null>(null);
+  const [currentStack, setCurrentStack] = useState<StackState | null>(null);
 
   // Clone-from-GitHub state
   const [cloneEnabled, setCloneEnabled] = useState(false);
@@ -154,13 +171,21 @@ function NewProjectForm({
     }
   }
 
-  function handleToggleClone() {
-    const next = !cloneEnabled;
-    setCloneEnabled(next);
-    if (!next) {
+  function handleModeChange(newMode: CreationMode) {
+    setMode(newMode);
+    // Reset clone state when switching away from clone
+    if (newMode !== "clone") {
+      setCloneEnabled(false);
       setSelectedIntegrationId("");
       setSelectedRepo(null);
       setRepoSearch("");
+    } else {
+      setCloneEnabled(true);
+    }
+    // Reset stack builder state when switching away
+    if (newMode !== "stackBuilder") {
+      setStackBuilderCommand(null);
+      setCurrentStack(null);
     }
   }
 
@@ -170,62 +195,114 @@ function NewProjectForm({
   }
 
   const createProject = useMutation({
-    mutationFn: () =>
-      client.projects.create({
+    mutationFn: () => {
+      // Determine MCPs and skills: from template or inferred from stack
+      const mcps =
+        mode === "stackBuilder" && currentStack
+          ? inferMcpsForStack(currentStack)
+          : selectedMcps;
+      const skills =
+        mode === "stackBuilder" && currentStack
+          ? inferSkillsForStack(currentStack)
+          : [];
+
+      return client.projects.create({
         parentDir: defaultParent,
         name,
-        ...(initialPrompt ? { initialPrompt } : {}),
-        ...(selectedMcps.length ? { mcps: selectedMcps } : {}),
-        ...(cloneEnabled && selectedRepo && selectedIntegrationId
+        ...(mode === "templates" && initialPrompt ? { initialPrompt } : {}),
+        ...(mcps.length ? { mcps } : {}),
+        ...(skills.length ? { skills } : {}),
+        ...(mode === "stackBuilder" && stackBuilderCommand
+          ? { bootstrapCommand: stackBuilderCommand }
+          : {}),
+        ...(mode === "clone" && selectedRepo && selectedIntegrationId
           ? {
               cloneUrl: selectedRepo.cloneUrl,
               cloneIntegrationId: selectedIntegrationId,
             }
           : {}),
-      }),
-    onSuccess: (result) => onCreated(result.slug, initialPrompt || undefined),
+      });
+    },
+    onSuccess: (result) => {
+      const prompt =
+        mode === "stackBuilder" && currentStack
+          ? generateStackContextPrompt(currentStack)
+          : initialPrompt || undefined;
+      onCreated(result.slug, prompt);
+    },
   });
+
+  const isCreateDisabled =
+    !name ||
+    createProject.isPending ||
+    (mode === "clone" && !selectedRepo) ||
+    (mode === "stackBuilder" && !stackBuilderCommand);
 
   return (
     <div className="flex flex-col gap-2 rounded border p-3">
-      {/* Template selector */}
-      <div className="flex gap-1.5 overflow-x-auto pb-0.5">
-        {PROJECT_TEMPLATES.map((tpl) => (
+      {/* Mode selector */}
+      <div className="flex gap-1.5">
+        {(
+          [
+            { key: "templates", label: "Templates", icon: "📄" },
+            { key: "stackBuilder", label: "Stack Builder", icon: "🔧" },
+            { key: "clone", label: "Clone from GitHub", icon: "🐙" },
+          ] as const
+        ).map((m) => (
           <button
-            key={tpl.id}
-            onClick={() => applyTemplate(tpl.id)}
-            className={`flex shrink-0 flex-col items-start gap-0.5 rounded border px-2.5 py-1.5 text-left transition-colors ${
-              selectedTemplate === tpl.id
+            key={m.key}
+            type="button"
+            onClick={() => handleModeChange(m.key)}
+            className={`flex items-center gap-1 rounded border px-2.5 py-1 text-[11px] transition-colors ${
+              mode === m.key
                 ? "border-primary bg-primary/10 text-foreground"
                 : "border-border text-muted-foreground hover:border-primary/50 hover:text-foreground"
             }`}
           >
-            <span className="text-base leading-none">{tpl.emoji}</span>
-            <span className="text-[11px] font-medium leading-tight">
-              {tpl.name}
-            </span>
-            <span className="text-[10px] leading-tight opacity-70">
-              {tpl.description}
-            </span>
+            <span>{m.icon}</span>
+            {m.label}
           </button>
         ))}
       </div>
 
-      {/* Clone from GitHub toggle */}
-      <button
-        type="button"
-        onClick={handleToggleClone}
-        className={`self-start rounded border px-2.5 py-1 text-[11px] transition-colors ${
-          cloneEnabled
-            ? "border-primary bg-primary/10 text-foreground"
-            : "border-border text-muted-foreground hover:border-primary/50 hover:text-foreground"
-        }`}
-      >
-        Clone from GitHub
-      </button>
+      {/* Templates mode */}
+      {mode === "templates" && (
+        <div className="flex gap-1.5 overflow-x-auto pb-0.5">
+          {PROJECT_TEMPLATES.map((tpl) => (
+            <button
+              key={tpl.id}
+              onClick={() => applyTemplate(tpl.id)}
+              className={`flex shrink-0 flex-col items-start gap-0.5 rounded border px-2.5 py-1.5 text-left transition-colors ${
+                selectedTemplate === tpl.id
+                  ? "border-primary bg-primary/10 text-foreground"
+                  : "border-border text-muted-foreground hover:border-primary/50 hover:text-foreground"
+              }`}
+            >
+              <span className="text-base leading-none">{tpl.emoji}</span>
+              <span className="text-[11px] font-medium leading-tight">
+                {tpl.name}
+              </span>
+              <span className="text-[10px] leading-tight opacity-70">
+                {tpl.description}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
 
-      {/* Clone panel */}
-      {cloneEnabled && (
+      {/* Stack Builder mode */}
+      {mode === "stackBuilder" && (
+        <StackBuilderPanel
+          projectName={name}
+          onStackChange={(stack, cmd) => {
+            setCurrentStack(stack);
+            setStackBuilderCommand(cmd);
+          }}
+        />
+      )}
+
+      {/* Clone from GitHub mode */}
+      {mode === "clone" && (
         <div className="flex flex-col gap-2 rounded border border-dashed p-2">
           {githubIntegrations.length === 0 ? (
             <p className="text-[11px] text-muted-foreground">
@@ -323,6 +400,7 @@ function NewProjectForm({
         </div>
       )}
 
+      {/* Project name — always visible */}
       <Input
         placeholder="Project name"
         value={name}
@@ -333,30 +411,61 @@ function NewProjectForm({
       <p className="text-[10px] text-muted-foreground">
         Will be created in: {defaultParent}
       </p>
-      <textarea
-        placeholder="Initial prompt (optional)"
-        value={initialPrompt}
-        onChange={(e) => setInitialPrompt(e.target.value)}
-        rows={2}
-        className="rounded border bg-background px-3 py-2 text-xs placeholder:text-muted-foreground"
-      />
-      {selectedMcps.length > 0 && (
+
+      {/* Initial prompt — only for templates and clone modes */}
+      {mode !== "stackBuilder" && (
+        <textarea
+          placeholder="Initial prompt (optional)"
+          value={initialPrompt}
+          onChange={(e) => setInitialPrompt(e.target.value)}
+          rows={2}
+          className="rounded border bg-background px-3 py-2 text-xs placeholder:text-muted-foreground"
+        />
+      )}
+
+      {/* MCP info — for templates mode */}
+      {mode === "templates" && selectedMcps.length > 0 && (
         <p className="text-[10px] text-muted-foreground">
           MCPs to install: {selectedMcps.join(", ")}
         </p>
       )}
+
+      {/* MCP + Skills info — for stack builder mode */}
+      {mode === "stackBuilder" &&
+        currentStack &&
+        (() => {
+          const mcps = inferMcpsForStack(currentStack);
+          const skills = inferSkillsForStack(currentStack);
+          return (
+            <>
+              {mcps.length > 0 && (
+                <p className="text-[10px] text-muted-foreground">
+                  MCPs: {mcps.join(", ")}
+                </p>
+              )}
+              {skills.length > 0 && (
+                <p className="text-[10px] text-muted-foreground">
+                  Skills: {skills.map((s) => s.split("/").pop()).join(", ")}
+                </p>
+              )}
+            </>
+          );
+        })()}
+
       <Button
         size="sm"
-        disabled={
-          !name || createProject.isPending || (cloneEnabled && !selectedRepo)
-        }
+        disabled={isCreateDisabled}
         onClick={() => createProject.mutate()}
       >
         {createProject.isPending
-          ? cloneEnabled
+          ? mode === "clone"
             ? "Cloning…"
-            : "Creating…"
-          : "Create"}
+            : mode === "stackBuilder"
+              ? "Scaffolding…"
+              : "Creating…"
+          : mode === "stackBuilder"
+            ? "Scaffold & Create"
+            : "Create"}
       </Button>
       {createProject.isError && (
         <span className="text-[10px] text-destructive">

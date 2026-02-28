@@ -1215,6 +1215,50 @@ export async function runClaudeCli(
   }
 }
 
+// --- Shell Command Execution ---
+
+/**
+ * Run an arbitrary shell command (used for bootstrap scaffolding like
+ * `bun create better-t-stack@latest`). Uses Bun.spawn array form to avoid
+ * shell injection. Returns a result object matching runClaudeCli's shape.
+ */
+export async function runShellCommand(
+  command: string,
+  args: string[],
+  cwd: string,
+  timeoutMs = 180_000
+): Promise<{ success: boolean; output?: string; error?: string }> {
+  try {
+    const proc = Bun.spawn([command, ...args], {
+      cwd,
+      stdout: "pipe",
+      stderr: "pipe",
+      env: process.env,
+    });
+
+    const timer = setTimeout(() => proc.kill(), timeoutMs);
+    const [stdout, stderr] = await Promise.all([
+      new Response(proc.stdout).text(),
+      new Response(proc.stderr).text(),
+    ]);
+    clearTimeout(timer);
+
+    const exitCode = await proc.exited;
+    if (exitCode !== 0) {
+      return {
+        success: false,
+        error: stderr || stdout || `Exit code ${exitCode}`,
+      };
+    }
+    return { success: true, output: stdout };
+  } catch (e) {
+    return {
+      success: false,
+      error: e instanceof Error ? e.message : "Command execution failed",
+    };
+  }
+}
+
 // --- MCP Tool Inspection ---
 
 export interface McpTool {
