@@ -234,6 +234,16 @@ export function GitTab({ slug }: { slug: string | null }) {
     onError: (e) => setError(String(e)),
   });
 
+  const unstageAllMutation = useMutation({
+    mutationFn: () => client.projects.gitUnstageAll({ slug: slug! }),
+    onSuccess: (data) => {
+      if (!data.success) setError(data.output);
+      else setError(null);
+      invalidateGit();
+    },
+    onError: (e) => setError(String(e)),
+  });
+
   // --- Handlers: changes view ---
   const handleFileClick = async (filePath: string) => {
     if (expandedFile === filePath) {
@@ -309,7 +319,10 @@ export function GitTab({ slug }: { slug: string | null }) {
   };
 
   // --- Early returns ---
-  const isBusy = pullMutation.isPending || stageAllMutation.isPending;
+  const isBusy =
+    pullMutation.isPending ||
+    stageAllMutation.isPending ||
+    unstageAllMutation.isPending;
 
   if (!slug) {
     return (
@@ -373,6 +386,16 @@ export function GitTab({ slug }: { slug: string | null }) {
           >
             {stageAllMutation.isPending ? "Staging…" : "Stage All"}
           </button>
+          {gitStatus.hasStagedChanges && (
+            <button
+              type="button"
+              disabled={isBusy}
+              onClick={() => unstageAllMutation.mutate()}
+              className="rounded bg-muted px-2 py-0.5 text-[10px] font-medium text-foreground transition-colors hover:bg-muted/80 disabled:opacity-50"
+            >
+              {unstageAllMutation.isPending ? "Unstaging…" : "Unstage All"}
+            </button>
+          )}
           {hasChanges && !hasConflicts && (
             <>
               <button

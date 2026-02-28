@@ -49,6 +49,7 @@ import {
   getGitFileDiff,
   gitPull,
   gitStageAll,
+  gitUnstageAll,
   getGitLog,
   getGitCommitFiles,
   getGitCommitDiff,
@@ -3549,6 +3550,7 @@ const gitStatusProc = os
       isRepo: z.boolean(),
       branch: z.string(),
       changes: z.array(z.object({ path: z.string(), status: z.string() })),
+      hasStagedChanges: z.boolean(),
     })
   )
   .handler(async ({ input }) => {
@@ -3568,6 +3570,9 @@ const gitLogProc = os
           body: z.string(),
           author: z.string(),
           date: z.string(),
+          filesChanged: z.number().optional(),
+          insertions: z.number().optional(),
+          deletions: z.number().optional(),
         })
       ),
     })
@@ -3608,6 +3613,14 @@ const gitStageAllProc = os
   .handler(async ({ input }) => {
     const projectPath = await resolveSlugToPath(input.slug);
     return gitStageAll(projectPath);
+  });
+
+const gitUnstageAllProc = os
+  .input(z.object({ slug: z.string() }))
+  .output(z.object({ success: z.boolean(), output: z.string() }))
+  .handler(async ({ input }) => {
+    const projectPath = await resolveSlugToPath(input.slug);
+    return gitUnstageAll(projectPath);
   });
 
 const gitCommitFilesProc = os
@@ -3786,6 +3799,7 @@ export const router = {
     gitDiff: gitDiffProc,
     gitPull: gitPullProc,
     gitStageAll: gitStageAllProc,
+    gitUnstageAll: gitUnstageAllProc,
     gitCommitFiles: gitCommitFilesProc,
     gitCommitDiff: gitCommitDiffProc,
     gitWorktrees: gitWorktreesProc,

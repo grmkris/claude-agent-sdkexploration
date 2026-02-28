@@ -330,6 +330,25 @@ export function CommitItem({
 
             <p className="mt-0.5 text-[10px] text-muted-foreground">
               {raw.author} &middot; {relativeTime(raw.date)}
+              {raw.filesChanged != null && raw.filesChanged > 0 && (
+                <>
+                  {" "}
+                  &middot;{" "}
+                  <span className="inline-flex items-center gap-0.5 font-mono bg-muted px-1 rounded">
+                    {raw.filesChanged} file{raw.filesChanged !== 1 ? "s" : ""}
+                    {raw.insertions != null && raw.insertions > 0 && (
+                      <span className="text-green-400 ml-0.5">
+                        +{raw.insertions}
+                      </span>
+                    )}
+                    {raw.deletions != null && raw.deletions > 0 && (
+                      <span className="text-red-400 ml-0.5">
+                        -{raw.deletions}
+                      </span>
+                    )}
+                  </span>
+                </>
+              )}
             </p>
           </div>
         )}
@@ -438,8 +457,8 @@ export function CommitItem({
             </div>
           )}
 
-          {/* Quick links bar */}
-          <div className="flex items-center gap-3 px-4 py-1.5 border-b border-border/30 text-[10px]">
+          {/* Quick links bar — grouped per service */}
+          <div className="flex items-center gap-2 px-4 py-1.5 border-b border-border/30 text-[10px] flex-wrap">
             {githubRepoUrl && (
               <a
                 href={`${githubRepoUrl}/commit/${raw.hash}`}
@@ -463,66 +482,98 @@ export function CommitItem({
                   <polyline points="15 3 21 3 21 9" />
                   <line x1="10" y1="14" x2="21" y2="3" />
                 </svg>
-                View on GitHub
+                GitHub
               </a>
             )}
-            {relatedDeployments?.map((dep) =>
-              dep.logsUrl || dep.dashboardUrl ? (
-                <a
+
+            {/* Per-service mini-cards */}
+            {relatedDeployments?.map((dep) => {
+              const isFailed =
+                dep.status === "FAILED" || dep.status === "CRASHED";
+              const isLive = dep.status === "SUCCESS";
+              const isBuilding =
+                dep.status === "DEPLOYING" || dep.status === "BUILDING";
+              const dotColor = isFailed
+                ? "#f87171"
+                : isLive
+                  ? "#4ade80"
+                  : isBuilding
+                    ? "#facc15"
+                    : "#6b7280";
+              const hasLinks =
+                dep.logsUrl || dep.dashboardUrl || dep.serviceUrl;
+              if (!hasLinks) return null;
+
+              return (
+                <span
                   key={dep.id}
-                  href={dep.logsUrl ?? dep.dashboardUrl!}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-purple-400 hover:text-purple-300 hover:underline inline-flex items-center gap-1"
-                  onClick={(e) => e.stopPropagation()}
+                  className="inline-flex items-center gap-1.5 rounded border border-border/30 bg-muted/20 px-2 py-0.5"
                 >
-                  <svg
-                    width="8"
-                    height="8"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className="shrink-0"
-                  >
-                    <polyline points="4 17 10 11 4 5" />
-                    <line x1="12" y1="19" x2="20" y2="19" />
-                  </svg>
-                  {dep.serviceName} logs
-                </a>
-              ) : null
-            )}
-            {relatedDeployments?.map((dep) =>
-              dep.serviceUrl ? (
-                <a
-                  key={`svc-${dep.id}`}
-                  href={dep.serviceUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-green-400 hover:text-green-300 hover:underline inline-flex items-center gap-1"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <svg
-                    width="8"
-                    height="8"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className="shrink-0"
-                  >
-                    <circle cx="12" cy="12" r="10" />
-                    <line x1="2" y1="12" x2="22" y2="12" />
-                    <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
-                  </svg>
-                  {dep.serviceName}
-                </a>
-              ) : null
-            )}
+                  <span
+                    className={cn(
+                      "h-1.5 w-1.5 rounded-full shrink-0",
+                      isBuilding && "animate-pulse"
+                    )}
+                    style={{ backgroundColor: dotColor }}
+                  />
+                  <span className="text-[10px] text-foreground/80 font-medium">
+                    {dep.serviceName}
+                  </span>
+                  <span className="text-border/50">|</span>
+                  {(dep.logsUrl || dep.dashboardUrl) && (
+                    <a
+                      href={dep.logsUrl ?? dep.dashboardUrl!}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-purple-400 hover:text-purple-300 hover:underline inline-flex items-center gap-0.5"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <svg
+                        width="8"
+                        height="8"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className="shrink-0"
+                      >
+                        <polyline points="4 17 10 11 4 5" />
+                        <line x1="12" y1="19" x2="20" y2="19" />
+                      </svg>
+                      logs
+                    </a>
+                  )}
+                  {dep.serviceUrl && (
+                    <a
+                      href={dep.serviceUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-green-400 hover:text-green-300 hover:underline inline-flex items-center gap-0.5"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <svg
+                        width="8"
+                        height="8"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className="shrink-0"
+                      >
+                        <circle cx="12" cy="12" r="10" />
+                        <line x1="2" y1="12" x2="22" y2="12" />
+                        <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+                      </svg>
+                      live
+                    </a>
+                  )}
+                </span>
+              );
+            })}
           </div>
 
           {/* Files list */}

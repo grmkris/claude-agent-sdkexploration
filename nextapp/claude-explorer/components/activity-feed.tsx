@@ -41,6 +41,9 @@ function normalizeCommits(
         body: string;
         author: string;
         date: string;
+        filesChanged?: number;
+        insertions?: number;
+        deletions?: number;
       }[]
     | undefined
 ): ActivityItem[] {
@@ -53,6 +56,9 @@ function normalizeCommits(
       body: c.body,
       author: c.author,
       date: c.date,
+      filesChanged: c.filesChanged,
+      insertions: c.insertions,
+      deletions: c.deletions,
     };
     return {
       id: `commit:${c.hash}`,

@@ -14,6 +14,9 @@ export interface CommitRaw {
   author: string;
   date: string;
   branch?: string;
+  filesChanged?: number;
+  insertions?: number;
+  deletions?: number;
 }
 
 export interface DeploymentRaw {

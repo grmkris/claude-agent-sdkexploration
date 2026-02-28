@@ -247,6 +247,7 @@ export type GitStatus = {
   isRepo: boolean;
   branch: string;
   changes: GitStatusChange[];
+  hasStagedChanges: boolean;
 };
 
 export async function getGitStatus(projectPath: string): Promise<GitStatus> {
@@ -255,17 +256,24 @@ export async function getGitStatus(projectPath: string): Promise<GitStatus> {
       Bun.$`git -C ${projectPath} status --porcelain`.text(),
       Bun.$`git -C ${projectPath} branch --show-current`.text(),
     ]);
-    const changes = statusOut
-      .trim()
-      .split("\n")
-      .filter(Boolean)
-      .map((line) => ({
-        status: line.slice(0, 2).trim(),
-        path: line.slice(3).trim(),
-      }));
-    return { isRepo: true, branch: branchOut.trim(), changes };
+    const lines = statusOut.trim().split("\n").filter(Boolean);
+    const changes = lines.map((line) => ({
+      status: line.slice(0, 2).trim(),
+      path: line.slice(3).trim(),
+    }));
+    // Check if any file has a staged change (first char of porcelain is non-space, non-?)
+    const hasStagedChanges = lines.some((line) => {
+      const indexChar = line[0];
+      return indexChar !== " " && indexChar !== "?";
+    });
+    return {
+      isRepo: true,
+      branch: branchOut.trim(),
+      changes,
+      hasStagedChanges,
+    };
   } catch {
-    return { isRepo: false, branch: "", changes: [] };
+    return { isRepo: false, branch: "", changes: [], hasStagedChanges: false };
   }
 }
 
@@ -356,6 +364,17 @@ export async function gitStageAll(
   }
 }
 
+export async function gitUnstageAll(
+  projectPath: string
+): Promise<{ success: boolean; output: string }> {
+  try {
+    const output = await Bun.$`git -C ${projectPath} reset HEAD .`.text();
+    return { success: true, output: output.trim() || "All changes unstaged" };
+  } catch (e: any) {
+    return { success: false, output: e?.stderr?.toString?.() ?? String(e) };
+  }
+}
+
 export async function gitCommit(
   projectPath: string,
   message: string
@@ -403,6 +422,9 @@ export type GitLogEntry = {
   body: string;
   author: string;
   date: string;
+  filesChanged?: number;
+  insertions?: number;
+  deletions?: number;
 };
 
 export type GitCommitFile = {
@@ -420,10 +442,44 @@ export async function getGitLog(
     const SEP_F = "\x1f";
     const SEP_R = "\x1e";
     const fmt = `--format=%H${SEP_F}%s${SEP_F}%aN${SEP_F}%aI${SEP_F}%b${SEP_R}`;
-    const raw =
-      await Bun.$`git -C ${projectPath} log ${`--max-count=${limit}`} ${fmt}`
+
+    // Run metadata + shortstat in parallel for file counts
+    const [raw, shortstatRaw] = await Promise.all([
+      Bun.$`git -C ${projectPath} log ${`--max-count=${limit}`} ${fmt}`
         .quiet()
-        .text();
+        .text(),
+      Bun.$`git -C ${projectPath} log ${`--max-count=${limit}`} --format=%H --shortstat`
+        .quiet()
+        .text(),
+    ]);
+
+    // Parse shortstat into a map: hash → { filesChanged, insertions, deletions }
+    const shortstatMap = new Map<
+      string,
+      { filesChanged: number; insertions: number; deletions: number }
+    >();
+    const SHORTSTAT_RE =
+      /(\d+) files? changed(?:, (\d+) insertions?\(\+\))?(?:, (\d+) deletions?\(-\))?/;
+    const shortstatLines = shortstatRaw.trim().split("\n");
+    let currentHash = "";
+    for (const line of shortstatLines) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      // If the line looks like a 40-char hex hash, it's a commit hash
+      if (/^[0-9a-f]{40}$/.test(trimmed)) {
+        currentHash = trimmed;
+      } else if (currentHash) {
+        const match = trimmed.match(SHORTSTAT_RE);
+        if (match) {
+          shortstatMap.set(currentHash, {
+            filesChanged: parseInt(match[1], 10) || 0,
+            insertions: parseInt(match[2], 10) || 0,
+            deletions: parseInt(match[3], 10) || 0,
+          });
+        }
+        currentHash = "";
+      }
+    }
 
     const records = raw
       .split(SEP_R)
@@ -436,14 +492,21 @@ export async function getGitLog(
       if (parts.length < 4) continue;
       const [hash, subject, author, date, ...rest] = parts;
       const body = rest.join(SEP_F).trim();
-      if (!hash?.trim()) continue;
+      const h = hash?.trim();
+      if (!h) continue;
+      const stats = shortstatMap.get(h);
       entries.push({
-        hash: hash.trim(),
-        shortHash: hash.trim().slice(0, 7),
+        hash: h,
+        shortHash: h.slice(0, 7),
         subject: subject?.trim() ?? "",
         body,
         author: author?.trim() ?? "",
         date: date?.trim() ?? "",
+        ...(stats && {
+          filesChanged: stats.filesChanged,
+          insertions: stats.insertions,
+          deletions: stats.deletions,
+        }),
       });
     }
     return entries;
