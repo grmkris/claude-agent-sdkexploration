@@ -33,6 +33,7 @@ export function SessionCard({
   isFavorite,
   onToggleFavorite,
   onArchive,
+  onFork,
   compact,
   projectLabel,
   tmuxPane,
@@ -44,6 +45,7 @@ export function SessionCard({
   isFavorite?: boolean;
   onToggleFavorite?: () => void;
   onArchive?: () => void;
+  onFork?: (sessionId: string) => void;
   compact?: boolean;
   projectLabel?: string;
   tmuxPane?: TmuxPane;
@@ -148,6 +150,7 @@ export function SessionCard({
                   resumeCommand: session.resumeCommand,
                 }}
                 onArchive={onArchive}
+                onFork={onFork}
                 triggerClassName="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
               />
             </div>

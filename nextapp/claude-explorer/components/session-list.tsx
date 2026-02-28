@@ -1,7 +1,8 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useCallback, useMemo, useState } from "react";
 
 import { Skeleton } from "@/components/ui/skeleton";
 import { orpc } from "@/lib/orpc";
@@ -10,6 +11,7 @@ import { client } from "@/lib/orpc-client";
 import { SessionCard } from "./session-card";
 
 export function SessionList({ projectSlug }: { projectSlug: string }) {
+  const router = useRouter();
   const queryClient = useQueryClient();
   const { data: sessions, isLoading } = useQuery({
     ...orpc.sessions.list.queryOptions({ input: { slug: projectSlug } }),
@@ -62,6 +64,16 @@ export function SessionList({ projectSlug }: { projectSlug: string }) {
       });
     },
   });
+
+  const handleFork = useCallback(
+    (sessionId: string) => {
+      const forkId = crypto.randomUUID();
+      router.push(
+        `/project/${projectSlug}/chat?_fork=1&parentSessionId=${sessionId}&forkSessionId=${forkId}`
+      );
+    },
+    [router, projectSlug]
+  );
 
   // --- Archived section ---
   const [showArchived, setShowArchived] = useState(false);
@@ -121,6 +133,7 @@ export function SessionList({ projectSlug }: { projectSlug: string }) {
             isFavorite={favorites?.sessions.includes(session.id)}
             onToggleFavorite={() => toggleSession.mutate(session.id)}
             onArchive={() => archiveSession.mutate(session.id)}
+            onFork={handleFork}
             facet={f}
           />
         );
@@ -175,6 +188,7 @@ export function SessionList({ projectSlug }: { projectSlug: string }) {
                   isFavorite={favorites?.sessions.includes(session.id)}
                   onToggleFavorite={() => toggleSession.mutate(session.id)}
                   onArchive={() => unarchiveSession.mutate(session.id)}
+                  onFork={handleFork}
                   facet={f}
                 />
               );

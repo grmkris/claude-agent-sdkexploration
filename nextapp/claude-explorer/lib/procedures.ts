@@ -562,7 +562,8 @@ function cleanupPendingAnswers(sessionId: string) {
 function buildPromptArg(
   prompt: string,
   resume: string | undefined,
-  images: { base64: string; mediaType: string }[] | undefined
+  images: { base64: string; mediaType: string }[] | undefined,
+  forkSessionId?: string
 ): string | AsyncIterable<SDKUserMessage> {
   // Resume-only ping (empty prompt, no images): reattach the stream without
   // injecting a real user turn into the conversation. isSynthetic:true tells
@@ -578,7 +579,9 @@ function buildPromptArg(
         },
         parent_tool_use_id: null,
         isSynthetic: true,
-        session_id: resume,
+        // When forking, use the fork's session ID so the synthetic message
+        // is recorded in the new forked session, not the parent.
+        session_id: forkSessionId ?? resume,
       } satisfies SDKUserMessage;
     })();
   }
@@ -763,7 +766,12 @@ const chatProc = os
       }
 
       const conversation = query({
-        prompt: buildPromptArg(input.prompt, input.resume, input.images),
+        prompt: buildPromptArg(
+          input.prompt,
+          input.resume,
+          input.images,
+          input.forkSessionId
+        ),
         options: {
           model: input.model ?? "claude-opus-4-6",
           executable: "bun",
@@ -1926,7 +1934,12 @@ const rootChatProc = os
       }
 
       const conversation = query({
-        prompt: buildPromptArg(input.prompt, input.resume, input.images),
+        prompt: buildPromptArg(
+          input.prompt,
+          input.resume,
+          input.images,
+          input.forkSessionId
+        ),
         options: {
           model: input.model ?? "claude-opus-4-6",
           executable: "bun",

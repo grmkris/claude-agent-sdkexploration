@@ -69,6 +69,9 @@ export function useRootChatStream(
   const streamingRef = useRef(false);
   const toolProgressRef = useRef<Map<string, ToolProgressEntry>>(new Map());
   const abortRef = useRef<AbortController | null>(null);
+  // Tracks whether the initial fork send() has completed, so subsequent
+  // sends use the forked session ID instead of the parent's.
+  const didFork = useRef(false);
 
   const stop = useCallback(() => {
     abortRef.current?.abort();
@@ -124,10 +127,19 @@ export function useRootChatStream(
 
       void (async () => {
         try {
+          // Fork params should only be sent on the FIRST send(). After that,
+          // subsequent sends resume the newly-forked session normally.
+          const isForking = !!(opts?.forkSession && !didFork.current);
+
           const iterator = await client.rootChat(
             {
               prompt,
-              resume: opts?.resume ?? sessionId ?? undefined,
+              // When forking: resume the PARENT session (opts.resume) so the
+              // SDK can branch from it. After fork completes: prefer the React
+              // sessionId state (the forked child ID from the init message).
+              resume: isForking
+                ? opts.resume
+                : (sessionId ?? opts?.resume ?? undefined),
               images: images?.map((img) => ({
                 base64: img.base64,
                 mediaType: img.mediaType,
@@ -139,11 +151,12 @@ export function useRootChatStream(
               ...(opts?.enabledOptionalMcps?.length
                 ? { enabledOptionalMcps: opts.enabledOptionalMcps }
                 : {}),
-              ...(opts?.forkSession ? { forkSession: true } : {}),
-              ...(opts?.resumeSessionAt
+              // Only include fork-specific params on the initial fork send
+              ...(isForking ? { forkSession: true } : {}),
+              ...(isForking && opts?.resumeSessionAt
                 ? { resumeSessionAt: opts.resumeSessionAt }
                 : {}),
-              ...(opts?.forkSessionId
+              ...(isForking && opts?.forkSessionId
                 ? { forkSessionId: opts.forkSessionId }
                 : {}),
             },
@@ -164,6 +177,12 @@ export function useRootChatStream(
             );
           }
 
+          // Mark fork as completed so subsequent sends use the forked
+          // session ID (from React state) instead of the parent's.
+          if (opts?.forkSession) {
+            didFork.current = true;
+          }
+
           if (streamingRef.current) {
             setIsStreaming(false);
             streamingRef.current = false;
@@ -182,9 +201,8 @@ export function useRootChatStream(
       opts?.permissionMode,
       opts?.model,
       opts?.enabledOptionalMcps,
-      opts?.forkSession,
-      opts?.resumeSessionAt,
-      opts?.forkSessionId,
+      // Fork params are intentionally omitted — they are only consumed on
+      // the first send() and gated by the didFork ref.
     ]
   );
 
