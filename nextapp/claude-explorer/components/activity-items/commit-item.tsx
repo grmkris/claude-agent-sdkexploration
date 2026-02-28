@@ -520,9 +520,9 @@ export function CommitItem({
                     {dep.serviceName}
                   </span>
                   <span className="text-border/50">|</span>
-                  {(dep.logsUrl || dep.dashboardUrl) && (
+                  {dep.logsUrl && (
                     <a
-                      href={dep.logsUrl ?? dep.dashboardUrl!}
+                      href={dep.logsUrl}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-purple-400 hover:text-purple-300 hover:underline inline-flex items-center gap-0.5"
@@ -569,6 +569,32 @@ export function CommitItem({
                         <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
                       </svg>
                       live
+                    </a>
+                  )}
+                  {dep.dashboardUrl && (
+                    <a
+                      href={dep.dashboardUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-muted-foreground hover:text-foreground hover:underline inline-flex items-center gap-0.5"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <svg
+                        width="8"
+                        height="8"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className="shrink-0"
+                      >
+                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                        <polyline points="15 3 21 3 21 9" />
+                        <line x1="10" y1="14" x2="21" y2="3" />
+                      </svg>
+                      railway
                     </a>
                   )}
                 </span>
