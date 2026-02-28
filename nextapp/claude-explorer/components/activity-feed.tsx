@@ -977,6 +977,15 @@ export function ActivityFeed({
                               raw,
                             })
                           }
+                          onAddDeploymentToTray={(dep) =>
+                            addChip({
+                              id: crypto.randomUUID(),
+                              type: "deployment",
+                              label: `${dep.serviceName} · ${dep.status}`,
+                              subtitle: dep.commitMessage ?? dep.id,
+                              raw: dep,
+                            })
+                          }
                           relatedDeployments={commitToDeployments.get(raw.hash)}
                           relatedTickets={commitToTickets.get(raw.hash)}
                           isExpanded={isExpanded}

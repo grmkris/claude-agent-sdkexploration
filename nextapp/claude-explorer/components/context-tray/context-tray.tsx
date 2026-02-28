@@ -4,10 +4,12 @@ import {
   Attachment01Icon,
   Cancel01Icon,
   Delete02Icon,
+  SendHorizontal,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { useAgentTabs } from "@/components/agent-tabs/tab-context";
 import { TrayChipRow } from "@/components/context-tray/tray-chip-row";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -28,10 +30,15 @@ export function ContextTray() {
     removeChip,
     clearChips,
     startSession,
+    sendToExistingSession,
+    mountedSessionIds,
   } = useContextTray();
+
+  const { tabs } = useAgentTabs();
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [prompt, setPrompt] = useState("");
+  const [showSessionMenu, setShowSessionMenu] = useState(false);
 
   // Track previous chip count for flash animation
   const prevCountRef = useRef(chipCount);
@@ -58,18 +65,34 @@ export function ContextTray() {
     if (!expanded) return;
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
-        setExpanded(false);
+        if (showSessionMenu) {
+          setShowSessionMenu(false);
+        } else {
+          setExpanded(false);
+        }
       }
     };
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [expanded, setExpanded]);
+  }, [expanded, setExpanded, showSessionMenu]);
 
   const handleStartSession = useCallback(() => {
     if (chipCount === 0) return;
     startSession(prompt.trim());
     setPrompt("");
   }, [chipCount, prompt, startSession]);
+
+  const handleSendToSession = useCallback(
+    (sessionId: string) => {
+      if (chipCount === 0) return;
+      const sent = sendToExistingSession(sessionId, prompt.trim());
+      if (sent) {
+        setPrompt("");
+        setShowSessionMenu(false);
+      }
+    },
+    [chipCount, prompt, sendToExistingSession]
+  );
 
   // Handle Cmd/Ctrl+Enter to send
   const handleKeyDown = useCallback(
@@ -80,6 +103,15 @@ export function ContextTray() {
       }
     },
     [handleStartSession]
+  );
+
+  // ── Session tabs that have a sessionId (for the dropdown) ─────────────────
+
+  const sessionTabs = tabs.filter((t) => t.type === "session" && t.sessionId);
+
+  const mountedSet = new Set(mountedSessionIds);
+  const hasMountedSessions = sessionTabs.some(
+    (t) => t.sessionId && mountedSet.has(t.sessionId)
   );
 
   // Don't render anything when empty
@@ -197,14 +229,66 @@ export function ContextTray() {
             {chipCount} {chipCount === 1 ? "item" : "items"} attached
             {prompt.trim() ? " · ⌘↵ to send" : ""}
           </span>
-          <Button
-            size="sm"
-            className="h-7 text-xs gap-1"
-            disabled={chipCount === 0}
-            onClick={handleStartSession}
-          >
-            ✦ Start Session
-          </Button>
+          <div className="relative flex items-center gap-1">
+            {/* Send to existing session button (only if sessions exist) */}
+            {hasMountedSessions && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 text-xs gap-1 px-2"
+                disabled={chipCount === 0}
+                onClick={() => setShowSessionMenu((v) => !v)}
+                title="Send to open session"
+              >
+                <HugeiconsIcon icon={SendHorizontal} size={12} />▾
+              </Button>
+            )}
+            <Button
+              size="sm"
+              className="h-7 text-xs gap-1"
+              disabled={chipCount === 0}
+              onClick={handleStartSession}
+            >
+              ✦ Start Session
+            </Button>
+
+            {/* Session dropdown menu */}
+            {showSessionMenu && (
+              <>
+                {/* Backdrop */}
+                <div
+                  className="fixed inset-0 z-[60]"
+                  onClick={() => setShowSessionMenu(false)}
+                />
+                <div className="absolute bottom-full right-0 mb-1 z-[61] w-64 rounded-md border bg-popover p-1 shadow-lg">
+                  <div className="px-2 py-1 text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
+                    Send to open session
+                  </div>
+                  {sessionTabs.map((tab) => {
+                    if (!tab.sessionId) return null;
+                    const isMounted = mountedSet.has(tab.sessionId);
+                    if (!isMounted) return null;
+                    return (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        onClick={() => handleSendToSession(tab.sessionId!)}
+                        className={cn(
+                          "flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs transition-colors",
+                          "hover:bg-accent"
+                        )}
+                      >
+                        <span className="h-1.5 w-1.5 rounded-full bg-green-400 shrink-0" />
+                        <span className="min-w-0 flex-1 truncate">
+                          {tab.title}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
     </div>

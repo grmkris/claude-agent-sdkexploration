@@ -6,6 +6,7 @@ import * as React from "react";
 import type { ContextChip } from "@/lib/context-chips";
 
 import { chipDedupeKey, resolveChipsToPrompt } from "@/lib/context-chips";
+import { useCompact } from "@/lib/session-compact-context";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants
@@ -40,6 +41,10 @@ type ContextTrayContextProps = {
   clearChips: () => void;
   /** Build prompt from chips + user text and navigate to a new chat session */
   startSession: (userPrompt: string) => void;
+  /** Send tray context to an existing mounted session */
+  sendToExistingSession: (sessionId: string, userPrompt: string) => boolean;
+  /** Session IDs that are currently mounted and accepting messages */
+  mountedSessionIds: string[];
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -108,6 +113,8 @@ export function ContextTrayProvider({
 }) {
   const router = useRouter();
   const pathname = usePathname();
+  const { sendToSession: sendToMountedSession, mountedSessionIds } =
+    useCompact();
   const [trayState, setTrayState] = React.useState<TrayState>(loadState);
   const [expanded, _setExpanded] = React.useState(false);
 
@@ -147,20 +154,29 @@ export function ContextTrayProvider({
   }, []);
 
   const clearChips = React.useCallback(() => {
-    const next = { chips: [] };
+    const next: TrayState = { chips: [] };
     saveState(next);
     setTrayState(next);
     _setExpanded(false);
   }, []);
 
-  // ── Start session ────────────────────────────────────────────────────────
+  // ── Build resolved prompt from current chips ──────────────────────────────
+
+  const buildResolvedPrompt = React.useCallback(
+    (userPrompt: string) => {
+      const contextPrefix = resolveChipsToPrompt(trayState.chips);
+      return contextPrefix
+        ? `${contextPrefix}\n\n---\n\n${userPrompt}`
+        : userPrompt;
+    },
+    [trayState.chips]
+  );
+
+  // ── Start new session ──────────────────────────────────────────────────────
 
   const startSession = React.useCallback(
     (userPrompt: string) => {
-      const contextPrefix = resolveChipsToPrompt(trayState.chips);
-      const finalPrompt = contextPrefix
-        ? `${contextPrefix}\n\n---\n\n${userPrompt}`
-        : userPrompt;
+      const finalPrompt = buildResolvedPrompt(userPrompt);
 
       const slug = extractSlug(pathname);
       const chatUrl = slug
@@ -168,14 +184,32 @@ export function ContextTrayProvider({
         : `/chat?prompt=${encodeURIComponent(finalPrompt)}`;
 
       // Clear state before navigating
-      const next = { chips: [] };
+      const next: TrayState = { chips: [] };
       setTrayState(next);
       saveState(next);
       _setExpanded(false);
 
       router.push(chatUrl);
     },
-    [trayState.chips, pathname, router]
+    [buildResolvedPrompt, pathname, router]
+  );
+
+  // ── Send to existing session ───────────────────────────────────────────────
+
+  const sendToExistingSession = React.useCallback(
+    (sessionId: string, userPrompt: string): boolean => {
+      const finalPrompt = buildResolvedPrompt(userPrompt);
+      const sent = sendToMountedSession(sessionId, finalPrompt);
+      if (sent) {
+        // Clear tray on success
+        const next: TrayState = { chips: [] };
+        setTrayState(next);
+        saveState(next);
+        _setExpanded(false);
+      }
+      return sent;
+    },
+    [buildResolvedPrompt, sendToMountedSession]
   );
 
   // ── Context value ─────────────────────────────────────────────────────────
@@ -191,6 +225,8 @@ export function ContextTrayProvider({
       removeChip,
       clearChips,
       startSession,
+      sendToExistingSession,
+      mountedSessionIds,
     }),
     [
       chips,
@@ -202,6 +238,8 @@ export function ContextTrayProvider({
       removeChip,
       clearChips,
       startSession,
+      sendToExistingSession,
+      mountedSessionIds,
     ]
   );
 

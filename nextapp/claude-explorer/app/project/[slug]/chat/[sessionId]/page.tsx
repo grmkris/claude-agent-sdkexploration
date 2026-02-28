@@ -14,7 +14,10 @@ import { ChatView } from "@/components/chat-view";
 import { ForkLineageBar } from "@/components/fork-lineage-bar";
 import { useChatStream } from "@/hooks/use-chat-stream";
 import { orpc } from "@/lib/orpc";
-import { useRegisterCompact } from "@/lib/session-compact-context";
+import {
+  useRegisterCompact,
+  useRegisterSend,
+} from "@/lib/session-compact-context";
 
 export default function SessionChatPage({
   params,
@@ -58,6 +61,15 @@ export default function SessionChatPage({
 
   // Register compact callback so the AgentTabBar can trigger it
   useRegisterCompact(sessionId, () => send("/compact"));
+
+  // Register send function so the context tray can send messages to this session
+  const sendWhenIdle = useCallback(
+    (prompt: string) => {
+      if (!isStreaming) send(prompt);
+    },
+    [isStreaming, send]
+  );
+  useRegisterSend(sessionId, isStreaming ? undefined : sendWhenIdle);
 
   const allMessages = useMemo(() => {
     if (streamMessages.length === 0) return history ?? [];

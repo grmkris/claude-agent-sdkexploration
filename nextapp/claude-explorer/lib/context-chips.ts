@@ -54,6 +54,8 @@ interface BaseChip {
 export interface FileChip extends BaseChip {
   type: "file";
   filePath: string;
+  lineStart?: number;
+  lineEnd?: number;
 }
 
 export interface CommitChip extends BaseChip {
@@ -179,6 +181,14 @@ export function getChipVisuals(type: ContextChipType): ChipVisuals {
 function resolveChip(chip: ContextChip): string {
   switch (chip.type) {
     case "file":
+      if (chip.lineStart && chip.lineEnd) {
+        return [
+          `[File Context — Lines ${chip.lineStart}–${chip.lineEnd}]`,
+          `File: ${chip.filePath}`,
+          `Lines ${chip.lineStart}-${chip.lineEnd} of this file are relevant.`,
+          `Please read this file and focus on lines ${chip.lineStart}-${chip.lineEnd}.`,
+        ].join("\n");
+      }
       return [
         "[File Context]",
         `File: ${chip.filePath}`,
@@ -240,8 +250,10 @@ export function resolveChipsToPrompt(chips: ContextChip[]): string {
 
 export function chipDedupeKey(chip: ContextChip): string {
   switch (chip.type) {
-    case "file":
-      return `file:${chip.filePath}`;
+    case "file": {
+      const range = chip.lineStart ? `:${chip.lineStart}-${chip.lineEnd}` : "";
+      return `file:${chip.filePath}${range}`;
+    }
     case "commit":
       return `commit:${chip.raw.hash}`;
     case "deployment":

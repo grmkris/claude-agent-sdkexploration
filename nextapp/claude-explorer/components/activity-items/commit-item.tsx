@@ -17,6 +17,7 @@ interface CommitItemProps {
   compact?: boolean;
   onStartChat: () => void;
   onAddToTray?: () => void;
+  onAddDeploymentToTray?: (dep: DeploymentRaw) => void;
   onViewExternal?: () => void;
   relatedDeployments?: DeploymentRaw[];
   relatedTickets?: TicketRaw[];
@@ -39,6 +40,7 @@ export function CommitItem({
   compact,
   onStartChat,
   onAddToTray,
+  onAddDeploymentToTray,
   onViewExternal: _onViewExternal,
   relatedDeployments,
   relatedTickets,
@@ -264,31 +266,49 @@ export function CommitItem({
                         </>
                       );
                       return (
-                        <Tooltip key={dep.id}>
-                          <TooltipTrigger>
-                            {dep.dashboardUrl ? (
-                              <a
-                                href={dep.dashboardUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                onClick={(e) => e.stopPropagation()}
-                                className={badgeClasses}
-                              >
-                                {inner}
-                              </a>
-                            ) : (
-                              <span className={badgeClasses}>{inner}</span>
-                            )}
-                          </TooltipTrigger>
-                          <TooltipContent side="top">
-                            {dep.serviceName}: {dep.status}
-                            {dep.dashboardUrl && (
-                              <span className="ml-1 opacity-60">
-                                &uarr; Railway
-                              </span>
-                            )}
-                          </TooltipContent>
-                        </Tooltip>
+                        <span
+                          key={dep.id}
+                          className="group/dep inline-flex items-center"
+                        >
+                          <Tooltip>
+                            <TooltipTrigger>
+                              {dep.dashboardUrl ? (
+                                <a
+                                  href={dep.dashboardUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  onClick={(e) => e.stopPropagation()}
+                                  className={badgeClasses}
+                                >
+                                  {inner}
+                                </a>
+                              ) : (
+                                <span className={badgeClasses}>{inner}</span>
+                              )}
+                            </TooltipTrigger>
+                            <TooltipContent side="top">
+                              {dep.serviceName}: {dep.status}
+                              {dep.dashboardUrl && (
+                                <span className="ml-1 opacity-60">
+                                  &uarr; Railway
+                                </span>
+                              )}
+                            </TooltipContent>
+                          </Tooltip>
+                          {onAddDeploymentToTray && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onAddDeploymentToTray(dep);
+                              }}
+                              className="ml-0.5 opacity-0 group-hover/dep:opacity-100 transition-opacity text-[9px] text-muted-foreground hover:text-foreground"
+                              title={`Add ${dep.serviceName} deployment to tray`}
+                            >
+                              📎
+                            </button>
+                          )}
+                        </span>
                       );
                     })}
                   </>

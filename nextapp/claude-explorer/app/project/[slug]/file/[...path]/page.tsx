@@ -8,6 +8,7 @@ import { use } from "react";
 
 import { useContextTray } from "@/components/context-tray/context-tray-context";
 import { FileViewer } from "@/components/file-viewer/file-viewer";
+import { SelectableCodeViewer } from "@/components/file-viewer/selectable-code-viewer";
 import {
   getFileIcon,
   isBinaryFile,
@@ -250,13 +251,20 @@ export default function FilePage({
                 {textError.message || "Failed to load file."}
               </p>
             )}
-            {textData && (
-              <FileViewer
-                src={fileSrc}
-                content={textData.content}
-                filename={fileName}
-              />
-            )}
+            {textData &&
+              (ext === "md" || ext === "mdx" ? (
+                <FileViewer
+                  src={fileSrc}
+                  content={textData.content}
+                  filename={fileName}
+                />
+              ) : (
+                <SelectableCodeViewer
+                  content={textData.content}
+                  filename={fileName}
+                  filePath={filePath}
+                />
+              ))}
           </>
         )}
 
