@@ -157,7 +157,9 @@ export function CommitItem({
                       )}
                       style={{ backgroundColor: dotColor }}
                     />
-                    <span className="text-[9px]">{dep.serviceName}</span>
+                    <span className="text-[9px] truncate max-w-[8ch]">
+                      {dep.serviceName}
+                    </span>
                   </span>
                 );
               })}
@@ -169,7 +171,7 @@ export function CommitItem({
                   {ticket.identifier}
                 </span>
               ))}
-              <span className="truncate">
+              <span className="ml-auto shrink-0 whitespace-nowrap">
                 {raw.author} &middot; {relativeTime(raw.date)}
               </span>
             </div>
