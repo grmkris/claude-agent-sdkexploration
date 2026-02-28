@@ -77,6 +77,7 @@ import {
   getSessionMcpSelections,
   getSessionForks,
   getSessionAncestry,
+  searchSessions as dbSearchSessions,
 } from "./explorer-db";
 import {
   getFavorites,
@@ -171,6 +172,7 @@ import {
   TmuxSessionSchema,
   SavedPromptSchema,
 } from "./schemas";
+import { searchProjectFiles } from "./search";
 import { createSessionHooks } from "./session-hooks";
 import { getTmuxPanes, getTmuxSessions } from "./tmux";
 import {
@@ -3682,6 +3684,63 @@ const sessionAncestryProc = os
     return rows.map(sessionRowToMeta);
   });
 
+// --- Search ---
+
+const searchProc = os
+  .input(
+    z.object({
+      query: z.string().min(1).max(200),
+      slug: z.string().optional(),
+      limit: z.number().optional(),
+    })
+  )
+  .output(
+    z.object({
+      files: z.array(
+        z.object({
+          path: z.string(),
+          name: z.string(),
+          isDirectory: z.boolean(),
+        })
+      ),
+      sessions: z.array(RecentSessionSchema),
+    })
+  )
+  .handler(async ({ input }) => {
+    const limit = input.limit ?? 20;
+    const tasks: Promise<void>[] = [];
+
+    let files: { path: string; name: string; isDirectory: boolean }[] = [];
+    let sessions: import("./schemas").RecentSession[] = [];
+
+    // Session search (always) — uses RecentSession so client gets projectSlug for routing
+    tasks.push(
+      (async () => {
+        const rows = dbSearchSessions(input.query, limit);
+        sessions = await Promise.all(rows.map(sessionRowToRecent));
+      })()
+    );
+
+    // File search (only when scoped to a project)
+    if (input.slug) {
+      tasks.push(
+        (async () => {
+          try {
+            const projectPath = await resolveSlugToPath(input.slug!);
+            files = await searchProjectFiles(projectPath, input.query, {
+              maxResults: limit,
+            });
+          } catch {
+            // Project not found — skip file search
+          }
+        })()
+      );
+    }
+
+    await Promise.all(tasks);
+    return { files, sessions };
+  });
+
 export const router = {
   projects: {
     list: listProjectsProc,
@@ -3822,6 +3881,7 @@ export const router = {
     update: updateSavedPromptProc,
     delete: deleteSavedPromptProc,
   },
+  search: searchProc,
   linear: {
     emitActivity: linearEmitActivityProc,
     updatePlan: linearUpdatePlanProc,

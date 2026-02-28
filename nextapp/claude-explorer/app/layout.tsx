@@ -7,6 +7,7 @@ import "./globals.css";
 import Script from "next/script";
 
 import { AgentTabBar } from "@/components/agent-tabs/agent-tab-bar";
+import { GlobalSearch } from "@/components/global-search";
 import { ProjectSidebar } from "@/components/project-sidebar";
 import { RightSidebar } from "@/components/right-sidebar";
 import { RightSidebarProvider } from "@/components/ui/right-sidebar-context";
@@ -62,6 +63,7 @@ export default async function RootLayout({
       >
         <Providers tabBarVisible={tabBarVisible}>
           <TooltipProvider>
+            <GlobalSearch />
             <SidebarProvider defaultOpen={leftSidebarOpen}>
               <RightSidebarProvider defaultOpen={rightSidebarOpen}>
                 <ProjectSidebar />

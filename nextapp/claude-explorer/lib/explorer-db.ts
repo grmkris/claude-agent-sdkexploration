@@ -764,3 +764,18 @@ export function getSessionMcpSelections(
     )
     .all(sessionId);
 }
+
+// --- Search ---
+
+export function searchSessions(query: string, limit = 20): SessionRow[] {
+  const pattern = `%${query}%`;
+  return getDB()
+    .query<SessionRow, [string, string, string, number]>(
+      `SELECT * FROM sessions
+       WHERE (first_prompt LIKE ?1 OR git_branch LIKE ?2 OR model LIKE ?3)
+         AND is_archived = 0
+       ORDER BY updated_at DESC
+       LIMIT ?4`
+    )
+    .all(pattern, pattern, pattern, limit);
+}
