@@ -657,15 +657,6 @@ const chatProc = os
   )
   .output(eventIterator(z.custom<SDKMessage>()))
   .handler(async function* ({ input, signal }) {
-    const explorerServerPath = join(
-      process.cwd(),
-      "tools",
-      "explorer-server.ts"
-    );
-    const baseUrl =
-      process.env.EXPLORER_BASE_URL ??
-      `http://localhost:${process.env.PORT ?? 3000}`;
-
     const ac = new AbortController();
     signal?.addEventListener("abort", () => ac.abort(), { once: true });
 
@@ -1873,15 +1864,6 @@ const rootChatProc = os
   )
   .output(eventIterator(z.custom<SDKMessage>()))
   .handler(async function* ({ input, signal }) {
-    const explorerServerPath = join(
-      process.cwd(),
-      "tools",
-      "explorer-server.ts"
-    );
-    const baseUrl =
-      process.env.EXPLORER_BASE_URL ??
-      `http://localhost:${process.env.PORT ?? 3000}`;
-
     const ac = new AbortController();
     signal?.addEventListener("abort", () => ac.abort(), { once: true });
 

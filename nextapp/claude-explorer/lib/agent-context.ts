@@ -2,12 +2,22 @@
  * agent-context.ts — Builds environment context for spawned agents.
  *
  * Every agent receives a context block appended to the system prompt so it
- * knows its working directory, git branch, connected Railway project/service,
- * Linear team, GitHub repo, and which integrations are available.
+ * knows its working directory, git branch, which Railway project/service/
+ * environment is currently linked, which GitHub repo it's in, and what
+ * integrations are available.
+ *
+ * Design principles:
+ *   - Only state facts about what's actually linked/configured right now
+ *   - Mention that there may be other services/environments the agent can
+ *     discover via tools (Railway projects often have multiple services)
+ *   - Don't fabricate connections — if there's no integration, don't mention it
+ *   - Railway CLI stores link state globally in ~/.railway/config.json, not in
+ *     per-project .railway/ directories
  */
 
 import { execSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
+import { homedir } from "node:os";
 import { join } from "node:path";
 
 import type { IntegrationConfig } from "./schemas";
@@ -18,19 +28,15 @@ import { getIntegrations } from "./explorer-store";
 // Types
 // ---------------------------------------------------------------------------
 
-export interface RailwayState {
-  projectId?: string;
+export interface RailwayLinkState {
+  projectId: string;
   projectName?: string;
-  serviceId?: string;
-  serviceName?: string;
+  /** Currently linked service UUID (null if no service linked). */
+  serviceId?: string | null;
+  /** Currently linked environment UUID. */
   environmentId?: string;
+  /** Currently linked environment name (e.g. "production"). */
   environmentName?: string;
-}
-
-export interface LinearState {
-  teamId?: string;
-  teamName?: string;
-  userName?: string;
 }
 
 export interface GithubState {
@@ -85,65 +91,76 @@ function detectGitRemote(cwd?: string): string | null {
 }
 
 // ---------------------------------------------------------------------------
-// Railway state detection (disk + integration config)
+// Railway state detection
 // ---------------------------------------------------------------------------
 
+interface RailwayGlobalConfig {
+  projects?: Record<
+    string,
+    {
+      projectPath: string;
+      name: string;
+      project: string; // UUID
+      environment: string; // UUID
+      environmentName: string;
+      service: string | null; // UUID or null
+    }
+  >;
+}
+
 /**
- * Read Railway link state from the `.railway/` config on disk.
- * The Railway CLI stores a JSON config file here when `railway link` is used.
+ * Read Railway link state from the global ~/.railway/config.json.
+ *
+ * The Railway CLI stores ALL link state in a single global config file,
+ * keyed by directory path. Each entry maps a directory to exactly one
+ * project + one environment + at most one service.
+ *
+ * The CLI walks up the directory tree to find the most specific match,
+ * so we do the same here.
  */
-async function detectRailwayFromDisk(
+async function detectRailwayFromCli(
   cwd: string
-): Promise<RailwayState | null> {
+): Promise<RailwayLinkState | null> {
   try {
-    // Railway CLI stores config in .railway/config.json
-    const configPath = join(cwd, ".railway", "config.json");
+    const railwayDir =
+      process.env.RAILWAY_CONFIG_DIR ?? join(homedir(), ".railway");
+    const configPath = join(railwayDir, "config.json");
     const raw = await readFile(configPath, "utf-8");
-    const config = JSON.parse(raw) as Record<string, unknown>;
-    const project = config.project as Record<string, unknown> | undefined;
-    const environment = config.environment as
-      | Record<string, unknown>
-      | undefined;
+    const config = JSON.parse(raw) as RailwayGlobalConfig;
 
-    if (!project?.id) return null;
+    if (!config.projects) return null;
 
-    return {
-      projectId: project.id as string,
-      projectName: project.name as string | undefined,
-      serviceId: (config.service as Record<string, unknown>)?.id as
-        | string
-        | undefined,
-      serviceName: (config.service as Record<string, unknown>)?.name as
-        | string
-        | undefined,
-      environmentId: environment?.id as string | undefined,
-      environmentName: environment?.name as string | undefined,
-    };
-  } catch {
-    // No .railway/ config — try older format or just return null
-  }
-
-  // Also try the older Railway config format (project-level .railway.json)
-  try {
-    const configPath = join(cwd, ".railway.json");
-    const raw = await readFile(configPath, "utf-8");
-    const config = JSON.parse(raw) as Record<string, unknown>;
-    if (config.projectId) {
-      return { projectId: config.projectId as string };
+    // Walk up the directory tree to find the most specific match,
+    // same as the Railway CLI does.
+    let dir = cwd;
+    while (true) {
+      const entry = config.projects[dir];
+      if (entry) {
+        return {
+          projectId: entry.project,
+          projectName: entry.name || undefined,
+          serviceId: entry.service,
+          environmentId: entry.environment,
+          environmentName: entry.environmentName || undefined,
+        };
+      }
+      const parent = join(dir, "..");
+      if (parent === dir) break; // reached root
+      dir = parent;
     }
   } catch {
-    // No config found
+    // No Railway CLI config or parse error
   }
-
   return null;
 }
 
 /**
- * Read Railway state from explorer integration configs.
+ * Read Railway project ID from explorer integration configs.
+ * This is a fallback when the CLI config doesn't have a link for this directory.
  */
 async function detectRailwayFromIntegration(
   projectSlug?: string
-): Promise<RailwayState | null> {
+): Promise<RailwayLinkState | null> {
   if (!projectSlug) return null;
   try {
     const integrations = await getIntegrations();
@@ -163,46 +180,18 @@ async function detectRailwayFromIntegration(
 }
 
 /**
- * Detect Railway state from both disk and integration config.
- * Disk takes priority (more accurate for CLI-linked projects).
+ * Detect Railway state from CLI config first, then integration config.
+ * CLI config is more accurate (has service + environment link state).
  */
 export async function detectRailwayState(
   cwd?: string,
   projectSlug?: string
-): Promise<RailwayState | null> {
-  // 1. Try disk first (most accurate)
+): Promise<RailwayLinkState | null> {
   if (cwd) {
-    const fromDisk = await detectRailwayFromDisk(cwd);
-    if (fromDisk) return fromDisk;
+    const fromCli = await detectRailwayFromCli(cwd);
+    if (fromCli) return fromCli;
   }
-
-  // 2. Fall back to integration config
   return detectRailwayFromIntegration(projectSlug);
-}
-
-// ---------------------------------------------------------------------------
-// Linear state detection
-// ---------------------------------------------------------------------------
-
-export async function detectLinearState(
-  projectSlug?: string
-): Promise<LinearState | null> {
-  if (!projectSlug) return null;
-  try {
-    const integrations = await getIntegrations();
-    const linear = integrations.find(
-      (i: IntegrationConfig) =>
-        i.type === "linear" && i.projectSlug === projectSlug && i.enabled
-    );
-    if (!linear) return null;
-
-    return {
-      teamId: linear.config?.teamId as string | undefined,
-      userName: linear.config?.userName as string | undefined,
-    };
-  } catch {
-    return null;
-  }
 }
 
 // ---------------------------------------------------------------------------
@@ -246,6 +235,29 @@ export async function detectGithubState(
 }
 
 // ---------------------------------------------------------------------------
+// Integration summary
+// ---------------------------------------------------------------------------
+
+/**
+ * List which integrations are enabled for this project (just types, no secrets).
+ */
+async function detectEnabledIntegrations(
+  projectSlug?: string
+): Promise<string[]> {
+  if (!projectSlug) return [];
+  try {
+    const integrations = await getIntegrations();
+    return integrations
+      .filter(
+        (i: IntegrationConfig) => i.projectSlug === projectSlug && i.enabled
+      )
+      .map((i: IntegrationConfig) => i.type);
+  } catch {
+    return [];
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Main context builder
 // ---------------------------------------------------------------------------
 
@@ -271,40 +283,40 @@ export async function buildAgentContext(
     lines.push(`Git branch: ${branch}`);
   }
 
-  // Railway state
+  // Railway link state
   const railway = await detectRailwayState(opts.cwd, opts.projectSlug);
   if (railway) {
-    const parts = [
-      `Railway project: ${railway.projectName ?? railway.projectId}`,
-    ];
-    if (railway.serviceName || railway.serviceId) {
-      parts.push(
-        `Railway service: ${railway.serviceName ?? railway.serviceId}`
+    lines.push("");
+    lines.push(`Railway project: ${railway.projectName ?? railway.projectId}`);
+    if (railway.environmentName) {
+      lines.push(`Railway linked environment: ${railway.environmentName}`);
+    }
+    if (railway.serviceId) {
+      // Service name is not stored in Railway CLI config — just the UUID.
+      // The agent can discover the name via the list-services MCP tool.
+      lines.push(
+        `Railway linked service: ${railway.serviceId} (use list-services to see all services and their names)`
+      );
+    } else {
+      lines.push(
+        `Railway linked service: none (use link-service to link one, or list-services to see available services)`
       );
     }
-    if (railway.environmentName || railway.environmentId) {
-      parts.push(
-        `Railway environment: ${railway.environmentName ?? railway.environmentId}`
-      );
-    }
-    lines.push(...parts);
+    lines.push(
+      `Note: This project may have multiple services and environments. Use Railway MCP tools (list-services, link-service, link-environment) to explore and switch.`
+    );
   }
 
-  // Linear state
-  const linear = await detectLinearState(opts.projectSlug);
-  if (linear) {
-    if (linear.teamId) {
-      lines.push(`Linear team ID: ${linear.teamId}`);
-    }
-    if (linear.userName) {
-      lines.push(`Linear bot user: ${linear.userName}`);
-    }
-  }
-
-  // GitHub state
+  // GitHub repo
   const github = await detectGithubState(opts.projectSlug, opts.cwd);
   if (github?.owner && github.repo) {
     lines.push(`GitHub repo: ${github.owner}/${github.repo}`);
+  }
+
+  // Enabled integrations summary
+  const integrations = await detectEnabledIntegrations(opts.projectSlug);
+  if (integrations.length > 0) {
+    lines.push(`Enabled integrations: ${integrations.join(", ")}`);
   }
 
   // Agent source
