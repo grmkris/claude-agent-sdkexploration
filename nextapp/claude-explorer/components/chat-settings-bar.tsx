@@ -23,16 +23,12 @@ export type McpSelection = {
 };
 
 export type ChatSettings = {
-  thinkingEnabled: boolean;
-  bypassPermissions: boolean;
   planMode: boolean;
   model: string;
   enabledOptionalMcps: McpSelection[];
 };
 
 export const DEFAULT_CHAT_SETTINGS: ChatSettings = {
-  thinkingEnabled: false,
-  bypassPermissions: true,
   planMode: false,
   model: "claude-opus-4-6",
   enabledOptionalMcps: [],
@@ -123,66 +119,6 @@ export function ChatSettingsBar({
       )}
 
       <div className="flex items-center gap-1.5 px-3 py-1.5 flex-wrap">
-        {/* Thinking chip */}
-        <ModeChip
-          active={settings.thinkingEnabled}
-          disabled={disabled}
-          onClick={() =>
-            onSettingsChange({
-              ...settings,
-              thinkingEnabled: !settings.thinkingEnabled,
-            })
-          }
-          activeClass="border-amber-500/30 bg-amber-500/15 text-amber-600 dark:text-amber-400"
-          label="Thinking"
-          icon={
-            <svg
-              width="11"
-              height="11"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96-.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 1.44-4.66z" />
-              <path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96-.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-1.44-4.66z" />
-            </svg>
-          }
-        />
-
-        {/* Auto-approve chip — disabled when plan mode is on */}
-        <ModeChip
-          active={settings.bypassPermissions && !settings.planMode}
-          disabled={disabled || settings.planMode}
-          onClick={() =>
-            onSettingsChange({
-              ...settings,
-              bypassPermissions: !settings.bypassPermissions,
-            })
-          }
-          activeClass="border-green-500/30 bg-green-500/15 text-green-600 dark:text-green-400"
-          label="Auto-approve"
-          icon={
-            <svg
-              width="11"
-              height="11"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-              {settings.bypassPermissions && !settings.planMode && (
-                <polyline points="9,12 11,14 15,10" />
-              )}
-            </svg>
-          }
-        />
-
         {/* Plan mode chip */}
         <ModeChip
           active={settings.planMode}
@@ -191,10 +127,6 @@ export function ChatSettingsBar({
             onSettingsChange({
               ...settings,
               planMode: !settings.planMode,
-              // Turning on plan mode disables auto-approve (mutually exclusive)
-              bypassPermissions: !settings.planMode
-                ? false
-                : settings.bypassPermissions,
             })
           }
           activeClass="border-blue-500/30 bg-blue-500/15 text-blue-600 dark:text-blue-400"

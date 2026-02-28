@@ -20,7 +20,13 @@ import { useRegisterCompact } from "@/lib/session-compact-context";
 const ONBOARD_PROMPT =
   "Introduce yourself briefly. What can you help me with in this workspace? List a few practical things I can ask you to do.";
 
-function RootNewChatContent() {
+type ForkParams = {
+  parentSessionId: string;
+  resumeSessionAt?: string;
+  forkSessionId: string;
+};
+
+function RootNewChatContent({ forkParams }: { forkParams?: ForkParams }) {
   const queryClient = useQueryClient();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -39,14 +45,18 @@ function RootNewChatContent() {
     toolProgress,
     currentPermissionMode,
   } = useRootChatStream({
-    thinking: settings.thinkingEnabled ? "adaptive" : "disabled",
-    permissionMode: settings.planMode
-      ? "plan"
-      : settings.bypassPermissions
-        ? "bypassPermissions"
-        : "default",
+    permissionMode: settings.planMode ? "plan" : "bypassPermissions",
     model: settings.model,
     enabledOptionalMcps: settings.enabledOptionalMcps,
+    // Fork params: resume the parent session with fork flags
+    ...(forkParams
+      ? {
+          resume: forkParams.parentSessionId,
+          forkSession: true,
+          resumeSessionAt: forkParams.resumeSessionAt,
+          forkSessionId: forkParams.forkSessionId,
+        }
+      : {}),
   });
 
   const setPrimary = useMutation({
@@ -57,14 +67,29 @@ function RootNewChatContent() {
       }),
   });
 
+  // Auto-fork: send empty prompt to establish the forked session without
+  // injecting a visible user message (uses the synthetic message path).
+  const didAutoFork = useRef(false);
+  useEffect(() => {
+    if (forkParams && !didAutoFork.current) {
+      didAutoFork.current = true;
+      send("");
+    }
+  }, [forkParams, send]);
+
   // Auto-send onboard prompt
   const didAutoSend = useRef(false);
   useEffect(() => {
-    if (searchParams.get("onboard") && !didAutoSend.current && !isStreaming) {
+    if (
+      !forkParams &&
+      searchParams.get("onboard") &&
+      !didAutoSend.current &&
+      !isStreaming
+    ) {
       didAutoSend.current = true;
       send(ONBOARD_PROMPT);
     }
-  }, [searchParams, isStreaming]);
+  }, [searchParams, isStreaming, forkParams]);
 
   // Eagerly refresh the sidebar / active-sessions list as soon as the new
   // session ID is known — don't wait for the SSE polling interval.
@@ -161,10 +186,29 @@ function RootNewChatContent() {
   );
 }
 
+function RootNewChatPageInner() {
+  const searchParams = useSearchParams();
+  const newKey =
+    searchParams.get("_new") ?? searchParams.get("_fork") ?? "initial";
+
+  // Fork params from query string
+  const isFork = searchParams.get("_fork") === "1";
+  const parentSessionId = searchParams.get("parentSessionId");
+  const resumeSessionAt = searchParams.get("resumeSessionAt") ?? undefined;
+  const forkSessionId = searchParams.get("forkSessionId");
+
+  const forkParams: ForkParams | undefined =
+    isFork && parentSessionId && forkSessionId
+      ? { parentSessionId, resumeSessionAt, forkSessionId }
+      : undefined;
+
+  return <RootNewChatContent key={newKey} forkParams={forkParams} />;
+}
+
 export default function RootNewChatPage() {
   return (
     <Suspense>
-      <RootNewChatContent />
+      <RootNewChatPageInner />
     </Suspense>
   );
 }

@@ -22,6 +22,7 @@ export function ChatView({
   onRefresh,
   onAnswer,
   onApprovePlan,
+  onFork,
 }: {
   messages: ParsedMessage[];
   isStreaming?: boolean;
@@ -35,6 +36,7 @@ export function ChatView({
     approved: boolean,
     feedback?: string
   ) => void;
+  onFork?: (messageUuid: string) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const stickToBottom = useRef(true);
@@ -100,12 +102,14 @@ export function ChatView({
                 role={msg.role}
                 content={msg.content}
                 timestamp={msg.timestamp}
+                uuid={msg.uuid}
                 isStreaming={isLastAssistant && isStreaming}
                 toolProgress={toolProgress}
                 projectSlug={projectSlug}
                 sessionId={sessionId ?? undefined}
                 onAnswer={onAnswer}
                 onApprovePlan={onApprovePlan}
+                onFork={msg.role === "assistant" ? onFork : undefined}
               />
             );
           })}

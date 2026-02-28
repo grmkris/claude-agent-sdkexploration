@@ -62,11 +62,13 @@ function CheckIcon({ className }: { className?: string }) {
 export function SessionActionsMenu({
   session,
   onArchive,
+  onFork,
   children,
   triggerClassName,
 }: {
   session: SessionActionData;
   onArchive?: () => void;
+  onFork?: (sessionId: string) => void;
   children?: React.ReactNode;
   triggerClassName?: string;
 }) {
@@ -146,6 +148,12 @@ export function SessionActionsMenu({
                 <span className="h-3.5 w-3.5 text-center text-[11px]">▶</span>
               )}
               Copy tmux command
+            </DropdownMenuItem>
+          )}
+          {onFork && (
+            <DropdownMenuItem onSelect={() => onFork(session.sessionId)}>
+              <span className="h-3.5 w-3.5 text-center text-[11px]">⑂</span>
+              Fork session
             </DropdownMenuItem>
           )}
           {onArchive && (

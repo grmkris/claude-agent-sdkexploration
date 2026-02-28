@@ -20,12 +20,20 @@ import { orpc } from "@/lib/orpc";
 // is torn down and remounted fresh every time "New Conversation" is clicked,
 // even when the URL path hasn't changed.
 
+type ForkParams = {
+  parentSessionId: string;
+  resumeSessionAt?: string;
+  forkSessionId: string;
+};
+
 function NewChatContent({
   slug,
   initialPrompt,
+  forkParams,
 }: {
   slug: string;
   initialPrompt?: string;
+  forkParams?: ForkParams;
 }) {
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -48,22 +56,36 @@ function NewChatContent({
     currentPermissionMode,
   } = useChatStream({
     cwd: data?.path,
-    thinking: settings.thinkingEnabled ? "adaptive" : "disabled",
-    permissionMode: settings.planMode
-      ? "plan"
-      : settings.bypassPermissions
-        ? "bypassPermissions"
-        : "default",
+    permissionMode: settings.planMode ? "plan" : "bypassPermissions",
     model: settings.model,
     enabledOptionalMcps: settings.enabledOptionalMcps,
+    // Fork params: resume the parent session with fork flags
+    ...(forkParams
+      ? {
+          resume: forkParams.parentSessionId,
+          forkSession: true,
+          resumeSessionAt: forkParams.resumeSessionAt,
+          forkSessionId: forkParams.forkSessionId,
+        }
+      : {}),
   });
+
+  // Auto-fork: send empty prompt to establish the forked session without
+  // injecting a visible user message (uses the synthetic message path).
+  const didAutoFork = useRef(false);
+  useEffect(() => {
+    if (forkParams && data?.path && !didAutoFork.current) {
+      didAutoFork.current = true;
+      send("", undefined, data.path);
+    }
+  }, [forkParams, data?.path, send]);
 
   // Auto-send the initial prompt (from project creation) once the cwd is ready.
   // Pass data.path directly as cwdOverride so the correct project directory is
   // used even if opts.cwd was still undefined when useChatStream initialised.
   const didAutoSend = useRef(false);
   useEffect(() => {
-    if (initialPrompt && data?.path && !didAutoSend.current) {
+    if (initialPrompt && !forkParams && data?.path && !didAutoSend.current) {
       didAutoSend.current = true;
       send(initialPrompt, undefined, data.path);
     }
@@ -154,10 +176,28 @@ function NewChatContent({
 
 function NewChatPageInner({ slug }: { slug: string }) {
   const searchParams = useSearchParams();
-  const newKey = searchParams.get("_new") ?? "initial";
+  const newKey =
+    searchParams.get("_new") ?? searchParams.get("_fork") ?? "initial";
   const initialPrompt = searchParams.get("prompt") ?? undefined;
+
+  // Fork params from query string
+  const isFork = searchParams.get("_fork") === "1";
+  const parentSessionId = searchParams.get("parentSessionId");
+  const resumeSessionAt = searchParams.get("resumeSessionAt") ?? undefined;
+  const forkSessionId = searchParams.get("forkSessionId");
+
+  const forkParams: ForkParams | undefined =
+    isFork && parentSessionId && forkSessionId
+      ? { parentSessionId, resumeSessionAt, forkSessionId }
+      : undefined;
+
   return (
-    <NewChatContent key={newKey} slug={slug} initialPrompt={initialPrompt} />
+    <NewChatContent
+      key={newKey}
+      slug={slug}
+      initialPrompt={initialPrompt}
+      forkParams={forkParams}
+    />
   );
 }
 

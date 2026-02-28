@@ -95,6 +95,12 @@ export function SessionCard({
                 )}
               <CardDescription>
                 {timeAgo}
+                {session.parentSessionId && (
+                  <span className="ml-1.5 text-[10px] text-muted-foreground">
+                    <span className="inline-block mr-0.5">⑂</span>
+                    forked
+                  </span>
+                )}
                 {facet?.outcome && (
                   <span
                     className={`ml-1.5 text-[10px] ${

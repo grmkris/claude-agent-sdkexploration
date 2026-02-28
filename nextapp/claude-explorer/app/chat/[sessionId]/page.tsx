@@ -1,7 +1,8 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { use, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { use, useCallback, useMemo, useState } from "react";
 
 import { ChatInput } from "@/components/chat-input";
 import {
@@ -10,6 +11,7 @@ import {
   type ChatSettings,
 } from "@/components/chat-settings-bar";
 import { ChatView } from "@/components/chat-view";
+import { ForkLineageBar } from "@/components/fork-lineage-bar";
 import { useRootChatStream } from "@/hooks/use-root-chat-stream";
 import { orpc } from "@/lib/orpc";
 import { useRegisterCompact } from "@/lib/session-compact-context";
@@ -20,6 +22,7 @@ export default function RootSessionChatPage({
   params: Promise<{ sessionId: string }>;
 }) {
   const { sessionId } = use(params);
+  const router = useRouter();
 
   const {
     data: history,
@@ -44,12 +47,7 @@ export default function RootSessionChatPage({
     currentPermissionMode,
   } = useRootChatStream({
     resume: sessionId,
-    thinking: settings.thinkingEnabled ? "adaptive" : "disabled",
-    permissionMode: settings.planMode
-      ? "plan"
-      : settings.bypassPermissions
-        ? "bypassPermissions"
-        : "default",
+    permissionMode: settings.planMode ? "plan" : "bypassPermissions",
     model: settings.model,
   });
 
@@ -63,6 +61,16 @@ export default function RootSessionChatPage({
     return [...deduped, ...streamMessages];
   }, [history, streamMessages]);
 
+  const handleFork = useCallback(
+    (messageUuid: string) => {
+      const forkId = crypto.randomUUID();
+      router.push(
+        `/chat?_fork=1&parentSessionId=${sessionId}&resumeSessionAt=${messageUuid}&forkSessionId=${forkId}`
+      );
+    },
+    [sessionId, router]
+  );
+
   if (isLoading) {
     return (
       <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground animate-pulse">
@@ -73,6 +81,7 @@ export default function RootSessionChatPage({
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
+      <ForkLineageBar sessionId={sessionId} projectSlug="__root__" />
       <ChatView
         messages={allMessages}
         isStreaming={
@@ -86,6 +95,7 @@ export default function RootSessionChatPage({
         onRefresh={() => refetch()}
         onAnswer={answerQuestion}
         onApprovePlan={approvePlan}
+        onFork={handleFork}
       />
       {error && (
         <div className="mx-4 mb-2 rounded border border-destructive/50 bg-destructive/10 px-3 py-2 text-xs text-destructive">

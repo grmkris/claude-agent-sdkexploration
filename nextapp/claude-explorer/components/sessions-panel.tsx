@@ -207,6 +207,9 @@ function SessionRow({
                 {showProjectLabel ? `${projectLabel} · ` : ""}
                 {timeAgo}
                 <SourceIcon source={session.source} />
+                {session.parentSessionId && (
+                  <span title="Forked session">⑂</span>
+                )}
                 {isActive && (
                   <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-green-500 animate-pulse" />
                 )}

@@ -407,18 +407,6 @@ export function getSession(sessionId: string): SessionRow | null {
   );
 }
 
-export function getActiveSessions(): SessionRow[] {
-  // Opportunistic cleanup
-  cleanOldSessions(SEVEN_DAYS_MS);
-
-  return getDB()
-    .query<SessionRow, []>(
-      "SELECT * FROM sessions WHERE state NOT IN ('done', 'stopped', 'error') AND is_archived = 0 ORDER BY updated_at DESC"
-    )
-    .all();
-}
-
-/** Get all sessions forked from a given parent session */
 export function getSessionForks(parentSessionId: string): SessionRow[] {
   return getDB()
     .query<SessionRow, [string]>(
@@ -427,7 +415,6 @@ export function getSessionForks(parentSessionId: string): SessionRow[] {
     .all(parentSessionId);
 }
 
-/** Get the full ancestry chain (current -> parent -> grandparent -> ...) */
 export function getSessionAncestry(sessionId: string): SessionRow[] {
   const chain: SessionRow[] = [];
   let current = getSession(sessionId);
@@ -438,6 +425,17 @@ export function getSessionAncestry(sessionId: string): SessionRow[] {
     current = parent;
   }
   return chain;
+}
+
+export function getActiveSessions(): SessionRow[] {
+  // Opportunistic cleanup
+  cleanOldSessions(SEVEN_DAYS_MS);
+
+  return getDB()
+    .query<SessionRow, []>(
+      "SELECT * FROM sessions WHERE state NOT IN ('done', 'stopped', 'error') AND is_archived = 0 ORDER BY updated_at DESC"
+    )
+    .all();
 }
 
 export function getProjectSessions(
