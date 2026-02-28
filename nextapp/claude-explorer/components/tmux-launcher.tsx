@@ -12,7 +12,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { orpc } from "@/lib/orpc";
-import { generateTmuxCommand, type TmuxLayout } from "@/lib/tmux-command";
+import {
+  generateSshCommand,
+  generateTmuxCommand,
+  type TmuxLayout,
+} from "@/lib/tmux-command";
 import { cn } from "@/lib/utils";
 
 // ── Inline icons ──────────────────────────────────────────────────────────────
@@ -84,7 +88,7 @@ export function TmuxLauncher({
   const [ccMode, setCcMode] = useState(false);
   const [model, setModel] = useState("");
   const [sshTarget, setSshTarget] = useState("");
-  const [sshEnabled, setSshEnabled] = useState(false);
+  const [tmuxEnabled, setTmuxEnabled] = useState(false);
   const [copied, setCopied] = useState(false);
 
   const { data: serverConfig } = useQuery(orpc.server.config.queryOptions());
@@ -97,7 +101,6 @@ export function TmuxLauncher({
     const host = serverConfig?.sshHost;
     if (host) {
       setSshTarget((prev) => prev || host);
-      setSshEnabled(true);
     }
   }, [serverConfig?.sshHost]);
 
@@ -121,17 +124,22 @@ export function TmuxLauncher({
 
   const sessionName = `claude-${slug.slice(0, 8)}`;
   const command = projectPath
-    ? generateTmuxCommand({
-        sessionName,
-        projectPath,
-        panelCount,
-        layout,
-        resumeSessionIds: resumeIds,
-        skipPermissions,
-        model: model || undefined,
-        sshTarget: sshEnabled && sshTarget ? sshTarget : undefined,
-        ccMode,
-      })
+    ? tmuxEnabled
+      ? generateTmuxCommand({
+          sessionName,
+          projectPath,
+          panelCount,
+          layout,
+          resumeSessionIds: resumeIds,
+          skipPermissions,
+          model: model || undefined,
+          sshTarget: sshTarget || undefined,
+          ccMode,
+        })
+      : generateSshCommand({
+          projectPath,
+          sshTarget: sshTarget || undefined,
+        })
     : null;
 
   const handleCopy = () => {
@@ -143,162 +151,174 @@ export function TmuxLauncher({
 
   return (
     <div className="flex flex-col gap-2">
-      {/* ── Panels + -CC toggle ── */}
+      {/* ── SSH target (always visible) ── */}
       <div className="flex items-center gap-1.5">
         <span className="w-10 shrink-0 text-[10px] text-muted-foreground">
-          Panels
+          SSH
         </span>
-        <div className="flex flex-1 gap-0.5">
-          {([1, 2, 3, 4] as const).map((n) => (
-            <button
-              key={n}
-              onClick={() => handlePanelCount(n)}
-              className={cn(
-                "h-6 w-6 rounded text-[10px] font-mono transition-colors",
-                panelCount === n
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground"
-              )}
-            >
-              {n}
-            </button>
-          ))}
-        </div>
-        {/* -CC checkbox: iTerm2 integration mode */}
-        <label
-          className="flex cursor-pointer items-center gap-1"
-          title="tmux -CC (iTerm2 integration)"
-        >
-          <input
-            type="checkbox"
-            checked={ccMode}
-            onChange={(e) => setCcMode(e.target.checked)}
-            className="h-3 w-3 accent-primary"
-          />
-          <span className="text-[10px] text-muted-foreground">-CC</span>
-        </label>
-      </div>
-
-      {/* ── Layout (only when panelCount > 1) ── */}
-      {panelCount > 1 && (
-        <div className="flex items-center gap-1.5">
-          <span className="w-10 shrink-0 text-[10px] text-muted-foreground">
-            Layout
-          </span>
-          <Select
-            value={layout}
-            onValueChange={(v) =>
-              setLayout((v ?? "even-horizontal") as TmuxLayout)
-            }
-          >
-            <SelectTrigger size="sm" className="h-6 flex-1 text-[10px]">
-              <SelectValue>
-                {LAYOUTS.find((l) => l.value === layout)?.label ?? layout}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              {LAYOUTS.map((l) => (
-                <SelectItem key={l.value} value={l.value}>
-                  {l.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      )}
-
-      {/* ── Per-pane resume session selectors ── */}
-      {Array.from({ length: panelCount }).map((_, i) => (
-        <div key={i} className="flex items-center gap-1.5">
-          <span className="w-10 shrink-0 text-[10px] text-muted-foreground">
-            {panelCount > 1 ? `Pane ${i + 1}` : "Resume"}
-          </span>
-          <Select
-            value={resumeIds[i] ?? "new"}
-            onValueChange={(v) => setResumeId(i, v)}
-          >
-            <SelectTrigger size="sm" className="h-6 flex-1 text-[10px]">
-              <SelectValue>
-                {(() => {
-                  const id = resumeIds[i];
-                  if (!id) return "new session";
-                  const s = sessions?.find((s) => s.id === id);
-                  if (!s) return id.slice(0, 8);
-                  return s.firstPrompt
-                    ? s.firstPrompt.slice(0, 24)
-                    : s.id.slice(0, 8);
-                })()}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="new">new session</SelectItem>
-              {sessions && sessions.length > 0 && <SelectSeparator />}
-              {sessions?.map((s) => (
-                <SelectItem key={s.id} value={s.id}>
-                  <span className="font-mono">{s.id.slice(0, 8)}</span>
-                  {s.firstPrompt && (
-                    <span className="ml-1 text-muted-foreground">
-                      {s.firstPrompt.slice(0, 22)}
-                    </span>
-                  )}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      ))}
-
-      {/* ── SSH target ── */}
-      <div className="flex items-center gap-1.5">
-        <label className="flex w-10 shrink-0 cursor-pointer items-center gap-1">
-          <input
-            type="checkbox"
-            checked={sshEnabled}
-            onChange={(e) => setSshEnabled(e.target.checked)}
-            className="h-3 w-3 accent-primary"
-          />
-          <span className="text-[10px] text-muted-foreground">SSH</span>
-        </label>
         <input
           type="text"
           value={sshTarget}
           onChange={(e) => setSshTarget(e.target.value)}
-          onFocus={() => setSshEnabled(true)}
           placeholder="user@host"
-          disabled={!sshEnabled}
-          className="h-6 flex-1 rounded bg-muted/50 px-1.5 font-mono text-[10px] text-foreground outline-none placeholder:text-muted-foreground/50 focus:ring-1 focus:ring-ring disabled:opacity-40"
+          className="h-6 flex-1 rounded bg-muted/50 px-1.5 font-mono text-[10px] text-foreground outline-none placeholder:text-muted-foreground/50 focus:ring-1 focus:ring-ring"
         />
       </div>
 
-      {/* ── Flags row: skip-permissions + model ── */}
+      {/* ── Tmux enhancement toggle ── */}
       <div className="flex items-center gap-1.5">
-        <span className="w-10 shrink-0 text-[10px] text-muted-foreground">
-          Flags
-        </span>
         <label className="flex cursor-pointer items-center gap-1">
           <input
             type="checkbox"
-            checked={skipPermissions}
-            onChange={(e) => setSkipPermissions(e.target.checked)}
+            checked={tmuxEnabled}
+            onChange={(e) => setTmuxEnabled(e.target.checked)}
             className="h-3 w-3 accent-primary"
           />
-          <span className="text-[10px] text-foreground">skip-perms</span>
+          <span className="text-[10px] text-muted-foreground">
+            Use tmux session
+          </span>
         </label>
-        <div className="ml-auto">
-          <Select value={model} onValueChange={(v) => setModel(v ?? "")}>
-            <SelectTrigger size="sm" className="h-6 w-24 text-[10px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {MODELS.map((m) => (
-                <SelectItem key={m.value} value={m.value}>
-                  {m.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
       </div>
+
+      {/* ── Tmux options (only when tmux is enabled) ── */}
+      {tmuxEnabled && (
+        <>
+          {/* ── Panels + -CC toggle ── */}
+          <div className="flex items-center gap-1.5">
+            <span className="w-10 shrink-0 text-[10px] text-muted-foreground">
+              Panels
+            </span>
+            <div className="flex flex-1 gap-0.5">
+              {([1, 2, 3, 4] as const).map((n) => (
+                <button
+                  key={n}
+                  onClick={() => handlePanelCount(n)}
+                  className={cn(
+                    "h-6 w-6 rounded text-[10px] font-mono transition-colors",
+                    panelCount === n
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground"
+                  )}
+                >
+                  {n}
+                </button>
+              ))}
+            </div>
+            {/* -CC checkbox: iTerm2 integration mode */}
+            <label
+              className="flex cursor-pointer items-center gap-1"
+              title="tmux -CC (iTerm2 integration)"
+            >
+              <input
+                type="checkbox"
+                checked={ccMode}
+                onChange={(e) => setCcMode(e.target.checked)}
+                className="h-3 w-3 accent-primary"
+              />
+              <span className="text-[10px] text-muted-foreground">-CC</span>
+            </label>
+          </div>
+
+          {/* ── Layout (only when panelCount > 1) ── */}
+          {panelCount > 1 && (
+            <div className="flex items-center gap-1.5">
+              <span className="w-10 shrink-0 text-[10px] text-muted-foreground">
+                Layout
+              </span>
+              <Select
+                value={layout}
+                onValueChange={(v) =>
+                  setLayout((v ?? "even-horizontal") as TmuxLayout)
+                }
+              >
+                <SelectTrigger size="sm" className="h-6 flex-1 text-[10px]">
+                  <SelectValue>
+                    {LAYOUTS.find((l) => l.value === layout)?.label ?? layout}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {LAYOUTS.map((l) => (
+                    <SelectItem key={l.value} value={l.value}>
+                      {l.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {/* ── Per-pane resume session selectors ── */}
+          {Array.from({ length: panelCount }).map((_, i) => (
+            <div key={i} className="flex items-center gap-1.5">
+              <span className="w-10 shrink-0 text-[10px] text-muted-foreground">
+                {panelCount > 1 ? `Pane ${i + 1}` : "Resume"}
+              </span>
+              <Select
+                value={resumeIds[i] ?? "new"}
+                onValueChange={(v) => setResumeId(i, v)}
+              >
+                <SelectTrigger size="sm" className="h-6 flex-1 text-[10px]">
+                  <SelectValue>
+                    {(() => {
+                      const id = resumeIds[i];
+                      if (!id) return "new session";
+                      const s = sessions?.find((s) => s.id === id);
+                      if (!s) return id.slice(0, 8);
+                      return s.firstPrompt
+                        ? s.firstPrompt.slice(0, 24)
+                        : s.id.slice(0, 8);
+                    })()}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="new">new session</SelectItem>
+                  {sessions && sessions.length > 0 && <SelectSeparator />}
+                  {sessions?.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>
+                      <span className="font-mono">{s.id.slice(0, 8)}</span>
+                      {s.firstPrompt && (
+                        <span className="ml-1 text-muted-foreground">
+                          {s.firstPrompt.slice(0, 22)}
+                        </span>
+                      )}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ))}
+
+          {/* ── Flags row: skip-permissions + model ── */}
+          <div className="flex items-center gap-1.5">
+            <span className="w-10 shrink-0 text-[10px] text-muted-foreground">
+              Flags
+            </span>
+            <label className="flex cursor-pointer items-center gap-1">
+              <input
+                type="checkbox"
+                checked={skipPermissions}
+                onChange={(e) => setSkipPermissions(e.target.checked)}
+                className="h-3 w-3 accent-primary"
+              />
+              <span className="text-[10px] text-foreground">skip-perms</span>
+            </label>
+            <div className="ml-auto">
+              <Select value={model} onValueChange={(v) => setModel(v ?? "")}>
+                <SelectTrigger size="sm" className="h-6 w-24 text-[10px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {MODELS.map((m) => (
+                    <SelectItem key={m.value} value={m.value}>
+                      {m.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* ── Command preview ── */}
       {command ? (

@@ -129,6 +129,26 @@ export function generateTmuxCommand(config: TmuxLaunchConfig): string {
   return tmuxCmd;
 }
 
+/**
+ * Generate a plain SSH command that lands the user in the project directory.
+ * If no sshTarget is provided, returns a bare `cd <path> && bash`.
+ */
+export function generateSshCommand(opts: {
+  projectPath: string;
+  sshTarget?: string;
+}): string {
+  const safePath = opts.projectPath.includes(" ")
+    ? `"${opts.projectPath}"`
+    : opts.projectPath;
+
+  const innerCmd = `cd ${safePath} && exec bash`;
+
+  if (opts.sshTarget) {
+    return `ssh -t ${opts.sshTarget} '${innerCmd.replace(/'/g, "'\\''")}'`;
+  }
+  return innerCmd;
+}
+
 export function generateAttachCommand(opts: {
   sessionName: string;
   windowKey?: string;

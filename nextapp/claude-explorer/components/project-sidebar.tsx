@@ -232,10 +232,8 @@ function ProjectHeader({ slug }: { slug: string }) {
                 <div className="my-2 border-t" />
               </>
             )}
-            {/* Tmux launcher */}
-            <div className="mb-2.5 text-xs font-medium">
-              Launch Tmux Session
-            </div>
+            {/* SSH / Tmux launcher */}
+            <div className="mb-2.5 text-xs font-medium">Connect</div>
             <TmuxLauncher slug={slug} projectPath={project.path} />
           </PopoverContent>
         </Popover>
