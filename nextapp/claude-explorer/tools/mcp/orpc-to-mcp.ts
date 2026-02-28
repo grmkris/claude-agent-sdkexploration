@@ -6,19 +6,7 @@ import { traverseContractProcedures } from "@orpc/server";
 import type { router } from "../../lib/procedures";
 
 /** Only expose these top-level router keys as MCP tools (keeps agent context small) */
-const INCLUDE_PREFIXES = new Set(["crons", "webhooks", "email", "projects"]);
-
-/** Specific tool names (flattened path) to exclude even if their prefix is included */
-const EXCLUDE_TOOLS = new Set([
-  "projects_gitStatus",
-  "projects_gitLog",
-  "projects_gitDiff",
-  "projects_gitPull",
-  "projects_gitStageAll",
-  "projects_gitCommitFiles",
-  "projects_gitCommitDiff",
-  "projects_gitWorktrees",
-]);
+const INCLUDE_PREFIXES = new Set(["crons", "webhooks", "email"]);
 
 /** Tool descriptions keyed by flattened path (e.g. "crons_create") */
 const DESCRIPTIONS: Record<string, string> = {
@@ -43,18 +31,6 @@ const DESCRIPTIONS: Record<string, string> = {
   webhooks_setupInstructions:
     "Get setup instructions and dashboard URL for a webhook",
 
-  // Projects
-  projects_list: "List all projects",
-  projects_create:
-    "Create a new project directory. Provide parentDir (e.g. /home/bun/projects), name, and an optional initialPrompt to auto-send when the chat opens.",
-  projects_resolveSlug: "Resolve a project slug to its filesystem path",
-  projects_config: "Get project MCP and skill configuration",
-  projects_files: "List files and directories inside a project",
-  projects_readFile: "Read the contents of a file inside a project",
-  projects_createDir: "Create a subdirectory inside a project",
-  projects_getEnv: "Get project-level environment variables",
-  projects_setEnv: "Set project-level environment variables",
-
   // Email
   email_getConfig: "Get email configuration for a workspace",
   email_setConfig:
@@ -63,6 +39,7 @@ const DESCRIPTIONS: Record<string, string> = {
   email_send:
     "Send an email. Supports replies with threading via inReplyTo parameter.",
   email_events: "List recent email events (sent and received)",
+  email_getContent: "email.getContent procedure",
   email_listConfigs: "List all configured email addresses across workspaces",
   email_domain: "Get the email domain for this instance",
 };
@@ -79,11 +56,6 @@ const POST_PROCESSORS: Record<string, PostProcessor> = {
     const url = `${baseUrl}/api/webhooks/${wh.id}`;
     return `Created webhook. URL: ${url}\n\n${JSON.stringify(result, null, 2)}`;
   },
-  projects_create: (result, baseUrl) => {
-    const p = result as { slug: string; path: string };
-    const chatUrl = `${baseUrl}/project/${p.slug}/chat?_new=${Date.now()}`;
-    return `Created project at ${p.path}\nOpen in chat: ${chatUrl}\n\n${JSON.stringify(result, null, 2)}`;
-  },
 };
 
 export function registerAllTools(
@@ -99,7 +71,6 @@ export function registerAllTools(
       const prefix = path[0];
 
       if (!prefix || !INCLUDE_PREFIXES.has(prefix)) return;
-      if (EXCLUDE_TOOLS.has(toolName)) return;
 
       const def = (contract as any)["~orpc"];
       const inputSchema = def.inputSchema ?? undefined;

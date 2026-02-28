@@ -142,6 +142,7 @@ describe("MCP explorer-server over stdio", () => {
       "email_domain",
       "email_events",
       "email_getConfig",
+      "email_getContent",
       "email_listConfigs",
       "email_removeConfig",
       "email_send",
