@@ -39,7 +39,6 @@ type UseRootChatStreamReturn = {
 
 export type RootChatStreamOpts = {
   resume?: string;
-  thinking?: "adaptive" | "disabled";
   permissionMode?:
     | "bypassPermissions"
     | "default"
@@ -133,7 +132,6 @@ export function useRootChatStream(
                 base64: img.base64,
                 mediaType: img.mediaType,
               })),
-              ...(opts?.thinking ? { thinking: opts.thinking } : {}),
               ...(opts?.permissionMode
                 ? { permissionMode: opts.permissionMode }
                 : {}),
@@ -181,7 +179,6 @@ export function useRootChatStream(
     [
       sessionId,
       opts?.resume,
-      opts?.thinking,
       opts?.permissionMode,
       opts?.model,
       opts?.enabledOptionalMcps,

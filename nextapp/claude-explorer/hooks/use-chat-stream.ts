@@ -44,7 +44,6 @@ type UseChatStreamReturn = {
 export type ChatStreamOpts = {
   resume?: string;
   cwd?: string;
-  thinking?: "adaptive" | "disabled";
   permissionMode?:
     | "bypassPermissions"
     | "default"
@@ -140,7 +139,6 @@ export function useChatStream(opts?: ChatStreamOpts): UseChatStreamReturn {
                 base64: img.base64,
                 mediaType: img.mediaType,
               })),
-              ...(opts?.thinking ? { thinking: opts.thinking } : {}),
               ...(opts?.permissionMode
                 ? { permissionMode: opts.permissionMode }
                 : {}),
@@ -189,7 +187,6 @@ export function useChatStream(opts?: ChatStreamOpts): UseChatStreamReturn {
       sessionId,
       opts?.resume,
       opts?.cwd,
-      opts?.thinking,
       opts?.permissionMode,
       opts?.model,
       opts?.enabledOptionalMcps,
