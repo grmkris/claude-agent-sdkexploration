@@ -55,12 +55,9 @@ export function CommitItem({
       {/* ── Main row (clickable) ────────────────────────────────────── */}
       <div
         className={cn(
-          "flex items-start gap-2.5 px-3 py-2.5 cursor-pointer transition-colors",
-          compact
-            ? "hover:bg-muted/5"
-            : isExpanded
-              ? "bg-muted/20"
-              : "hover:bg-muted/10"
+          "flex items-start px-3 cursor-pointer transition-colors",
+          compact ? "gap-2 py-1.5 hover:bg-muted/5" : "gap-2.5 py-2.5",
+          !compact && (isExpanded ? "bg-muted/20" : "hover:bg-muted/10")
         )}
         onClick={onToggleExpand}
         role="button"
@@ -80,10 +77,15 @@ export function CommitItem({
         )}
 
         {/* Icon */}
-        <div className="mt-0.5 shrink-0 flex h-5 w-5 items-center justify-center rounded-full bg-violet-500/10 text-violet-400">
+        <div
+          className={cn(
+            "shrink-0 flex items-center justify-center rounded-full bg-violet-500/10 text-violet-400",
+            compact ? "mt-0.5 h-4 w-4" : "mt-0.5 h-5 w-5"
+          )}
+        >
           <svg
-            width="10"
-            height="10"
+            width={compact ? "8" : "10"}
+            height={compact ? "8" : "10"}
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
@@ -98,141 +100,223 @@ export function CommitItem({
         </div>
 
         {/* Content */}
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1.5 flex-wrap">
-            {/* Hash badge with full hash tooltip */}
+        {compact ? (
+          /* ── Compact sidebar layout: 2 tight lines ─────────────────── */
+          <div className="min-w-0 flex-1">
+            {/* Line 1: hash + subject (single truncated line) */}
             <Tooltip>
-              <TooltipTrigger>
-                <span className="shrink-0 font-mono text-[10px] text-muted-foreground bg-muted px-1 py-0.5 rounded cursor-default">
-                  {raw.shortHash}
-                </span>
+              <TooltipTrigger render={<div />}>
+                <div className="flex items-center gap-1.5">
+                  <span className="shrink-0 font-mono text-[10px] text-muted-foreground bg-muted px-1 rounded">
+                    {raw.shortHash}
+                  </span>
+                  <span className="text-xs text-foreground truncate">
+                    {raw.subject}
+                  </span>
+                </div>
               </TooltipTrigger>
-              <TooltipContent side="top">
-                <span className="font-mono">{raw.hash}</span>
+              <TooltipContent
+                side="top"
+                className="max-w-[320px] whitespace-pre-wrap break-words"
+              >
+                <span className="font-medium">{raw.subject}</span>
+                {raw.body?.trim() && (
+                  <>
+                    {"\n"}
+                    <span className="opacity-70 whitespace-pre-wrap">
+                      {raw.body.trim()}
+                    </span>
+                  </>
+                )}
               </TooltipContent>
             </Tooltip>
-            {raw.branch && (
-              <span className="shrink-0 text-[10px] text-violet-400 bg-violet-500/10 px-1 py-0.5 rounded font-medium">
-                {raw.branch}
-              </span>
-            )}
-          </div>
-
-          {/* Subject with full message tooltip */}
-          <Tooltip>
-            <TooltipTrigger render={<span />}>
-              <span className="mt-0.5 text-xs text-foreground leading-snug line-clamp-2 cursor-default block">
-                {raw.subject}
-              </span>
-            </TooltipTrigger>
-            <TooltipContent
-              side="top"
-              className="max-w-[320px] whitespace-pre-wrap break-words"
-            >
-              <span className="font-medium">{raw.subject}</span>
-              {raw.body?.trim() && (
-                <>
-                  {"\n"}
-                  <span className="opacity-70 whitespace-pre-wrap">
-                    {raw.body.trim()}
+            {/* Line 2: deployment dots + author + time */}
+            <div className="mt-0.5 flex items-center gap-1.5 text-[10px] text-muted-foreground overflow-hidden">
+              {relatedDeployments?.map((dep) => {
+                const isFailed =
+                  dep.status === "FAILED" || dep.status === "CRASHED";
+                const isLive = dep.status === "SUCCESS";
+                const isBuilding =
+                  dep.status === "DEPLOYING" || dep.status === "BUILDING";
+                const dotColor = isFailed
+                  ? "#f87171"
+                  : isLive
+                    ? "#4ade80"
+                    : isBuilding
+                      ? "#facc15"
+                      : "#6b7280";
+                return (
+                  <span
+                    key={dep.id}
+                    className="inline-flex items-center gap-0.5 shrink-0"
+                  >
+                    <span
+                      className={cn(
+                        "h-1.5 w-1.5 rounded-full shrink-0",
+                        isBuilding && "animate-pulse"
+                      )}
+                      style={{ backgroundColor: dotColor }}
+                    />
+                    <span className="text-[9px]">{dep.serviceName}</span>
                   </span>
-                </>
-              )}
-            </TooltipContent>
-          </Tooltip>
-
-          {/* Correlation badges: deployments + tickets */}
-          {((relatedDeployments && relatedDeployments.length > 0) ||
-            (relatedTickets && relatedTickets.length > 0)) && (
-            <div className="mt-1 flex flex-wrap gap-1 items-center">
-              {relatedDeployments && relatedDeployments.length > 0 && (
-                <>
-                  {/* Tiny "deployed ->" label */}
-                  <span className="text-[10px] text-muted-foreground/60 mr-0.5">
-                    deployed &rarr;
-                  </span>
-                  {relatedDeployments.map((dep) => {
-                    const isFailed =
-                      dep.status === "FAILED" || dep.status === "CRASHED";
-                    const isLive = dep.status === "SUCCESS";
-                    const isBuilding =
-                      dep.status === "DEPLOYING" || dep.status === "BUILDING";
-                    const badgeClasses = cn(
-                      "inline-flex items-center gap-1 text-[10px] px-1 py-0.5 rounded font-medium",
-                      isFailed && "bg-red-500/10 text-red-400",
-                      isLive && "bg-green-500/10 text-green-400",
-                      isBuilding && "bg-yellow-500/10 text-yellow-400",
-                      !isFailed &&
-                        !isLive &&
-                        !isBuilding &&
-                        "bg-muted text-muted-foreground",
-                      dep.dashboardUrl
-                        ? "cursor-pointer hover:opacity-80 transition-opacity"
-                        : "cursor-default"
-                    );
-                    const inner = (
-                      <>
-                        <span
-                          className={cn(
-                            "h-1.5 w-1.5 rounded-full bg-current shrink-0",
-                            isBuilding && "animate-pulse"
-                          )}
-                        />
-                        {dep.serviceName}
-                      </>
-                    );
-                    return (
-                      <Tooltip key={dep.id}>
-                        <TooltipTrigger>
-                          {dep.dashboardUrl ? (
-                            <a
-                              href={dep.dashboardUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              onClick={(e) => e.stopPropagation()}
-                              className={badgeClasses}
-                            >
-                              {inner}
-                            </a>
-                          ) : (
-                            <span className={badgeClasses}>{inner}</span>
-                          )}
-                        </TooltipTrigger>
-                        <TooltipContent side="top">
-                          {dep.serviceName}: {dep.status}
-                          {dep.dashboardUrl && (
-                            <span className="ml-1 opacity-60">
-                              &uarr; Railway
-                            </span>
-                          )}
-                        </TooltipContent>
-                      </Tooltip>
-                    );
-                  })}
-                </>
-              )}
+                );
+              })}
               {relatedTickets?.map((ticket) => (
-                <Tooltip key={ticket.identifier}>
-                  <TooltipTrigger>
-                    <span className="inline-flex items-center text-[10px] font-mono px-1 py-0.5 rounded bg-blue-500/10 text-blue-400 font-medium cursor-default">
-                      {ticket.identifier}
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent side="top" className="max-w-xs">
-                    {ticket.title}
-                  </TooltipContent>
-                </Tooltip>
+                <span
+                  key={ticket.identifier}
+                  className="shrink-0 font-mono text-[9px] text-blue-400"
+                >
+                  {ticket.identifier}
+                </span>
               ))}
+              <span className="truncate">
+                {raw.author} &middot; {relativeTime(raw.date)}
+              </span>
             </div>
-          )}
+          </div>
+        ) : (
+          /* ── Full layout (overview page, expandable) ────────────────── */
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {/* Hash badge with full hash tooltip */}
+              <Tooltip>
+                <TooltipTrigger>
+                  <span className="shrink-0 font-mono text-[10px] text-muted-foreground bg-muted px-1 py-0.5 rounded cursor-default">
+                    {raw.shortHash}
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="top">
+                  <span className="font-mono">{raw.hash}</span>
+                </TooltipContent>
+              </Tooltip>
+              {raw.branch && (
+                <span className="shrink-0 text-[10px] text-violet-400 bg-violet-500/10 px-1 py-0.5 rounded font-medium">
+                  {raw.branch}
+                </span>
+              )}
+            </div>
 
-          <p className="mt-0.5 text-[10px] text-muted-foreground">
-            {raw.author} &middot; {relativeTime(raw.date)}
-          </p>
-        </div>
+            {/* Subject with full message tooltip */}
+            <Tooltip>
+              <TooltipTrigger render={<span />}>
+                <span className="mt-0.5 text-xs text-foreground leading-snug line-clamp-2 cursor-default block">
+                  {raw.subject}
+                </span>
+              </TooltipTrigger>
+              <TooltipContent
+                side="top"
+                className="max-w-[320px] whitespace-pre-wrap break-words"
+              >
+                <span className="font-medium">{raw.subject}</span>
+                {raw.body?.trim() && (
+                  <>
+                    {"\n"}
+                    <span className="opacity-70 whitespace-pre-wrap">
+                      {raw.body.trim()}
+                    </span>
+                  </>
+                )}
+              </TooltipContent>
+            </Tooltip>
+
+            {/* Correlation badges: deployments + tickets */}
+            {((relatedDeployments && relatedDeployments.length > 0) ||
+              (relatedTickets && relatedTickets.length > 0)) && (
+              <div className="mt-1 flex flex-wrap gap-1 items-center">
+                {relatedDeployments && relatedDeployments.length > 0 && (
+                  <>
+                    {/* Tiny "deployed ->" label */}
+                    <span className="text-[10px] text-muted-foreground/60 mr-0.5">
+                      deployed &rarr;
+                    </span>
+                    {relatedDeployments.map((dep) => {
+                      const isFailed =
+                        dep.status === "FAILED" || dep.status === "CRASHED";
+                      const isLive = dep.status === "SUCCESS";
+                      const isBuilding =
+                        dep.status === "DEPLOYING" || dep.status === "BUILDING";
+                      const badgeClasses = cn(
+                        "inline-flex items-center gap-1 text-[10px] px-1 py-0.5 rounded font-medium",
+                        isFailed && "bg-red-500/10 text-red-400",
+                        isLive && "bg-green-500/10 text-green-400",
+                        isBuilding && "bg-yellow-500/10 text-yellow-400",
+                        !isFailed &&
+                          !isLive &&
+                          !isBuilding &&
+                          "bg-muted text-muted-foreground",
+                        dep.dashboardUrl
+                          ? "cursor-pointer hover:opacity-80 transition-opacity"
+                          : "cursor-default"
+                      );
+                      const inner = (
+                        <>
+                          <span
+                            className={cn(
+                              "h-1.5 w-1.5 rounded-full bg-current shrink-0",
+                              isBuilding && "animate-pulse"
+                            )}
+                          />
+                          {dep.serviceName}
+                        </>
+                      );
+                      return (
+                        <Tooltip key={dep.id}>
+                          <TooltipTrigger>
+                            {dep.dashboardUrl ? (
+                              <a
+                                href={dep.dashboardUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className={badgeClasses}
+                              >
+                                {inner}
+                              </a>
+                            ) : (
+                              <span className={badgeClasses}>{inner}</span>
+                            )}
+                          </TooltipTrigger>
+                          <TooltipContent side="top">
+                            {dep.serviceName}: {dep.status}
+                            {dep.dashboardUrl && (
+                              <span className="ml-1 opacity-60">
+                                &uarr; Railway
+                              </span>
+                            )}
+                          </TooltipContent>
+                        </Tooltip>
+                      );
+                    })}
+                  </>
+                )}
+                {relatedTickets?.map((ticket) => (
+                  <Tooltip key={ticket.identifier}>
+                    <TooltipTrigger>
+                      <span className="inline-flex items-center text-[10px] font-mono px-1 py-0.5 rounded bg-blue-500/10 text-blue-400 font-medium cursor-default">
+                        {ticket.identifier}
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="max-w-xs">
+                      {ticket.title}
+                    </TooltipContent>
+                  </Tooltip>
+                ))}
+              </div>
+            )}
+
+            <p className="mt-0.5 text-[10px] text-muted-foreground">
+              {raw.author} &middot; {relativeTime(raw.date)}
+            </p>
+          </div>
+        )}
 
         {/* Hover actions */}
-        <div className="shrink-0 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div
+          className={cn(
+            "shrink-0 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity",
+            compact && "mt-0.5"
+          )}
+        >
           {/* GitHub link */}
           {githubRepoUrl && (
             <a
@@ -288,20 +372,22 @@ export function CommitItem({
               </svg>
             </a>
           )}
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onStartChat();
-            }}
-            className={cn(
-              "rounded px-2 py-0.5 text-[10px] font-medium transition-colors",
-              "bg-primary text-primary-foreground hover:bg-primary/90"
-            )}
-            title="Start a chat about this commit"
-          >
-            &starf; Chat
-          </button>
+          {!compact && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onStartChat();
+              }}
+              className={cn(
+                "rounded px-2 py-0.5 text-[10px] font-medium transition-colors",
+                "bg-primary text-primary-foreground hover:bg-primary/90"
+              )}
+              title="Start a chat about this commit"
+            >
+              &starf; Chat
+            </button>
+          )}
         </div>
       </div>
 

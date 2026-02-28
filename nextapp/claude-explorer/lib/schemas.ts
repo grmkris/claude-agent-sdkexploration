@@ -183,6 +183,7 @@ export const WidgetItemSchema = z.object({
   secondaryLabel: z.string().optional(),
   timestamp: z.string().optional(),
   copyValue: z.string().optional(),
+  logsUrl: z.string().optional(),
 });
 
 export const IntegrationWidgetSchema = z.object({
