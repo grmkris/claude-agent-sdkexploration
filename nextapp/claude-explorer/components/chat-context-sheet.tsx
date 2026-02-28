@@ -172,7 +172,7 @@ function buildOptions(
           label: "Triggering commit",
           description: relatedCommit
             ? relatedCommit.subject
-            : raw.commitMessage ?? raw.commitHash?.slice(0, 7) ?? "",
+            : (raw.commitMessage ?? raw.commitHash?.slice(0, 7) ?? ""),
           defaultOn: true,
           buildSection: () => {
             const lines = ["[Commit]"];
@@ -187,9 +187,7 @@ function buildOptions(
             } else if (raw.commitHash) {
               lines.push(
                 `Hash: ${raw.commitHash.slice(0, 7)}`,
-                ...(raw.commitMessage
-                  ? [`Message: ${raw.commitMessage}`]
-                  : [])
+                ...(raw.commitMessage ? [`Message: ${raw.commitMessage}`] : [])
               );
             }
             return lines.join("\n");
@@ -418,10 +416,7 @@ function buildOptions(
   }
 }
 
-function buildPrompt(
-  options: ContextOption[],
-  selected: Set<string>
-): string {
+function buildPrompt(options: ContextOption[], selected: Set<string>): string {
   const sections = options
     .filter((o) => selected.has(o.id))
     .map((o) => o.buildSection())
