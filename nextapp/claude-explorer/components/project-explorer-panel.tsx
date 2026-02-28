@@ -19,7 +19,7 @@ import { AutomationsTab } from "@/components/right-sidebar/automations-tab";
 import { FileTreeTab } from "@/components/right-sidebar/file-tree-tab";
 import { GitTab } from "@/components/right-sidebar/git-tab";
 import { OverviewTab } from "@/components/right-sidebar/overview-tab";
-import { SkillsMcpsTab } from "@/components/right-sidebar/skills-mcps-tab";
+import { SkillsMcpsSidebar } from "@/components/skills-mcps/skills-mcps-sidebar";
 import {
   SidebarContent,
   SidebarFooter,
@@ -187,10 +187,10 @@ export function ProjectExplorerPanel({ slug }: { slug: string }) {
       </SidebarHeader>
       <SidebarContent>
         <TabsContent value="overview" hidden={activeTab !== "overview"}>
-          <OverviewTab slug={slug} />
+          <OverviewTab slug={slug} commitMode="navigate" />
         </TabsContent>
         <TabsContent value="skills" hidden={activeTab !== "skills"}>
-          <SkillsMcpsTab slug={slug} />
+          <SkillsMcpsSidebar slug={slug} />
         </TabsContent>
         <TabsContent value="git" hidden={activeTab !== "git"}>
           <GitTab slug={slug} />

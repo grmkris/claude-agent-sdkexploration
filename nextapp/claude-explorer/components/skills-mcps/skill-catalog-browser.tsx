@@ -17,11 +17,16 @@ function formatInstalls(n: number): string {
   return String(n);
 }
 
-export function SkillCatalogView() {
+export function SkillCatalogBrowser({
+  compact = false,
+}: {
+  compact?: boolean;
+}) {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [justInstalled, setJustInstalled] = useState<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   useEffect(() => {
@@ -50,10 +55,14 @@ export function SkillCatalogView() {
       client.skills.installFromCatalog({
         installCommand: `${skill.source} --skill ${skill.skillId}`,
       }),
-    onSuccess: (result) => {
+    onSuccess: (result, skill) => {
       if (result.success) {
         invalidate();
-        setExpandedId(null);
+        setJustInstalled(skill.id);
+        setTimeout(() => {
+          setJustInstalled(null);
+          setExpandedId(null);
+        }, 1500);
       }
     },
   });
@@ -66,7 +75,7 @@ export function SkillCatalogView() {
         placeholder="Search skills.sh..."
         value={search}
         onChange={(e) => setSearch(e.target.value)}
-        className="h-8 text-sm"
+        className={compact ? "h-7 text-xs" : "h-8 text-sm"}
       />
 
       {isLoading && <p className="text-sm text-muted-foreground">Loading...</p>}
@@ -82,6 +91,7 @@ export function SkillCatalogView() {
           const isExpanded = expandedId === skill.id;
           const isInstalling =
             installSkill.isPending && installSkill.variables?.id === skill.id;
+          const wasJustInstalled = justInstalled === skill.id;
           const installCmd = `npx skills add ${skill.source} --skill ${skill.skillId} -y`;
 
           return (
@@ -90,8 +100,11 @@ export function SkillCatalogView() {
                 size="sm"
                 className={`cursor-pointer transition-colors hover:bg-accent/50 ${
                   isExpanded ? "ring-1 ring-foreground/20" : ""
-                }`}
-                onClick={() => setExpandedId(isExpanded ? null : skill.id)}
+                } ${wasJustInstalled ? "ring-1 ring-green-400/50" : ""}`}
+                onClick={() =>
+                  !wasJustInstalled &&
+                  setExpandedId(isExpanded ? null : skill.id)
+                }
               >
                 <CardContent className="flex flex-col gap-1.5 py-3">
                   <div className="flex items-center gap-2">
@@ -99,11 +112,19 @@ export function SkillCatalogView() {
                     <Badge variant="outline" className="text-[10px] ml-auto">
                       {formatInstalls(skill.installs)}
                     </Badge>
+                    {wasJustInstalled && (
+                      <Badge
+                        variant="secondary"
+                        className="shrink-0 text-[10px]"
+                      >
+                        {"\u2713"} Installed!
+                      </Badge>
+                    )}
                   </div>
                   <p className="text-[11px] text-muted-foreground leading-snug font-mono truncate">
                     {skill.source}
                   </p>
-                  {!isExpanded && (
+                  {!isExpanded && !wasJustInstalled && (
                     <div className="flex items-center">
                       <Button
                         size="xs"

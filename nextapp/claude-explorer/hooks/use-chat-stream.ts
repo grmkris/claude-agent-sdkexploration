@@ -52,6 +52,10 @@ export type ChatStreamOpts = {
     | "plan"
     | "dontAsk";
   model?: string;
+  enabledOptionalMcps?: Array<{
+    name: string;
+    scope: "user" | "project" | "local";
+  }>;
 };
 
 export function useChatStream(opts?: ChatStreamOpts): UseChatStreamReturn {
@@ -138,6 +142,9 @@ export function useChatStream(opts?: ChatStreamOpts): UseChatStreamReturn {
                 ? { permissionMode: opts.permissionMode }
                 : {}),
               ...(opts?.model ? { model: opts.model } : {}),
+              ...(opts?.enabledOptionalMcps?.length
+                ? { enabledOptionalMcps: opts.enabledOptionalMcps }
+                : {}),
             },
             { signal: ac.signal }
           );
@@ -175,6 +182,7 @@ export function useChatStream(opts?: ChatStreamOpts): UseChatStreamReturn {
       opts?.thinking,
       opts?.permissionMode,
       opts?.model,
+      opts?.enabledOptionalMcps,
     ]
   );
 

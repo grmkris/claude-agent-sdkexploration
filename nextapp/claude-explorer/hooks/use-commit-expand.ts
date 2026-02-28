@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { client } from "@/lib/orpc-client";
 
@@ -12,6 +12,7 @@ export type CommitFile = {
 
 interface UseCommitExpandOptions {
   slug: string;
+  initialCommitHash?: string | null;
 }
 
 interface UseCommitExpandReturn {
@@ -27,15 +28,43 @@ interface UseCommitExpandReturn {
 
 export function useCommitExpand({
   slug,
+  initialCommitHash,
 }: UseCommitExpandOptions): UseCommitExpandReturn {
   // Level 1: which commit is expanded
-  const [expandedCommit, setExpandedCommit] = useState<string | null>(null);
+  const [expandedCommit, setExpandedCommit] = useState<string | null>(
+    initialCommitHash ?? null
+  );
   const [commitFiles, setCommitFiles] = useState<Record<string, CommitFile[]>>(
     {}
   );
   const [loadingCommitFiles, setLoadingCommitFiles] = useState<string | null>(
     null
   );
+
+  // Auto-fetch files when initialCommitHash is provided on mount
+  useEffect(() => {
+    if (!initialCommitHash) return;
+    // Already cached — nothing to do
+    if (commitFiles[initialCommitHash] !== undefined) return;
+
+    setLoadingCommitFiles(initialCommitHash);
+    client.projects
+      .gitCommitFiles({ slug, hash: initialCommitHash })
+      .then((result) => {
+        setCommitFiles((prev) => ({
+          ...prev,
+          [initialCommitHash]: result.files,
+        }));
+      })
+      .catch(() => {
+        setCommitFiles((prev) => ({ ...prev, [initialCommitHash]: [] }));
+      })
+      .finally(() => {
+        setLoadingCommitFiles(null);
+      });
+    // Only run on mount / when initialCommitHash changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialCommitHash]);
 
   // Level 2: which file within the expanded commit is expanded
   const [expandedCommitFile, setExpandedCommitFile] = useState<string | null>(

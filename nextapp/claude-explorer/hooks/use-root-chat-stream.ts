@@ -47,6 +47,10 @@ export type RootChatStreamOpts = {
     | "plan"
     | "dontAsk";
   model?: string;
+  enabledOptionalMcps?: Array<{
+    name: string;
+    scope: "user" | "project" | "local";
+  }>;
 };
 
 export function useRootChatStream(
@@ -131,6 +135,9 @@ export function useRootChatStream(
                 ? { permissionMode: opts.permissionMode }
                 : {}),
               ...(opts?.model ? { model: opts.model } : {}),
+              ...(opts?.enabledOptionalMcps?.length
+                ? { enabledOptionalMcps: opts.enabledOptionalMcps }
+                : {}),
             },
             { signal: ac.signal }
           );
@@ -161,7 +168,14 @@ export function useRootChatStream(
         }
       })();
     },
-    [sessionId, opts?.resume, opts?.thinking, opts?.permissionMode, opts?.model]
+    [
+      sessionId,
+      opts?.resume,
+      opts?.thinking,
+      opts?.permissionMode,
+      opts?.model,
+      opts?.enabledOptionalMcps,
+    ]
   );
 
   const answerQuestion = useCallback(

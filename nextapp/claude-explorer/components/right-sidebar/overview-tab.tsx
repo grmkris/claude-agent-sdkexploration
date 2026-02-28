@@ -20,7 +20,15 @@ function TmuxSection({ slug }: { slug: string }) {
 
 // ── Main export ──────────────────────────────────────────────────────────────
 
-export function OverviewTab({ slug }: { slug: string | null }) {
+export function OverviewTab({
+  slug,
+  commitMode,
+  initialCommitHash,
+}: {
+  slug: string | null;
+  commitMode?: "expand" | "navigate";
+  initialCommitHash?: string | null;
+}) {
   if (!slug) {
     return (
       <div className="px-2 py-4 text-center text-xs text-muted-foreground">
@@ -38,7 +46,11 @@ export function OverviewTab({ slug }: { slug: string | null }) {
       <TmuxSection slug={slug} />
 
       {/* Activity feed */}
-      <ActivityFeed slug={slug} />
+      <ActivityFeed
+        slug={slug}
+        mode={commitMode}
+        initialCommitHash={initialCommitHash}
+      />
     </div>
   );
 }

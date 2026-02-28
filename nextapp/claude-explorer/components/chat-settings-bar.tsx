@@ -17,11 +17,17 @@ export const MODELS = [
   { value: "claude-opus-4-6", label: "Opus 4.6" },
 ] as const;
 
+export type McpSelection = {
+  name: string;
+  scope: "user" | "project" | "local";
+};
+
 export type ChatSettings = {
   thinkingEnabled: boolean;
   bypassPermissions: boolean;
   planMode: boolean;
   model: string;
+  enabledOptionalMcps: McpSelection[];
 };
 
 export const DEFAULT_CHAT_SETTINGS: ChatSettings = {
@@ -29,6 +35,7 @@ export const DEFAULT_CHAT_SETTINGS: ChatSettings = {
   bypassPermissions: true,
   planMode: false,
   model: "claude-opus-4-6",
+  enabledOptionalMcps: [],
 };
 
 // ---------------------------------------------------------------------------
@@ -81,11 +88,13 @@ export function ChatSettingsBar({
   onSettingsChange,
   disabled,
   currentPermissionMode,
+  children,
 }: {
   settings: ChatSettings;
   onSettingsChange: (settings: ChatSettings) => void;
   disabled?: boolean;
   currentPermissionMode?: string | null;
+  children?: React.ReactNode;
 }) {
   return (
     <div className="flex flex-col border-t border-border/30">
@@ -207,6 +216,9 @@ export function ChatSettingsBar({
             </svg>
           }
         />
+
+        {/* Optional integrations (e.g. MCP selector) */}
+        {children}
 
         {/* Model selector */}
         <div className="ml-auto">

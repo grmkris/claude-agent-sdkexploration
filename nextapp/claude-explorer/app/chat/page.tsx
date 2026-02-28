@@ -11,6 +11,7 @@ import {
   type ChatSettings,
 } from "@/components/chat-settings-bar";
 import { ChatView } from "@/components/chat-view";
+import { OptionalMcpSelector } from "@/components/optional-mcp-selector";
 import { useRootChatStream } from "@/hooks/use-root-chat-stream";
 import { orpc } from "@/lib/orpc";
 import { client } from "@/lib/orpc-client";
@@ -45,6 +46,7 @@ function RootNewChatContent() {
         ? "bypassPermissions"
         : "default",
     model: settings.model,
+    enabledOptionalMcps: settings.enabledOptionalMcps,
   });
 
   const setPrimary = useMutation({
@@ -142,7 +144,13 @@ function RootNewChatContent() {
         onSettingsChange={setSettings}
         disabled={isStreaming}
         currentPermissionMode={currentPermissionMode}
-      />
+      >
+        <OptionalMcpSelector
+          settings={settings}
+          onSettingsChange={setSettings}
+          disabled={isStreaming}
+        />
+      </ChatSettingsBar>
       <ChatInput
         onSend={send}
         onStop={stop}

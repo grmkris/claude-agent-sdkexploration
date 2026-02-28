@@ -2,7 +2,7 @@
 
 import { use } from "react";
 
-import { SkillsMcpsTab } from "@/components/right-sidebar/skills-mcps-tab";
+import { SkillsMcpsFullPage } from "@/components/skills-mcps/skills-mcps-full-page";
 
 export default function ProjectSkillsPage({
   params,
@@ -15,7 +15,7 @@ export default function ProjectSkillsPage({
       <div className="border-b px-4 py-3">
         <h1 className="text-sm font-semibold">Skills &amp; MCPs</h1>
       </div>
-      <SkillsMcpsTab slug={slug} />
+      <SkillsMcpsFullPage slug={slug} />
     </div>
   );
 }

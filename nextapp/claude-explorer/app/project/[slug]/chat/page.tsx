@@ -11,6 +11,7 @@ import {
   type ChatSettings,
 } from "@/components/chat-settings-bar";
 import { ChatView } from "@/components/chat-view";
+import { OptionalMcpSelector } from "@/components/optional-mcp-selector";
 import { useChatStream } from "@/hooks/use-chat-stream";
 import { orpc } from "@/lib/orpc";
 
@@ -54,6 +55,7 @@ function NewChatContent({
         ? "bypassPermissions"
         : "default",
     model: settings.model,
+    enabledOptionalMcps: settings.enabledOptionalMcps,
   });
 
   // Auto-send the initial prompt (from project creation) once the cwd is ready.
@@ -126,7 +128,14 @@ function NewChatContent({
         onSettingsChange={setSettings}
         disabled={isStreaming}
         currentPermissionMode={currentPermissionMode}
-      />
+      >
+        <OptionalMcpSelector
+          slug={slug}
+          settings={settings}
+          onSettingsChange={setSettings}
+          disabled={isStreaming}
+        />
+      </ChatSettingsBar>
       <ChatInput
         onSend={send}
         onStop={stop}

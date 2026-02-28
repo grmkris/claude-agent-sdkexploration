@@ -70,6 +70,10 @@ import {
   setPrefilledApproval,
   getPendingExitPlanMode,
   deletePendingExitPlanMode,
+  getMcpPreferences,
+  setMcpPreference,
+  saveSessionMcpSelections,
+  getSessionMcpSelections,
 } from "./explorer-db";
 import {
   getFavorites,
@@ -624,6 +628,14 @@ const chatProc = os
         ])
         .optional(),
       model: z.string().optional(),
+      enabledOptionalMcps: z
+        .array(
+          z.object({
+            name: z.string(),
+            scope: z.enum(["user", "project", "local"]),
+          })
+        )
+        .optional(),
     })
   )
   .output(eventIterator(z.custom<SDKMessage>()))
@@ -672,6 +684,75 @@ const chatProc = os
           : input.thinking === "disabled"
             ? ({ type: "disabled" } as const)
             : undefined;
+
+      // --- Build merged MCP servers ---
+      // Read all MCP configs from disk, filter by default/optional preference,
+      // and build the final set to pass explicitly to query().
+      const explorerName = process.env.INSTANCE_NAME ?? "claude-explorer";
+      const explorerServerPath_ = explorerServerPath; // alias for closure clarity
+      const explorerMcpConfig = {
+        command: "bun",
+        args: [explorerServerPath_],
+        env: {
+          EXPLORER_BASE_URL: baseUrl,
+          EXPLORER_RPC_URL: `${baseUrl}/rpc`,
+          ...(process.env.RPC_INTERNAL_TOKEN
+            ? { RPC_INTERNAL_TOKEN: process.env.RPC_INTERNAL_TOKEN }
+            : {}),
+        },
+      };
+
+      const finalMcpServers: Record<string, unknown> = {
+        [explorerName]: explorerMcpConfig,
+      };
+
+      try {
+        const userMcps = await readUserMcpServers();
+        const projectMcps = input.cwd
+          ? ((await readProjectMcpConfig(input.cwd)) ?? {})
+          : {};
+        const localMcps = input.cwd ? await readLocalMcpServers(input.cwd) : {};
+
+        // Build set of selected optional MCPs
+        const enabledOptionalSet = new Set<string>();
+        if (input.enabledOptionalMcps) {
+          for (const m of input.enabledOptionalMcps) {
+            enabledOptionalSet.add(`${m.scope}:${m.name}`);
+          }
+        } else if (input.resume) {
+          // For resumed sessions without explicit selections, load saved ones
+          const saved = getSessionMcpSelections(input.resume);
+          for (const s of saved) {
+            enabledOptionalSet.add(`${s.scope}:${s.server_name}`);
+          }
+        }
+
+        // Get preferences from DB
+        const prefs = getMcpPreferences(input.cwd ?? undefined);
+        const prefMap = new Map(
+          prefs.map((p) => [`${p.scope}:${p.server_name}`, p.mode])
+        );
+
+        function shouldIncludeMcp(name: string, scope: string): boolean {
+          if (name === explorerName) return false; // already included
+          const mode = prefMap.get(`${scope}:${name}`) ?? "default";
+          if (mode === "default") return true;
+          return enabledOptionalSet.has(`${scope}:${name}`);
+        }
+
+        for (const [name, config] of Object.entries(userMcps)) {
+          if (shouldIncludeMcp(name, "user")) finalMcpServers[name] = config;
+        }
+        for (const [name, config] of Object.entries(projectMcps)) {
+          if (shouldIncludeMcp(name, "project")) finalMcpServers[name] = config;
+        }
+        for (const [name, config] of Object.entries(localMcps)) {
+          if (shouldIncludeMcp(name, "local")) finalMcpServers[name] = config;
+        }
+      } catch {
+        // best-effort — if reading disk configs fails, just use the explorer MCP
+        console.warn("[chatProc] Failed to read MCP configs from disk");
+      }
 
       const conversation = query({
         prompt: buildPromptArg(input.prompt, input.resume, input.images),
@@ -873,19 +954,10 @@ const chatProc = os
 
             return { behavior: "allow" as const };
           },
-          mcpServers: {
-            [process.env.INSTANCE_NAME ?? "claude-explorer"]: {
-              command: "bun",
-              args: [explorerServerPath],
-              env: {
-                EXPLORER_BASE_URL: baseUrl,
-                EXPLORER_RPC_URL: `${baseUrl}/rpc`,
-                ...(process.env.RPC_INTERNAL_TOKEN
-                  ? { RPC_INTERNAL_TOKEN: process.env.RPC_INTERNAL_TOKEN }
-                  : {}),
-              },
-            },
-          },
+          mcpServers: finalMcpServers as Record<
+            string,
+            import("@anthropic-ai/claude-agent-sdk/sdk").McpServerConfig
+          >,
           hooks: createSessionHooks("chat"),
           ...(input.resume ? { resume: input.resume } : {}),
           ...(input.cwd ? { cwd: input.cwd } : {}),
@@ -931,6 +1003,10 @@ const chatProc = os
             project_path: input.cwd ?? process.cwd(),
             model: input.model ?? null,
           });
+          // Save optional MCP selections for session resume
+          if (!input.resume && input.enabledOptionalMcps?.length) {
+            saveSessionMcpSelections(sessionId, input.enabledOptionalMcps);
+          }
         }
         // Capture result metrics
         if ("type" in msg && msg.type === "result" && sessionId) {
@@ -1724,6 +1800,14 @@ const rootChatProc = os
         ])
         .optional(),
       model: z.string().optional(),
+      enabledOptionalMcps: z
+        .array(
+          z.object({
+            name: z.string(),
+            scope: z.enum(["user", "project", "local"]),
+          })
+        )
+        .optional(),
     })
   )
   .output(eventIterator(z.custom<SDKMessage>()))
@@ -1760,6 +1844,61 @@ const rootChatProc = os
           : input.thinking === "disabled"
             ? ({ type: "disabled" } as const)
             : undefined;
+
+      // --- Build merged MCP servers for root chat (user-scope only) ---
+      const rootExplorerName = process.env.INSTANCE_NAME ?? "claude-explorer";
+      const rootExplorerMcpConfig = {
+        command: "bun",
+        args: [explorerServerPath],
+        env: {
+          EXPLORER_BASE_URL: baseUrl,
+          EXPLORER_RPC_URL: `${baseUrl}/rpc`,
+          ...(process.env.RPC_INTERNAL_TOKEN
+            ? { RPC_INTERNAL_TOKEN: process.env.RPC_INTERNAL_TOKEN }
+            : {}),
+        },
+      };
+
+      const rootFinalMcpServers: Record<string, unknown> = {
+        [rootExplorerName]: rootExplorerMcpConfig,
+      };
+
+      try {
+        const userMcps = await readUserMcpServers();
+
+        // Build set of selected optional MCPs
+        const rootEnabledOptionalSet = new Set<string>();
+        if (input.enabledOptionalMcps) {
+          for (const m of input.enabledOptionalMcps) {
+            rootEnabledOptionalSet.add(`${m.scope}:${m.name}`);
+          }
+        } else if (input.resume) {
+          const saved = getSessionMcpSelections(input.resume);
+          for (const s of saved) {
+            rootEnabledOptionalSet.add(`${s.scope}:${s.server_name}`);
+          }
+        }
+
+        const rootPrefs = getMcpPreferences();
+        const rootPrefMap = new Map(
+          rootPrefs.map((p) => [`${p.scope}:${p.server_name}`, p.mode])
+        );
+
+        for (const [name, config] of Object.entries(userMcps)) {
+          if (name === rootExplorerName) continue;
+          const mode = rootPrefMap.get(`user:${name}`) ?? "default";
+          if (
+            mode === "default" ||
+            rootEnabledOptionalSet.has(`user:${name}`)
+          ) {
+            rootFinalMcpServers[name] = config;
+          }
+        }
+      } catch {
+        console.warn(
+          "[rootChatProc] Failed to read user MCP configs from disk"
+        );
+      }
 
       const conversation = query({
         prompt: buildPromptArg(input.prompt, input.resume, input.images),
@@ -1952,19 +2091,10 @@ const rootChatProc = os
             append:
               "You are the root workspace assistant for Claude Explorer. You have cross-project access via MCP tools (project_list, project_sessions, cron_create, webhook_create, etc). Use them to help manage all projects.",
           },
-          mcpServers: {
-            [process.env.INSTANCE_NAME ?? "claude-explorer"]: {
-              command: "bun",
-              args: [explorerServerPath],
-              env: {
-                EXPLORER_BASE_URL: baseUrl,
-                EXPLORER_RPC_URL: `${baseUrl}/rpc`,
-                ...(process.env.RPC_INTERNAL_TOKEN
-                  ? { RPC_INTERNAL_TOKEN: process.env.RPC_INTERNAL_TOKEN }
-                  : {}),
-              },
-            },
-          },
+          mcpServers: rootFinalMcpServers as Record<
+            string,
+            import("@anthropic-ai/claude-agent-sdk/sdk").McpServerConfig
+          >,
           hooks: createSessionHooks("root_chat"),
           ...(input.resume ? { resume: input.resume } : {}),
         },
@@ -2004,6 +2134,10 @@ const rootChatProc = os
             project_path: USER_HOME,
             model: input.model ?? null,
           });
+          // Save optional MCP selections for session resume
+          if (!input.resume && input.enabledOptionalMcps?.length) {
+            saveSessionMcpSelections(sessionId, input.enabledOptionalMcps);
+          }
         }
         if ("type" in msg && msg.type === "result" && sessionId) {
           const r = msg as {
@@ -2986,6 +3120,105 @@ const inspectToolsProc = os
     }
   });
 
+// --- MCP Preferences (default vs optional) ---
+
+const McpPreferenceEntrySchema = z.object({
+  name: z.string(),
+  scope: z.enum(["user", "project", "local"]),
+  mode: z.enum(["default", "optional"]),
+  config: z.unknown(),
+});
+
+const getMcpPreferencesProc = os
+  .input(z.object({ slug: z.string().optional() }))
+  .output(z.object({ servers: z.array(McpPreferenceEntrySchema) }))
+  .handler(async ({ input }) => {
+    const projectPath = input.slug ? await resolveSlugToPath(input.slug) : null;
+
+    // Read all MCP servers from all scopes
+    const userServers = await readUserMcpServers();
+    const projectServers = projectPath
+      ? ((await readProjectMcpConfig(projectPath)) ?? {})
+      : {};
+    const localServers = projectPath
+      ? await readLocalMcpServers(projectPath)
+      : {};
+
+    // Get preferences from DB
+    const prefs = getMcpPreferences(projectPath ?? undefined);
+    const prefMap = new Map(
+      prefs.map((p) => [`${p.scope}:${p.server_name}`, p.mode])
+    );
+
+    const servers: Array<{
+      name: string;
+      scope: "user" | "project" | "local";
+      mode: "default" | "optional";
+      config: unknown;
+    }> = [];
+
+    // Build server list with mode annotations
+    const explorerName = process.env.INSTANCE_NAME ?? "claude-explorer";
+
+    for (const [name, config] of Object.entries(userServers)) {
+      if (name === explorerName) continue; // system server — always default
+      servers.push({
+        name,
+        scope: "user",
+        mode:
+          (prefMap.get(`user:${name}`) as "default" | "optional") ?? "default",
+        config,
+      });
+    }
+    for (const [name, config] of Object.entries(projectServers)) {
+      if (name === explorerName) continue;
+      servers.push({
+        name,
+        scope: "project",
+        mode:
+          (prefMap.get(`project:${name}`) as "default" | "optional") ??
+          "default",
+        config,
+      });
+    }
+    for (const [name, config] of Object.entries(localServers)) {
+      if (name === explorerName) continue;
+      servers.push({
+        name,
+        scope: "local",
+        mode:
+          (prefMap.get(`local:${name}`) as "default" | "optional") ?? "default",
+        config,
+      });
+    }
+
+    return { servers };
+  });
+
+const setMcpPreferenceProc = os
+  .input(
+    z.object({
+      serverName: z.string(),
+      scope: z.enum(["user", "project", "local"]),
+      slug: z.string().optional(),
+      mode: z.enum(["default", "optional"]),
+    })
+  )
+  .output(z.object({ success: z.boolean(), error: z.string().optional() }))
+  .handler(async ({ input }) => {
+    // Guard: never change the system explorer MCP
+    const explorerName = process.env.INSTANCE_NAME ?? "claude-explorer";
+    if (input.serverName === explorerName) {
+      return {
+        success: false,
+        error: "Cannot change the mode of the system MCP server",
+      };
+    }
+    const projectPath = input.slug ? await resolveSlugToPath(input.slug) : "";
+    setMcpPreference(input.serverName, input.scope, projectPath, input.mode);
+    return { success: true };
+  });
+
 // --- Project Environment Variables ---
 
 const getProjectEnvProc = os
@@ -3376,6 +3609,8 @@ export const router = {
     add: addMcpServerProc,
     remove: removeMcpServerProc,
     inspectTools: inspectToolsProc,
+    getPreferences: getMcpPreferencesProc,
+    setPreference: setMcpPreferenceProc,
   },
   skills: {
     add: addSkillProc,

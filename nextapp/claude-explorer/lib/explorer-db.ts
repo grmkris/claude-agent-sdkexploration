@@ -40,6 +40,9 @@ export interface SessionRow {
   is_archived: number; // 0 = visible, 1 = archived
   context_window: number | null;
   max_context_window: number | null;
+  parent_session_id: string | null;
+  forked_at_message_uuid: string | null;
+  fork_label: string | null;
 }
 
 export type SessionPatch = Partial<Omit<SessionRow, "session_id">>;
@@ -155,6 +158,52 @@ function getDB(): Database {
     );
   } catch {
     // Column already exists
+  }
+
+  // Migration: create mcp_preferences table (default vs optional)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS mcp_preferences (
+      server_name  TEXT NOT NULL,
+      scope        TEXT NOT NULL,
+      project_path TEXT NOT NULL DEFAULT '',
+      mode         TEXT NOT NULL DEFAULT 'default',
+      PRIMARY KEY (server_name, scope, project_path)
+    );
+  `);
+
+  // Migration: create session_mcp_selections table (which optional MCPs were enabled per session)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS session_mcp_selections (
+      session_id   TEXT NOT NULL,
+      server_name  TEXT NOT NULL,
+      scope        TEXT NOT NULL,
+      PRIMARY KEY (session_id, server_name, scope)
+    );
+    CREATE INDEX IF NOT EXISTS idx_sms_session ON session_mcp_selections(session_id);
+  `);
+
+  // Migration: add fork tracking columns to existing DBs
+  try {
+    db.exec("ALTER TABLE sessions ADD COLUMN parent_session_id TEXT");
+  } catch {
+    // Column already exists
+  }
+  try {
+    db.exec("ALTER TABLE sessions ADD COLUMN forked_at_message_uuid TEXT");
+  } catch {
+    // Column already exists
+  }
+  try {
+    db.exec("ALTER TABLE sessions ADD COLUMN fork_label TEXT");
+  } catch {
+    // Column already exists
+  }
+  try {
+    db.exec(
+      "CREATE INDEX IF NOT EXISTS idx_sessions_parent ON sessions(parent_session_id)"
+    );
+  } catch {
+    // Index already exists
   }
 
   // Migration: fix project paths that were corrupted by the lossy slug→path
@@ -567,4 +616,125 @@ export function deletePendingExitPlanModeForSession(sessionId: string): void {
   getDB()
     .query("DELETE FROM pending_exit_plan_mode WHERE session_id = ?")
     .run(sessionId);
+}
+
+// --- MCP Preferences (default vs optional) ---
+
+export type McpMode = "default" | "optional";
+
+export interface McpPreferenceRow {
+  server_name: string;
+  scope: string;
+  project_path: string;
+  mode: McpMode;
+}
+
+/**
+ * Get MCP preferences. When projectPath is provided, returns preferences for
+ * that project (scope=project|local) PLUS user-scope preferences.
+ * When not provided, returns only user-scope preferences.
+ */
+export function getMcpPreferences(projectPath?: string): McpPreferenceRow[] {
+  const d = getDB();
+  if (projectPath) {
+    return d
+      .query<McpPreferenceRow, [string]>(
+        "SELECT * FROM mcp_preferences WHERE project_path = '' OR project_path = ?"
+      )
+      .all(projectPath);
+  }
+  return d
+    .query<McpPreferenceRow, []>(
+      "SELECT * FROM mcp_preferences WHERE project_path = ''"
+    )
+    .all();
+}
+
+/**
+ * Get the mode for a specific MCP server. Returns 'default' if no preference exists.
+ */
+export function getMcpMode(
+  serverName: string,
+  scope: string,
+  projectPath: string = ""
+): McpMode {
+  const d = getDB();
+  const row = d
+    .query<McpPreferenceRow, [string, string, string]>(
+      "SELECT * FROM mcp_preferences WHERE server_name = ? AND scope = ? AND project_path = ?"
+    )
+    .get(serverName, scope, projectPath);
+  return (row?.mode as McpMode) ?? "default";
+}
+
+/**
+ * Set the mode (default/optional) for an MCP server.
+ */
+export function setMcpPreference(
+  serverName: string,
+  scope: string,
+  projectPath: string = "",
+  mode: McpMode
+): void {
+  getDB()
+    .query(
+      `INSERT INTO mcp_preferences (server_name, scope, project_path, mode)
+       VALUES (?, ?, ?, ?)
+       ON CONFLICT(server_name, scope, project_path) DO UPDATE SET mode = excluded.mode`
+    )
+    .run(serverName, scope, projectPath, mode);
+}
+
+/**
+ * Delete an MCP preference (resets to default).
+ */
+export function deleteMcpPreference(
+  serverName: string,
+  scope: string,
+  projectPath: string = ""
+): void {
+  getDB()
+    .query(
+      "DELETE FROM mcp_preferences WHERE server_name = ? AND scope = ? AND project_path = ?"
+    )
+    .run(serverName, scope, projectPath);
+}
+
+// --- Session MCP Selections (which optional MCPs were enabled for a session) ---
+
+export interface SessionMcpSelectionRow {
+  session_id: string;
+  server_name: string;
+  scope: string;
+}
+
+/**
+ * Save the optional MCPs that were enabled for a session (for resume).
+ */
+export function saveSessionMcpSelections(
+  sessionId: string,
+  selections: Array<{ name: string; scope: string }>
+): void {
+  const d = getDB();
+  const stmt = d.query(
+    `INSERT INTO session_mcp_selections (session_id, server_name, scope)
+     VALUES (?, ?, ?)
+     ON CONFLICT(session_id, server_name, scope) DO NOTHING`
+  );
+  for (const sel of selections) {
+    stmt.run(sessionId, sel.name, sel.scope);
+  }
+}
+
+/**
+ * Get the optional MCP selections for a session (for resume).
+ */
+export function getSessionMcpSelections(
+  sessionId: string
+): SessionMcpSelectionRow[] {
+  return getDB()
+    .query<SessionMcpSelectionRow, [string]>(
+      "SELECT * FROM session_mcp_selections WHERE session_id = ?"
+    )
+    .all(sessionId);
 }

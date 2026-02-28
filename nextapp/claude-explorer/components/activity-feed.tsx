@@ -447,7 +447,15 @@ function groupByDate(
 // Main component
 // ─────────────────────────────────────────────────────────────────────────────
 
-export function ActivityFeed({ slug }: { slug: string }) {
+export function ActivityFeed({
+  slug,
+  mode = "expand",
+  initialCommitHash,
+}: {
+  slug: string;
+  mode?: "expand" | "navigate";
+  initialCommitHash?: string | null;
+}) {
   const router = useRouter();
 
   // Filter state — deployments excluded (they surface inline on commit badges)
@@ -505,7 +513,10 @@ export function ActivityFeed({ slug }: { slug: string }) {
   }, [githubIntegration]);
 
   // Commit expand/collapse state + lazy-fetch for files & diffs
-  const commitExpand = useCommitExpand({ slug });
+  const commitExpand = useCommitExpand({
+    slug,
+    initialCommitHash: mode === "expand" ? initialCommitHash : undefined,
+  });
 
   // Railway widget data
   const { data: railwayData, isLoading: railwayLoading } = useQuery({
@@ -936,7 +947,9 @@ export function ActivityFeed({ slug }: { slug: string }) {
                     case "commit": {
                       const raw = item.raw as CommitRaw;
                       const isExpanded =
-                        commitExpand.expandedCommit === raw.hash;
+                        mode === "navigate"
+                          ? false
+                          : commitExpand.expandedCommit === raw.hash;
                       return (
                         <CommitItem
                           key={item.id}
@@ -946,9 +959,15 @@ export function ActivityFeed({ slug }: { slug: string }) {
                           relatedDeployments={commitToDeployments.get(raw.hash)}
                           relatedTickets={commitToTickets.get(raw.hash)}
                           isExpanded={isExpanded}
-                          onToggleExpand={() =>
-                            commitExpand.toggleCommit(raw.hash)
-                          }
+                          onToggleExpand={() => {
+                            if (mode === "navigate") {
+                              router.push(
+                                `/project/${slug}/overview?commit=${raw.hash}`
+                              );
+                            } else {
+                              commitExpand.toggleCommit(raw.hash);
+                            }
+                          }}
                           commitFiles={
                             isExpanded
                               ? commitExpand.commitFiles[raw.hash]

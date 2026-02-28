@@ -16,29 +16,71 @@ import {
 import { orpc } from "@/lib/orpc";
 import { client } from "@/lib/orpc-client";
 
-export function McpCatalogView() {
+type McpScope = "user" | "local" | "project";
+
+export function McpCatalogBrowser({
+  slug,
+  defaultScope,
+  showScopeSelector = false,
+  showProjectSelector = false,
+}: {
+  slug?: string;
+  defaultScope?: McpScope;
+  showScopeSelector?: boolean;
+  showProjectSelector?: boolean;
+}) {
   const queryClient = useQueryClient();
+  const resolvedDefault = defaultScope ?? (slug ? "local" : "user");
+
   const { data: userConfig } = useQuery({
     ...orpc.user.config.queryOptions(),
     refetchInterval: 30000,
   });
-  const { data: projects } = useQuery(orpc.projects.list.queryOptions());
+  const { data: projectConfig } = useQuery({
+    ...orpc.projects.config.queryOptions({ input: { slug: slug ?? "" } }),
+    enabled: !!slug,
+  });
+  const { data: projects } = useQuery({
+    ...orpc.projects.list.queryOptions(),
+    enabled: showProjectSelector,
+  });
 
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState<McpCategory | "all">("all");
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [scope, setScope] = useState<"user" | "local" | "project">("user");
-  const [slug, setSlug] = useState("");
+  const [scope, setScope] = useState<McpScope>(resolvedDefault);
+  const [selectedSlug, setSelectedSlug] = useState(slug ?? "");
   const [envValues, setEnvValues] = useState<Record<string, string>>({});
+  const [justInstalled, setJustInstalled] = useState<string | null>(null);
 
-  const installedNames = new Set(
-    Object.keys((userConfig?.mcpServers ?? {}) as Record<string, unknown>)
-  );
+  const effectiveSlug = slug ?? selectedSlug;
 
-  const invalidate = () => {
-    void queryClient.invalidateQueries({
-      queryKey: orpc.user.config.queryOptions().queryKey,
-    });
+  // Build comprehensive installed set across all scopes
+  const installedNames = new Set([
+    ...Object.keys((userConfig?.mcpServers ?? {}) as Record<string, unknown>),
+    ...Object.keys(
+      (projectConfig?.mcpServers ?? {}) as Record<string, unknown>
+    ),
+    ...Object.keys(
+      (projectConfig?.localMcpServers ?? {}) as Record<string, unknown>
+    ),
+  ]);
+
+  const invalidate = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({
+        queryKey: orpc.user.config.queryOptions().queryKey,
+      }),
+      ...(effectiveSlug
+        ? [
+            queryClient.invalidateQueries({
+              queryKey: orpc.projects.config.queryOptions({
+                input: { slug: effectiveSlug },
+              }).queryKey,
+            }),
+          ]
+        : []),
+    ]);
   };
 
   const installMcp = useMutation({
@@ -59,16 +101,18 @@ export function McpCatalogView() {
           : {}),
         ...(entry.transport !== "stdio" ? { url: entry.url } : {}),
         ...(env && Object.keys(env).length > 0 ? { env } : {}),
-        ...(scope !== "user" && slug ? { slug } : {}),
+        ...(scope !== "user" && effectiveSlug ? { slug: effectiveSlug } : {}),
       });
     },
-    onSuccess: (result) => {
+    onSuccess: async (result, entry) => {
       if (result.success) {
-        invalidate();
-        setExpandedId(null);
+        await invalidate();
+        setJustInstalled(entry.id);
+        setTimeout(() => {
+          setJustInstalled(null);
+          setExpandedId(null);
+        }, 1500);
         setEnvValues({});
-        setScope("user");
-        setSlug("");
       }
     },
   });
@@ -89,15 +133,24 @@ export function McpCatalogView() {
       return;
     }
     setExpandedId(entry.id);
-    setScope("user");
-    setSlug("");
-    // Pre-populate env template keys
+    setScope(resolvedDefault);
+    setSelectedSlug(slug ?? "");
     if (entry.envTemplate) {
       setEnvValues({ ...entry.envTemplate });
     } else {
       setEnvValues({});
     }
   };
+
+  const handleQuickInstall = (entry: McpCatalogEntry) => {
+    setScope(resolvedDefault);
+    setSelectedSlug(slug ?? "");
+    setEnvValues({});
+    installMcp.mutate(entry);
+  };
+
+  const hasRequiredEnv = (entry: McpCatalogEntry) =>
+    entry.envTemplate && Object.keys(entry.envTemplate).length > 0;
 
   return (
     <div className="flex flex-col gap-3">
@@ -130,6 +183,7 @@ export function McpCatalogView() {
           const isExpanded = expandedId === entry.id;
           const isInstalling =
             installMcp.isPending && installMcp.variables?.id === entry.id;
+          const wasJustInstalled = justInstalled === entry.id;
 
           return (
             <div key={entry.id} className="flex flex-col">
@@ -137,20 +191,22 @@ export function McpCatalogView() {
                 size="sm"
                 className={`cursor-pointer transition-colors hover:bg-accent/50 ${
                   isExpanded ? "ring-1 ring-foreground/20" : ""
-                }`}
-                onClick={() => !isInstalled && handleExpand(entry)}
+                } ${wasJustInstalled ? "ring-1 ring-green-400/50" : ""}`}
+                onClick={() =>
+                  !isInstalled && !wasJustInstalled && handleExpand(entry)
+                }
               >
                 <CardContent className="flex flex-col gap-1.5 py-3">
                   <div className="flex items-center gap-2">
                     <span className="text-base">{entry.emoji}</span>
                     <span className="text-sm font-medium">{entry.name}</span>
                     <div className="flex-1" />
-                    {isInstalled && (
+                    {(isInstalled || wasJustInstalled) && (
                       <Badge
                         variant="secondary"
                         className="shrink-0 text-[10px]"
                       >
-                        Installed
+                        {wasJustInstalled ? "\u2713 Installed!" : "Installed"}
                       </Badge>
                     )}
                   </div>
@@ -166,18 +222,33 @@ export function McpCatalogView() {
                         {entry.command}
                       </span>
                     )}
-                    {!isInstalled && !isExpanded && (
-                      <Button
-                        size="xs"
-                        variant="outline"
-                        className="ml-auto h-5 px-2 text-[10px]"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleExpand(entry);
-                        }}
-                      >
-                        Install
-                      </Button>
+                    {!isInstalled && !isExpanded && !wasJustInstalled && (
+                      <div className="ml-auto flex gap-1">
+                        {!hasRequiredEnv(entry) && (
+                          <Button
+                            size="xs"
+                            className="h-5 px-2 text-[10px]"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleQuickInstall(entry);
+                            }}
+                            disabled={isInstalling}
+                          >
+                            {isInstalling ? "Installing..." : "Quick Install"}
+                          </Button>
+                        )}
+                        <Button
+                          size="xs"
+                          variant="outline"
+                          className="h-5 px-2 text-[10px]"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleExpand(entry);
+                          }}
+                        >
+                          {hasRequiredEnv(entry) ? "Install" : "Configure"}
+                        </Button>
+                      </div>
                     )}
                   </div>
                 </CardContent>
@@ -186,25 +257,30 @@ export function McpCatalogView() {
               {isExpanded && (
                 <Card size="sm" className="border-t-0">
                   <CardContent className="flex flex-col gap-2 py-3">
-                    <div className="flex gap-2 items-center">
+                    {/* Scope selector */}
+                    <div className="flex gap-2 items-center flex-wrap">
                       <label className="text-[10px] text-muted-foreground">
                         Scope
                       </label>
-                      <select
-                        value={scope}
-                        onChange={(e) =>
-                          setScope(e.target.value as typeof scope)
-                        }
-                        className="rounded border bg-background px-2 py-0.5 text-xs"
-                      >
-                        <option value="user">User</option>
-                        <option value="local">Local</option>
-                        <option value="project">Project</option>
-                      </select>
-                      {scope !== "user" && (
+                      {showScopeSelector ? (
                         <select
-                          value={slug}
-                          onChange={(e) => setSlug(e.target.value)}
+                          value={scope}
+                          onChange={(e) => setScope(e.target.value as McpScope)}
+                          className="rounded border bg-background px-2 py-0.5 text-xs"
+                        >
+                          <option value="user">User</option>
+                          <option value="local">Local</option>
+                          <option value="project">Project</option>
+                        </select>
+                      ) : (
+                        <Badge variant="outline" className="text-[10px]">
+                          {scope}
+                        </Badge>
+                      )}
+                      {showProjectSelector && scope !== "user" && !slug && (
+                        <select
+                          value={selectedSlug}
+                          onChange={(e) => setSelectedSlug(e.target.value)}
                           className="rounded border bg-background px-2 py-0.5 text-xs"
                         >
                           <option value="">Select project...</option>
@@ -217,6 +293,7 @@ export function McpCatalogView() {
                       )}
                     </div>
 
+                    {/* Env vars */}
                     {entry.envTemplate &&
                       Object.keys(entry.envTemplate).length > 0 && (
                         <div className="flex flex-col gap-1.5">
@@ -254,7 +331,12 @@ export function McpCatalogView() {
                       <Button
                         size="xs"
                         className="h-6 px-3 text-[11px]"
-                        disabled={isInstalling || (scope !== "user" && !slug)}
+                        disabled={
+                          isInstalling ||
+                          (showScopeSelector &&
+                            scope !== "user" &&
+                            !effectiveSlug)
+                        }
                         onClick={() => installMcp.mutate(entry)}
                       >
                         {isInstalling ? "Installing..." : "Install"}
