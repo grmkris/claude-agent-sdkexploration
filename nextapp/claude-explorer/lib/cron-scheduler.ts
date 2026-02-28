@@ -69,7 +69,7 @@ export async function executeCron(cron: CronJob): Promise<void> {
     const conversation = query({
       prompt: cron.prompt,
       options: {
-        model: "claude-sonnet-4-6",
+        model: "claude-opus-4-6",
         executable: "bun",
         permissionMode: "bypassPermissions",
         allowDangerouslySkipPermissions: true,

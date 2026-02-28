@@ -105,32 +105,52 @@ export function CommitItem({
                     const isLive = dep.status === "SUCCESS";
                     const isBuilding =
                       dep.status === "DEPLOYING" || dep.status === "BUILDING";
+                    const badgeClasses = cn(
+                      "inline-flex items-center gap-1 text-[10px] px-1 py-0.5 rounded font-medium",
+                      isFailed && "bg-red-500/10 text-red-400",
+                      isLive && "bg-green-500/10 text-green-400",
+                      isBuilding && "bg-yellow-500/10 text-yellow-400",
+                      !isFailed &&
+                        !isLive &&
+                        !isBuilding &&
+                        "bg-muted text-muted-foreground",
+                      dep.dashboardUrl
+                        ? "cursor-pointer hover:opacity-80 transition-opacity"
+                        : "cursor-default"
+                    );
+                    const inner = (
+                      <>
+                        <span
+                          className={cn(
+                            "h-1.5 w-1.5 rounded-full bg-current shrink-0",
+                            isBuilding && "animate-pulse"
+                          )}
+                        />
+                        {dep.serviceName}
+                      </>
+                    );
                     return (
                       <Tooltip key={dep.id}>
                         <TooltipTrigger>
-                          <span
-                            className={cn(
-                              "inline-flex items-center gap-1 text-[10px] px-1 py-0.5 rounded font-medium cursor-default",
-                              isFailed && "bg-red-500/10 text-red-400",
-                              isLive && "bg-green-500/10 text-green-400",
-                              isBuilding && "bg-yellow-500/10 text-yellow-400",
-                              !isFailed &&
-                                !isLive &&
-                                !isBuilding &&
-                                "bg-muted text-muted-foreground"
-                            )}
-                          >
-                            <span
-                              className={cn(
-                                "h-1.5 w-1.5 rounded-full bg-current shrink-0",
-                                isBuilding && "animate-pulse"
-                              )}
-                            />
-                            {dep.serviceName}
-                          </span>
+                          {dep.dashboardUrl ? (
+                            <a
+                              href={dep.dashboardUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className={badgeClasses}
+                            >
+                              {inner}
+                            </a>
+                          ) : (
+                            <span className={badgeClasses}>{inner}</span>
+                          )}
                         </TooltipTrigger>
                         <TooltipContent side="top">
                           {dep.serviceName}: {dep.status}
+                          {dep.dashboardUrl && (
+                            <span className="ml-1 opacity-60">↗ Railway</span>
+                          )}
                         </TooltipContent>
                       </Tooltip>
                     );

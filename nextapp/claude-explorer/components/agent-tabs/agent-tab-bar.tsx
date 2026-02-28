@@ -63,7 +63,7 @@ function SessionInfoBar({ sessionId }: { sessionId: string }) {
     <div className="flex flex-1 items-center gap-2 overflow-hidden px-3 min-w-0">
       {/* Initial prompt — takes all remaining space */}
       {data.first_prompt && (
-        <span className="truncate text-xs text-muted-foreground min-w-0 flex-1">
+        <span className="truncate text-sm text-foreground/80 min-w-0 flex-1">
           {data.first_prompt}
         </span>
       )}

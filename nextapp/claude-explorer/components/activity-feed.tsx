@@ -22,15 +22,8 @@ import { DeploymentItem } from "@/components/activity-items/deployment-item";
 import { EmailEventItem } from "@/components/activity-items/email-event-item";
 import { TicketItem } from "@/components/activity-items/ticket-item";
 import { WebhookEventItem } from "@/components/activity-items/webhook-event-item";
+import { ChatContextSheet } from "@/components/chat-context-sheet";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import {
-  buildCommitContextPrompt,
-  buildCronContextPrompt,
-  buildDeploymentContextPrompt,
-  buildEmailContextPrompt,
-  buildTicketContextPrompt,
-  buildWebhookContextPrompt,
-} from "@/lib/activity-context";
 import { orpc } from "@/lib/orpc";
 import { cn } from "@/lib/utils";
 
@@ -457,12 +450,9 @@ function groupByDate(
 export function ActivityFeed({ slug }: { slug: string }) {
   const router = useRouter();
 
-  // Filter state — all types on by default
+  // Filter state — deployments excluded (they surface inline on commit badges)
   const [activeTypes, setActiveTypes] = useState<Set<ActivityItemType>>(
-    new Set(["commit", "deployment", "ticket", "email", "webhook", "cron"])
-  );
-  const [activeDeployStatuses, setActiveDeployStatuses] = useState<Set<string>>(
-    new Set()
+    new Set(["commit", "ticket", "email", "webhook", "cron"])
   );
   const [activeTicketStatuses, setActiveTicketStatuses] = useState<Set<string>>(
     new Set()
@@ -470,6 +460,11 @@ export function ActivityFeed({ slug }: { slug: string }) {
 
   // Detail sheet state
   const [detailItem, setDetailItem] = useState<ActivityItem | null>(null);
+
+  // Chat context sheet state
+  const [chatContextItem, setChatContextItem] = useState<ActivityItem | null>(
+    null
+  );
 
   // ── Data fetching ────────────────────────────────────────────────────────
 
@@ -704,14 +699,6 @@ export function ActivityFeed({ slug }: { slug: string }) {
     [allItems]
   );
 
-  const deployStatuses = useMemo(() => {
-    const s = new Set<string>();
-    allItems
-      .filter((i) => i.type === "deployment" && i.status)
-      .forEach((i) => s.add(i.status!));
-    return s;
-  }, [allItems]);
-
   const ticketStatuses = useMemo(() => {
     const s = new Set<string>();
     allItems
@@ -725,61 +712,28 @@ export function ActivityFeed({ slug }: { slug: string }) {
   const filteredItems = useMemo(() => {
     return allItems.filter((item) => {
       if (!activeTypes.has(item.type)) return false;
-      if (item.type === "deployment" && activeDeployStatuses.size > 0) {
-        return item.status && activeDeployStatuses.has(item.status);
-      }
       if (item.type === "ticket" && activeTicketStatuses.size > 0) {
         return item.status && activeTicketStatuses.has(item.status);
       }
       return true;
     });
-  }, [allItems, activeTypes, activeDeployStatuses, activeTicketStatuses]);
+  }, [allItems, activeTypes, activeTicketStatuses]);
 
-  // ── Absorbed deployments ─────────────────────────────────────────────────
-  // When a deployment is linked to a commit that is also visible in the feed,
-  // we suppress the standalone deployment row — the commit row already shows
-  // the deployment status as a badge, so rendering both would be duplicative.
-  // If commits are hidden (type filter) the deployment rows show as normal.
-
-  const absorbedDeploymentIds = useMemo(() => {
-    const commitHashesInFeed = new Set(
-      filteredItems
-        .filter((i) => i.type === "commit")
-        .map((i) => (i.raw as CommitRaw).hash)
-    );
-    const absorbed = new Set<string>();
-    for (const [deployId, commit] of deploymentToCommit) {
-      if (commitHashesInFeed.has(commit.hash)) absorbed.add(deployId);
-    }
-    return absorbed;
-  }, [filteredItems, deploymentToCommit]);
+  // Deployments are always suppressed as standalone rows — they surface inline
+  // on commit rows as clickable badges. No separate absorbed-ids logic needed.
 
   const groupedItems = useMemo(
-    () =>
-      groupByDate(
-        filteredItems.filter(
-          (i) =>
-            i.type !== "deployment" ||
-            !absorbedDeploymentIds.has((i.raw as DeploymentRaw).id)
-        )
-      ),
-    [filteredItems, absorbedDeploymentIds]
+    () => groupByDate(filteredItems.filter((i) => i.type !== "deployment")),
+    [filteredItems]
   );
 
   // ── Chat handler ─────────────────────────────────────────────────────────
+  // For items that already have an associated session (email/webhook/cron that
+  // ran an agent), navigate directly to that session. Otherwise open the
+  // context-selector sheet so the user can pick what to include.
 
   function handleStartChat(item: ActivityItem) {
-    let prompt: string;
     switch (item.type) {
-      case "commit":
-        prompt = buildCommitContextPrompt(item.raw as CommitRaw);
-        break;
-      case "deployment":
-        prompt = buildDeploymentContextPrompt(item.raw as DeploymentRaw);
-        break;
-      case "ticket":
-        prompt = buildTicketContextPrompt(item.raw as TicketRaw);
-        break;
       case "email": {
         const raw = item.raw as EmailEventRaw;
         if (raw.sessionId) {
@@ -793,7 +747,6 @@ export function ActivityFeed({ slug }: { slug: string }) {
           );
           return;
         }
-        prompt = buildEmailContextPrompt(raw);
         break;
       }
       case "webhook": {
@@ -802,7 +755,6 @@ export function ActivityFeed({ slug }: { slug: string }) {
           router.push(`/project/${slug}/chat/${raw.sessionId}`);
           return;
         }
-        prompt = buildWebhookContextPrompt(raw);
         break;
       }
       case "cron": {
@@ -811,13 +763,11 @@ export function ActivityFeed({ slug }: { slug: string }) {
           router.push(`/project/${slug}/chat/${raw.sessionId}`);
           return;
         }
-        prompt = buildCronContextPrompt(raw);
         break;
       }
-      default:
-        return;
     }
-    router.push(`/project/${slug}/chat?prompt=${encodeURIComponent(prompt)}`);
+    // Open the context-selector sheet
+    setChatContextItem(item);
   }
 
   // ── Toggle helpers ───────────────────────────────────────────────────────
@@ -835,15 +785,6 @@ export function ActivityFeed({ slug }: { slug: string }) {
     });
   }
 
-  function toggleDeployStatus(status: string) {
-    setActiveDeployStatuses((prev) => {
-      const next = new Set(prev);
-      if (next.has(status)) next.delete(status);
-      else next.add(status);
-      return next;
-    });
-  }
-
   function toggleTicketStatus(status: string) {
     setActiveTicketStatuses((prev) => {
       const next = new Set(prev);
@@ -854,23 +795,19 @@ export function ActivityFeed({ slug }: { slug: string }) {
   }
 
   const hasIntegrations = !!railwayIntegration || !!linearIntegration;
-  const typeCount = (type: ActivityItemType) => {
-    const total = allItems.filter((i) => i.type === type).length;
-    if (type === "deployment") return total - absorbedDeploymentIds.size;
-    return total;
-  };
+  const typeCount = (type: ActivityItemType) =>
+    allItems.filter((i) => i.type === type).length;
 
   // ── Render ───────────────────────────────────────────────────────────────
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
-      {/* Filter bar — only render when there is something to show */}
-      {(availableTypes.size > 1 ||
-        (activeTypes.has("deployment") && deployStatuses.size > 1) ||
+      {/* Filter bar — only render when there are multiple types to filter */}
+      {(availableTypes.size > 2 ||
         (activeTypes.has("ticket") && ticketStatuses.size > 1)) && (
         <div className="flex flex-col gap-2 border-b px-3 py-2.5">
-          {/* Type filters */}
-          {availableTypes.size > 1 && (
+          {/* Type filters — deployments omitted; they show inline on commit badges */}
+          {availableTypes.size > 2 && (
             <div className="flex flex-wrap items-center gap-1.5">
               {availableTypes.has("commit") && (
                 <FilterChip
@@ -879,15 +816,6 @@ export function ActivityFeed({ slug }: { slug: string }) {
                   count={typeCount("commit")}
                   color="#8b5cf6"
                   onClick={() => toggleType("commit")}
-                />
-              )}
-              {availableTypes.has("deployment") && (
-                <FilterChip
-                  label="Deployments"
-                  active={activeTypes.has("deployment")}
-                  count={typeCount("deployment")}
-                  color="#22c55e"
-                  onClick={() => toggleType("deployment")}
                 />
               )}
               {availableTypes.has("ticket") && (
@@ -928,36 +856,15 @@ export function ActivityFeed({ slug }: { slug: string }) {
               )}
 
               {/* Clear sub-filters */}
-              {(activeDeployStatuses.size > 0 ||
-                activeTicketStatuses.size > 0) && (
+              {activeTicketStatuses.size > 0 && (
                 <button
                   type="button"
-                  onClick={() => {
-                    setActiveDeployStatuses(new Set());
-                    setActiveTicketStatuses(new Set());
-                  }}
+                  onClick={() => setActiveTicketStatuses(new Set())}
                   className="text-[11px] text-muted-foreground hover:text-foreground transition-colors ml-1"
                 >
                   Clear filters ×
                 </button>
               )}
-            </div>
-          )}
-
-          {/* Deployment status sub-filters */}
-          {activeTypes.has("deployment") && deployStatuses.size > 1 && (
-            <div className="flex flex-wrap items-center gap-1">
-              <span className="text-[10px] text-muted-foreground mr-0.5">
-                Status:
-              </span>
-              {Array.from(deployStatuses).map((s) => (
-                <FilterChip
-                  key={s}
-                  label={s.charAt(0) + s.slice(1).toLowerCase()}
-                  active={activeDeployStatuses.has(s)}
-                  onClick={() => toggleDeployStatus(s)}
-                />
-              ))}
             </div>
           )}
 
@@ -1090,6 +997,23 @@ export function ActivityFeed({ slug }: { slug: string }) {
         item={detailItem}
         slug={slug}
         onClose={() => setDetailItem(null)}
+      />
+
+      {/* Chat context sheet — lets the user pick what context to include */}
+      <ChatContextSheet
+        item={chatContextItem}
+        slug={slug}
+        relatedDeployments={
+          chatContextItem?.type === "commit"
+            ? commitToDeployments.get((chatContextItem.raw as CommitRaw).hash)
+            : undefined
+        }
+        relatedCommit={
+          chatContextItem?.type === "deployment"
+            ? deploymentToCommit.get((chatContextItem.raw as DeploymentRaw).id)
+            : undefined
+        }
+        onClose={() => setChatContextItem(null)}
       />
     </div>
   );

@@ -703,7 +703,7 @@ function CommandsSection() {
 
 export default function McpsPage() {
   return (
-    <div className="p-4">
+    <div className="flex-1 overflow-auto p-4">
       <h1 className="mb-4 text-lg font-semibold">MCP Servers & Skills</h1>
 
       <h2 className="mb-3 text-sm font-medium text-muted-foreground">

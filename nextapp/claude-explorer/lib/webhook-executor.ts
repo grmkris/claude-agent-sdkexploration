@@ -96,7 +96,7 @@ export function executeWebhook(
       const conversation = query({
         prompt,
         options: {
-          model: "claude-sonnet-4-6",
+          model: "claude-opus-4-6",
           executable: "bun",
           permissionMode: "bypassPermissions",
           allowDangerouslySkipPermissions: true,
