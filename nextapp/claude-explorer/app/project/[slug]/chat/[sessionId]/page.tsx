@@ -2,7 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { use, useCallback, useMemo, useState } from "react";
+import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { ChatInput } from "@/components/chat-input";
 import {
@@ -70,6 +70,22 @@ export default function SessionChatPage({
     [isStreaming, send]
   );
   useRegisterSend(sessionId, isStreaming ? undefined : sendWhenIdle);
+
+  // Auto-send prompt injected from the context tray via sessionStorage
+  const didAutoSend = useRef(false);
+  useEffect(() => {
+    if (didAutoSend.current || isLoading || isStreaming || !resolved?.path)
+      return;
+    const key = `context-tray-inject:${sessionId}`;
+    try {
+      const injected = sessionStorage.getItem(key);
+      if (injected) {
+        sessionStorage.removeItem(key);
+        didAutoSend.current = true;
+        send(injected);
+      }
+    } catch {}
+  }, [sessionId, isLoading, isStreaming, resolved?.path, send]);
 
   const allMessages = useMemo(() => {
     if (streamMessages.length === 0) return history ?? [];

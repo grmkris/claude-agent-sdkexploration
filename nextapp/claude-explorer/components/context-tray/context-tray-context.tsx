@@ -43,6 +43,11 @@ type ContextTrayContextProps = {
   startSession: (userPrompt: string) => void;
   /** Send tray context to an existing mounted session */
   sendToExistingSession: (sessionId: string, userPrompt: string) => boolean;
+  /** Navigate to a non-mounted session and inject context via sessionStorage */
+  sendToNonMountedSession: (
+    session: { id: string; projectSlug: string | null },
+    userPrompt: string
+  ) => void;
   /** Session IDs that are currently mounted and accepting messages */
   mountedSessionIds: string[];
 };
@@ -212,6 +217,38 @@ export function ContextTrayProvider({
     [buildResolvedPrompt, sendToMountedSession]
   );
 
+  // ── Send to non-mounted session (navigate + sessionStorage) ──────────────
+
+  const sendToNonMountedSession = React.useCallback(
+    (
+      session: { id: string; projectSlug: string | null },
+      userPrompt: string
+    ) => {
+      const finalPrompt = buildResolvedPrompt(userPrompt);
+
+      // Store in sessionStorage so the session page can pick it up on mount
+      try {
+        sessionStorage.setItem(
+          `context-tray-inject:${session.id}`,
+          finalPrompt
+        );
+      } catch {}
+
+      const chatUrl = session.projectSlug
+        ? `/project/${session.projectSlug}/chat/${session.id}`
+        : `/chat/${session.id}`;
+
+      // Clear state before navigating
+      const next: TrayState = { chips: [] };
+      setTrayState(next);
+      saveState(next);
+      _setExpanded(false);
+
+      router.push(chatUrl);
+    },
+    [buildResolvedPrompt, router]
+  );
+
   // ── Context value ─────────────────────────────────────────────────────────
 
   const contextValue = React.useMemo<ContextTrayContextProps>(
@@ -226,6 +263,7 @@ export function ContextTrayProvider({
       clearChips,
       startSession,
       sendToExistingSession,
+      sendToNonMountedSession,
       mountedSessionIds,
     }),
     [
@@ -239,6 +277,7 @@ export function ContextTrayProvider({
       clearChips,
       startSession,
       sendToExistingSession,
+      sendToNonMountedSession,
       mountedSessionIds,
     ]
   );
