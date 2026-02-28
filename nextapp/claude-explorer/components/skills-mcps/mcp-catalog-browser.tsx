@@ -52,6 +52,13 @@ export function McpCatalogBrowser({
   const [selectedSlug, setSelectedSlug] = useState(slug ?? "");
   const [envValues, setEnvValues] = useState<Record<string, string>>({});
   const [justInstalled, setJustInstalled] = useState<string | null>(null);
+  /** Maps env var name -> vault apiKeyId for vault-backed env vars */
+  const [vaultSelections, setVaultSelections] = useState<
+    Record<string, string>
+  >({});
+
+  // Vault keys for token dropdown
+  const { data: vaultKeys } = useQuery(orpc.apiKeys.list.queryOptions());
 
   const effectiveSlug = slug ?? selectedSlug;
 
@@ -85,16 +92,27 @@ export function McpCatalogBrowser({
 
   const installMcp = useMutation({
     mutationFn: (entry: McpCatalogEntry) => {
-      const env =
-        entry.envTemplate && Object.keys(envValues).length > 0
-          ? Object.fromEntries(
-              Object.entries(envValues).filter(([, v]) => v.length > 0)
-            )
-          : undefined;
+      // Find the first vault key selection (if any)
+      const activeVaultKeyId = Object.values(vaultSelections).find(Boolean);
 
-      // For http/sse servers with headersTemplate, interpolate env values into headers
+      // Collect only manually-entered env values (exclude vault-backed ones)
+      const manualEnv: Record<string, string> = {};
+      if (entry.envTemplate) {
+        for (const key of Object.keys(entry.envTemplate)) {
+          if (!vaultSelections[key] && envValues[key]) {
+            manualEnv[key] = envValues[key];
+          }
+        }
+      }
+      const env = Object.keys(manualEnv).length > 0 ? manualEnv : undefined;
+
+      // For http/sse servers with headersTemplate, interpolate only manual env values
       let headers: Record<string, string> | undefined;
-      if (entry.headersTemplate && Object.keys(envValues).length > 0) {
+      if (
+        entry.headersTemplate &&
+        !activeVaultKeyId &&
+        Object.keys(envValues).length > 0
+      ) {
         headers = {};
         for (const [key, tmpl] of Object.entries(entry.headersTemplate)) {
           headers[key] = tmpl.replace(
@@ -108,6 +126,27 @@ export function McpCatalogBrowser({
       // (env values were only needed to construct the headers)
       const useHeaders = entry.transport !== "stdio" && headers;
 
+      // Build vault key parameters for server-side token resolution
+      const vaultParams: Record<string, unknown> = {};
+      if (activeVaultKeyId) {
+        vaultParams.apiKeyId = activeVaultKeyId;
+        if (entry.headersTemplate) {
+          // Convert env-style template {{VAR}} to token-style {{TOKEN}}
+          const headerTemplate: Record<string, string> = {};
+          for (const [key, tmpl] of Object.entries(entry.headersTemplate)) {
+            headerTemplate[key] = tmpl.replace(/\{\{\w+\}\}/g, "{{TOKEN}}");
+          }
+          vaultParams.headerTemplate = headerTemplate;
+        } else if (entry.transport === "stdio") {
+          // For stdio servers, map the vault-backed env vars
+          const envKeyMapping: Record<string, string> = {};
+          for (const [envVar, keyId] of Object.entries(vaultSelections)) {
+            if (keyId) envKeyMapping[envVar] = keyId;
+          }
+          vaultParams.envKeyMapping = envKeyMapping;
+        }
+      }
+
       return client.mcpServers.add({
         name: entry.id,
         scope,
@@ -118,6 +157,7 @@ export function McpCatalogBrowser({
         ...(entry.transport !== "stdio" ? { url: entry.url } : {}),
         ...(!useHeaders && env && Object.keys(env).length > 0 ? { env } : {}),
         ...(useHeaders ? { headers } : {}),
+        ...vaultParams,
         ...(scope !== "user" && effectiveSlug ? { slug: effectiveSlug } : {}),
       });
     },
@@ -130,6 +170,7 @@ export function McpCatalogBrowser({
           setExpandedId(null);
         }, 1500);
         setEnvValues({});
+        setVaultSelections({});
       }
     },
   });
@@ -143,15 +184,27 @@ export function McpCatalogBrowser({
     return matchSearch && matchCategory;
   });
 
+  // Map catalog entry IDs to vault provider names for smart filtering
+  const providerForEntry: Record<string, string> = {
+    linear: "linear",
+    github: "github",
+    railway: "railway",
+  };
+
+  // Only show vault dropdown for env vars that look like secrets
+  const isSecretEnvVar = (key: string) => /KEY|TOKEN|SECRET/i.test(key);
+
   const handleExpand = (entry: McpCatalogEntry) => {
     if (expandedId === entry.id) {
       setExpandedId(null);
       setEnvValues({});
+      setVaultSelections({});
       return;
     }
     setExpandedId(entry.id);
     setScope(resolvedDefault);
     setSelectedSlug(slug ?? "");
+    setVaultSelections({});
     if (entry.envTemplate) {
       setEnvValues({ ...entry.envTemplate });
     } else {
@@ -317,24 +370,85 @@ export function McpCatalogBrowser({
                           <label className="text-[10px] text-muted-foreground">
                             Environment Variables
                           </label>
-                          {Object.keys(entry.envTemplate).map((key) => (
-                            <div key={key} className="flex gap-2 items-center">
-                              <span className="text-[10px] font-mono text-muted-foreground w-48 shrink-0">
-                                {key}
-                              </span>
-                              <Input
-                                placeholder={`Enter ${key}`}
-                                value={envValues[key] ?? ""}
-                                onChange={(e) =>
-                                  setEnvValues((prev) => ({
-                                    ...prev,
-                                    [key]: e.target.value,
-                                  }))
-                                }
-                                className="h-6 text-xs"
-                              />
-                            </div>
-                          ))}
+                          {Object.keys(entry.envTemplate).map((key) => {
+                            const provider = providerForEntry[entry.id];
+                            const matchingVaultKeys = isSecretEnvVar(key)
+                              ? (vaultKeys ?? []).filter(
+                                  (k) => !provider || k.provider === provider
+                                )
+                              : [];
+                            const selectedVaultKeyId =
+                              vaultSelections[key] ?? "";
+
+                            return (
+                              <div key={key} className="flex flex-col gap-1">
+                                <div className="flex gap-2 items-center">
+                                  <span className="text-[10px] font-mono text-muted-foreground w-48 shrink-0">
+                                    {key}
+                                  </span>
+                                  {matchingVaultKeys.length > 0 ? (
+                                    <select
+                                      value={selectedVaultKeyId}
+                                      onChange={(e) => {
+                                        const keyId = e.target.value;
+                                        setVaultSelections((prev) => ({
+                                          ...prev,
+                                          [key]: keyId,
+                                        }));
+                                        if (keyId) {
+                                          // Clear manual input when vault key selected
+                                          setEnvValues((prev) => ({
+                                            ...prev,
+                                            [key]: "",
+                                          }));
+                                        }
+                                      }}
+                                      className="h-6 flex-1 rounded border bg-background px-2 text-xs"
+                                    >
+                                      <option value="">
+                                        Enter manually...
+                                      </option>
+                                      {matchingVaultKeys.map((k) => (
+                                        <option key={k.id} value={k.id}>
+                                          {k.label}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  ) : (
+                                    <Input
+                                      placeholder={`Enter ${key}`}
+                                      value={envValues[key] ?? ""}
+                                      onChange={(e) =>
+                                        setEnvValues((prev) => ({
+                                          ...prev,
+                                          [key]: e.target.value,
+                                        }))
+                                      }
+                                      className="h-6 text-xs"
+                                    />
+                                  )}
+                                </div>
+                                {/* Show manual input below dropdown when "Enter manually..." is selected */}
+                                {matchingVaultKeys.length > 0 &&
+                                  !selectedVaultKeyId && (
+                                    <div className="flex gap-2 items-center">
+                                      <span className="w-48 shrink-0" />
+                                      <Input
+                                        placeholder={`Enter ${key}`}
+                                        value={envValues[key] ?? ""}
+                                        onChange={(e) =>
+                                          setEnvValues((prev) => ({
+                                            ...prev,
+                                            [key]: e.target.value,
+                                          }))
+                                        }
+                                        className="h-6 text-xs"
+                                      />
+                                    </div>
+                                  )}
+                              </div>
+                            );
+                          })}
                         </div>
                       )}
 
@@ -373,6 +487,7 @@ export function McpCatalogBrowser({
                         onClick={() => {
                           setExpandedId(null);
                           setEnvValues({});
+                          setVaultSelections({});
                         }}
                         className="ml-auto text-[10px] text-muted-foreground hover:text-foreground"
                       >

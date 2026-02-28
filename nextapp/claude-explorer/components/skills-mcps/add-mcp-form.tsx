@@ -68,15 +68,20 @@ export function AddMcpForm({
   const [showEnv, setShowEnv] = useState(false);
   const [headersText, setHeadersText] = useState("");
   const [showHeaders, setShowHeaders] = useState(false);
+  const [selectedApiKeyId, setSelectedApiKeyId] = useState("");
+
+  // Vault keys for token dropdown
+  const { data: vaultKeys } = useQuery(orpc.apiKeys.list.queryOptions());
 
   const effectiveSlug = slug ?? selectedSlug;
 
   const add = useMutation({
     mutationFn: () => {
       const env = envText.trim() ? parseEnv(envText) : undefined;
-      const headers = headersText.trim()
-        ? parseHeaders(headersText)
-        : undefined;
+      const headers =
+        !selectedApiKeyId && headersText.trim()
+          ? parseHeaders(headersText)
+          : undefined;
       return client.mcpServers.add({
         name,
         scope,
@@ -87,6 +92,12 @@ export function AddMcpForm({
         ...(transport !== "stdio" ? { url } : {}),
         ...(env && Object.keys(env).length > 0 ? { env } : {}),
         ...(headers && Object.keys(headers).length > 0 ? { headers } : {}),
+        ...(selectedApiKeyId
+          ? {
+              apiKeyId: selectedApiKeyId,
+              headerTemplate: { Authorization: "Bearer {{TOKEN}}" },
+            }
+          : {}),
         ...(scope !== "user" && effectiveSlug ? { slug: effectiveSlug } : {}),
       });
     },
@@ -114,6 +125,7 @@ export function AddMcpForm({
       setShowEnv(false);
       setHeadersText("");
       setShowHeaders(false);
+      setSelectedApiKeyId("");
       onDone?.();
     },
   });
@@ -184,13 +196,35 @@ export function AddMcpForm({
           </button>
         )}
         {transport !== "stdio" && showHeaders && (
-          <textarea
-            placeholder={"Authorization: Bearer token\nX-Custom: value"}
-            value={headersText}
-            onChange={(e) => setHeadersText(e.target.value)}
-            rows={2}
-            className="rounded border bg-background px-2 py-1 text-[10px] font-mono placeholder:text-muted-foreground focus:outline-none"
-          />
+          <>
+            {vaultKeys && vaultKeys.length > 0 && (
+              <select
+                value={selectedApiKeyId}
+                onChange={(e) => setSelectedApiKeyId(e.target.value)}
+                className="rounded border bg-background px-2 py-0.5 text-[10px]"
+              >
+                <option value="">Enter manually...</option>
+                {vaultKeys.map((k) => (
+                  <option key={k.id} value={k.id}>
+                    {k.label} ({k.provider})
+                  </option>
+                ))}
+              </select>
+            )}
+            {selectedApiKeyId ? (
+              <p className="text-[10px] text-muted-foreground">
+                Auth header will use the selected vault key.
+              </p>
+            ) : (
+              <textarea
+                placeholder={"Authorization: Bearer token\nX-Custom: value"}
+                value={headersText}
+                onChange={(e) => setHeadersText(e.target.value)}
+                rows={2}
+                className="rounded border bg-background px-2 py-1 text-[10px] font-mono placeholder:text-muted-foreground focus:outline-none"
+              />
+            )}
+          </>
         )}
         {add.isError && (
           <p className="text-[10px] text-destructive">
@@ -320,12 +354,34 @@ export function AddMcpForm({
             {showHeaders ? "Hide headers" : "+ Headers (optional)"}
           </button>
           {showHeaders && (
-            <textarea
-              placeholder={"Authorization: Bearer token\nX-Custom: value"}
-              value={headersText}
-              onChange={(e) => setHeadersText(e.target.value)}
-              className="mt-1 w-full min-h-[60px] rounded border bg-background px-3 py-2 text-sm font-mono"
-            />
+            <div className="mt-1 flex flex-col gap-2">
+              {vaultKeys && vaultKeys.length > 0 && (
+                <select
+                  value={selectedApiKeyId}
+                  onChange={(e) => setSelectedApiKeyId(e.target.value)}
+                  className="rounded border bg-background px-2 py-1 text-sm"
+                >
+                  <option value="">Enter manually...</option>
+                  {vaultKeys.map((k) => (
+                    <option key={k.id} value={k.id}>
+                      {k.label} ({k.provider})
+                    </option>
+                  ))}
+                </select>
+              )}
+              {selectedApiKeyId ? (
+                <p className="text-xs text-muted-foreground">
+                  Authorization header will use the selected vault key.
+                </p>
+              ) : (
+                <textarea
+                  placeholder={"Authorization: Bearer token\nX-Custom: value"}
+                  value={headersText}
+                  onChange={(e) => setHeadersText(e.target.value)}
+                  className="w-full min-h-[60px] rounded border bg-background px-3 py-2 text-sm font-mono"
+                />
+              )}
+            </div>
           )}
         </div>
       )}

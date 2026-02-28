@@ -3103,10 +3103,43 @@ const addMcpServerProc = os
       env: z.record(z.string(), z.string()).optional(),
       headers: z.record(z.string(), z.string()).optional(),
       slug: z.string().optional(),
+      /** Vault key ID – token is resolved server-side, never sent to the client */
+      apiKeyId: z.string().optional(),
+      /** Header template with {{TOKEN}} placeholders, e.g. {"Authorization":"Bearer {{TOKEN}}"} */
+      headerTemplate: z.record(z.string(), z.string()).optional(),
+      /** Maps env var names to be filled with the vault token, e.g. {"RAILWAY_TOKEN":"key-id"} */
+      envKeyMapping: z.record(z.string(), z.string()).optional(),
     })
   )
   .output(z.object({ success: z.boolean(), error: z.string().optional() }))
   .handler(async ({ input }) => {
+    // Resolve vault key token if apiKeyId is provided
+    if (input.apiKeyId) {
+      const vaultKey = await getApiKey(input.apiKeyId);
+      if (!vaultKey) {
+        return { success: false, error: "Vault key not found" };
+      }
+      const token = vaultKey.token;
+
+      if (input.headerTemplate) {
+        // Interpolate {{TOKEN}} into headers from the template
+        input.headers = input.headers ?? {};
+        for (const [key, tmpl] of Object.entries(input.headerTemplate)) {
+          input.headers[key] = tmpl.replace(/\{\{TOKEN\}\}/g, token);
+        }
+      } else if (input.envKeyMapping) {
+        // Inject token into specified env vars (for stdio servers like Railway)
+        input.env = input.env ?? {};
+        for (const envVar of Object.keys(input.envKeyMapping)) {
+          input.env[envVar] = token;
+        }
+      } else if (input.transport !== "stdio") {
+        // Default: set Authorization Bearer header
+        input.headers = input.headers ?? {};
+        input.headers["Authorization"] = `Bearer ${token}`;
+      }
+    }
+
     const hasEnv = input.env && Object.keys(input.env).length > 0;
     const hasHeaders = input.headers && Object.keys(input.headers).length > 0;
 
