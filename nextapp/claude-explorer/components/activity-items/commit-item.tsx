@@ -1,7 +1,9 @@
 "use client";
 
+import type { CommitFile } from "@/hooks/use-commit-expand";
 import type { CommitRaw, DeploymentRaw, TicketRaw } from "@/lib/activity-types";
 
+import { DiffView } from "@/components/diff-view";
 import {
   Tooltip,
   TooltipContent,
@@ -11,22 +13,64 @@ import { cn } from "@/lib/utils";
 
 interface CommitItemProps {
   raw: CommitRaw;
+  slug: string;
   onStartChat: () => void;
   onViewExternal?: () => void;
   relatedDeployments?: DeploymentRaw[];
   relatedTickets?: TicketRaw[];
+  // Expand / collapse
+  isExpanded: boolean;
+  onToggleExpand: () => void;
+  commitFiles?: CommitFile[];
+  loadingFiles: boolean;
+  expandedFileKey: string | null;
+  onToggleFile: (path: string) => void;
+  commitFileDiffs: Record<string, string>;
+  loadingFileDiff: string | null;
+  // External links
+  githubRepoUrl: string | null;
 }
 
 export function CommitItem({
   raw,
+  slug: _slug,
   onStartChat,
-  onViewExternal,
+  onViewExternal: _onViewExternal,
   relatedDeployments,
   relatedTickets,
+  isExpanded,
+  onToggleExpand,
+  commitFiles,
+  loadingFiles,
+  expandedFileKey,
+  onToggleFile,
+  commitFileDiffs,
+  loadingFileDiff,
+  githubRepoUrl,
 }: CommitItemProps) {
   return (
     <div className="group border-b border-border/50 last:border-0">
-      <div className="flex items-start gap-2.5 px-3 py-2.5">
+      {/* ── Main row (clickable) ────────────────────────────────────── */}
+      <div
+        className={cn(
+          "flex items-start gap-2.5 px-3 py-2.5 cursor-pointer transition-colors",
+          isExpanded ? "bg-muted/20" : "hover:bg-muted/10"
+        )}
+        onClick={onToggleExpand}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onToggleExpand();
+          }
+        }}
+      >
+        {/* Chevron */}
+        <span className="mt-1 shrink-0 text-[10px] text-muted-foreground/60 w-2.5 text-center select-none">
+          {isExpanded ? "\u25BE" : "\u25B8"}
+        </span>
+
         {/* Icon */}
         <div className="mt-0.5 shrink-0 flex h-5 w-5 items-center justify-center rounded-full bg-violet-500/10 text-violet-400">
           <svg
@@ -95,9 +139,9 @@ export function CommitItem({
             <div className="mt-1 flex flex-wrap gap-1 items-center">
               {relatedDeployments && relatedDeployments.length > 0 && (
                 <>
-                  {/* Tiny "deployed →" label when there are deployment badges */}
+                  {/* Tiny "deployed ->" label */}
                   <span className="text-[10px] text-muted-foreground/60 mr-0.5">
-                    deployed →
+                    deployed &rarr;
                   </span>
                   {relatedDeployments.map((dep) => {
                     const isFailed =
@@ -149,7 +193,9 @@ export function CommitItem({
                         <TooltipContent side="top">
                           {dep.serviceName}: {dep.status}
                           {dep.dashboardUrl && (
-                            <span className="ml-1 opacity-60">↗ Railway</span>
+                            <span className="ml-1 opacity-60">
+                              &uarr; Railway
+                            </span>
                           )}
                         </TooltipContent>
                       </Tooltip>
@@ -173,19 +219,19 @@ export function CommitItem({
           )}
 
           <p className="mt-0.5 text-[10px] text-muted-foreground">
-            {raw.author} · {relativeTime(raw.date)}
+            {raw.author} &middot; {relativeTime(raw.date)}
           </p>
         </div>
 
         {/* Hover actions */}
         <div className="shrink-0 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-          {onViewExternal && (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onViewExternal();
-              }}
+          {/* GitHub link */}
+          {githubRepoUrl && (
+            <a
+              href={`${githubRepoUrl}/commit/${raw.hash}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
               className="flex h-5 w-5 items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
               title="View on GitHub"
             >
@@ -203,7 +249,32 @@ export function CommitItem({
                 <polyline points="15 3 21 3 21 9" />
                 <line x1="10" y1="14" x2="21" y2="3" />
               </svg>
-            </button>
+            </a>
+          )}
+          {/* Railway logs (first related deployment) */}
+          {relatedDeployments?.[0]?.dashboardUrl && (
+            <a
+              href={`${relatedDeployments[0].dashboardUrl}/logs`}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="flex h-5 w-5 items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              title="View Railway logs"
+            >
+              <svg
+                width="10"
+                height="10"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <polyline points="4 17 10 11 4 5" />
+                <line x1="12" y1="19" x2="20" y2="19" />
+              </svg>
+            </a>
           )}
           <button
             type="button"
@@ -217,10 +288,228 @@ export function CommitItem({
             )}
             title="Start a chat about this commit"
           >
-            ✦ Chat
+            &starf; Chat
           </button>
         </div>
       </div>
+
+      {/* ── Expanded panel ──────────────────────────────────────────── */}
+      {isExpanded && (
+        <div className="border-t border-border/30 bg-muted/10">
+          {/* Commit body (if any) */}
+          {raw.body?.trim() && (
+            <div className="border-b border-border/30 px-4 py-2 text-[11px] text-muted-foreground whitespace-pre-wrap leading-relaxed">
+              {raw.body.trim()}
+            </div>
+          )}
+
+          {/* Quick links bar */}
+          <div className="flex items-center gap-3 px-4 py-1.5 border-b border-border/30 text-[10px]">
+            {githubRepoUrl && (
+              <a
+                href={`${githubRepoUrl}/commit/${raw.hash}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-400 hover:text-blue-300 hover:underline inline-flex items-center gap-1"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <svg
+                  width="8"
+                  height="8"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="shrink-0"
+                >
+                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                  <polyline points="15 3 21 3 21 9" />
+                  <line x1="10" y1="14" x2="21" y2="3" />
+                </svg>
+                View on GitHub
+              </a>
+            )}
+            {relatedDeployments?.map((dep) =>
+              dep.dashboardUrl ? (
+                <a
+                  key={dep.id}
+                  href={`${dep.dashboardUrl}/logs`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-purple-400 hover:text-purple-300 hover:underline inline-flex items-center gap-1"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <svg
+                    width="8"
+                    height="8"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="shrink-0"
+                  >
+                    <polyline points="4 17 10 11 4 5" />
+                    <line x1="12" y1="19" x2="20" y2="19" />
+                  </svg>
+                  {dep.serviceName} logs
+                </a>
+              ) : null
+            )}
+            {relatedDeployments?.map((dep) =>
+              dep.serviceUrl ? (
+                <a
+                  key={`svc-${dep.id}`}
+                  href={dep.serviceUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-green-400 hover:text-green-300 hover:underline inline-flex items-center gap-1"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <svg
+                    width="8"
+                    height="8"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="shrink-0"
+                  >
+                    <circle cx="12" cy="12" r="10" />
+                    <line x1="2" y1="12" x2="22" y2="12" />
+                    <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+                  </svg>
+                  {dep.serviceName}
+                </a>
+              ) : null
+            )}
+          </div>
+
+          {/* Files list */}
+          {loadingFiles ? (
+            <div className="px-4 py-3 text-[11px] text-muted-foreground flex items-center gap-2">
+              <span className="h-3 w-3 border-2 border-muted-foreground/30 border-t-muted-foreground rounded-full animate-spin" />
+              Loading files...
+            </div>
+          ) : commitFiles ? (
+            commitFiles.length === 0 ? (
+              <div className="px-4 py-3 text-[11px] text-muted-foreground">
+                No files changed
+              </div>
+            ) : (
+              <div>
+                <div className="px-4 py-1.5 text-[10px] text-muted-foreground/60">
+                  {commitFiles.length} file
+                  {commitFiles.length !== 1 ? "s" : ""} changed
+                  {(() => {
+                    const totalAdd = commitFiles.reduce(
+                      (s, f) => s + f.additions,
+                      0
+                    );
+                    const totalDel = commitFiles.reduce(
+                      (s, f) => s + f.deletions,
+                      0
+                    );
+                    return (
+                      <>
+                        {totalAdd > 0 && (
+                          <span className="text-green-400 ml-1.5">
+                            +{totalAdd}
+                          </span>
+                        )}
+                        {totalDel > 0 && (
+                          <span className="text-red-400 ml-1">-{totalDel}</span>
+                        )}
+                      </>
+                    );
+                  })()}
+                </div>
+                {commitFiles.map((file) => {
+                  const fileKey = `${raw.hash}:${file.path}`;
+                  const isFileExpanded = expandedFileKey === fileKey;
+                  const diffContent = commitFileDiffs[fileKey];
+                  const isLoadingDiff = loadingFileDiff === fileKey;
+
+                  return (
+                    <div key={file.path}>
+                      {/* File row */}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onToggleFile(file.path);
+                        }}
+                        className={cn(
+                          "flex w-full items-center gap-2 px-4 py-1 text-left transition-colors",
+                          isFileExpanded ? "bg-muted/30" : "hover:bg-muted/20"
+                        )}
+                      >
+                        <span className="shrink-0 text-[10px] text-muted-foreground/50 w-2 text-center select-none">
+                          {isFileExpanded ? "\u25BE" : "\u25B8"}
+                        </span>
+                        <span className="shrink-0 font-mono text-[10px] text-green-400">
+                          +{file.additions}
+                        </span>
+                        <span className="shrink-0 font-mono text-[10px] text-red-400">
+                          -{file.deletions}
+                        </span>
+                        <span className="min-w-0 flex-1 truncate font-mono text-[10px] text-muted-foreground">
+                          {file.path}
+                        </span>
+                        {/* GitHub file diff link */}
+                        {githubRepoUrl && (
+                          <a
+                            href={`${githubRepoUrl}/commit/${raw.hash}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="shrink-0 text-muted-foreground/40 hover:text-foreground transition-colors"
+                            onClick={(e) => e.stopPropagation()}
+                            title="View file diff on GitHub"
+                          >
+                            <svg
+                              width="8"
+                              height="8"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2.5"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
+                              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                              <polyline points="15 3 21 3 21 9" />
+                              <line x1="10" y1="14" x2="21" y2="3" />
+                            </svg>
+                          </a>
+                        )}
+                      </button>
+
+                      {/* Inline diff */}
+                      {isFileExpanded && (
+                        <div className="border-t border-b border-border/30 bg-muted/20 px-2 py-1.5 max-h-[500px] overflow-auto">
+                          {isLoadingDiff ? (
+                            <div className="flex items-center gap-2 px-2 py-2 text-[11px] text-muted-foreground">
+                              <span className="h-3 w-3 border-2 border-muted-foreground/30 border-t-muted-foreground rounded-full animate-spin" />
+                              Loading diff...
+                            </div>
+                          ) : diffContent ? (
+                            <DiffView diff={diffContent} />
+                          ) : null}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )
+          ) : null}
+        </div>
+      )}
     </div>
   );
 }

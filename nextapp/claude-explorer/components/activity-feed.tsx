@@ -23,6 +23,7 @@ import { TicketItem } from "@/components/activity-items/ticket-item";
 import { WebhookEventItem } from "@/components/activity-items/webhook-event-item";
 import { ChatContextSheet } from "@/components/chat-context-sheet";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { useCommitExpand } from "@/hooks/use-commit-expand";
 import { orpc } from "@/lib/orpc";
 import { cn } from "@/lib/utils";
 
@@ -487,6 +488,25 @@ export function ActivityFeed({ slug }: { slug: string }) {
     (i) => i.projectSlug === slug && i.type === "linear" && i.enabled
   );
 
+  // GitHub integration → commit link base URL
+  const githubIntegration = useMemo(
+    () =>
+      integrations?.find(
+        (i) => i.projectSlug === slug && i.type === "github" && i.enabled
+      ),
+    [integrations, slug]
+  );
+
+  const githubRepoUrl = useMemo(() => {
+    const url = githubIntegration?.config?.gitRemoteUrl as string | undefined;
+    if (!url) return null;
+    const match = url.match(/github\.com[:/]([^/]+\/[^/.]+)/);
+    return match ? `https://github.com/${match[1]}` : null;
+  }, [githubIntegration]);
+
+  // Commit expand/collapse state + lazy-fetch for files & diffs
+  const commitExpand = useCommitExpand({ slug });
+
   // Railway widget data
   const { data: railwayData, isLoading: railwayLoading } = useQuery({
     ...orpc.integrations.data.queryOptions({
@@ -915,13 +935,35 @@ export function ActivityFeed({ slug }: { slug: string }) {
                   switch (item.type) {
                     case "commit": {
                       const raw = item.raw as CommitRaw;
+                      const isExpanded =
+                        commitExpand.expandedCommit === raw.hash;
                       return (
                         <CommitItem
                           key={item.id}
                           raw={raw}
+                          slug={slug}
                           onStartChat={() => handleStartChat(item)}
                           relatedDeployments={commitToDeployments.get(raw.hash)}
                           relatedTickets={commitToTickets.get(raw.hash)}
+                          isExpanded={isExpanded}
+                          onToggleExpand={() =>
+                            commitExpand.toggleCommit(raw.hash)
+                          }
+                          commitFiles={
+                            isExpanded
+                              ? commitExpand.commitFiles[raw.hash]
+                              : undefined
+                          }
+                          loadingFiles={
+                            commitExpand.loadingCommitFiles === raw.hash
+                          }
+                          expandedFileKey={commitExpand.expandedCommitFile}
+                          onToggleFile={(path) =>
+                            commitExpand.toggleCommitFile(raw.hash, path)
+                          }
+                          commitFileDiffs={commitExpand.commitFileDiffs}
+                          loadingFileDiff={commitExpand.loadingCommitFileDiff}
+                          githubRepoUrl={githubRepoUrl}
                         />
                       );
                     }
