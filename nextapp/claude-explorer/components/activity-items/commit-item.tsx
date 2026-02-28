@@ -385,7 +385,7 @@ export function CommitItem({
               )}
               title="Start a chat about this commit"
             >
-              &starf; Chat
+              ★ Chat
             </button>
           )}
         </div>
