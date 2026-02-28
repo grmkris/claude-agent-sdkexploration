@@ -28,7 +28,7 @@ export const DEFAULT_CHAT_SETTINGS: ChatSettings = {
   thinkingEnabled: false,
   bypassPermissions: true,
   planMode: false,
-  model: "claude-sonnet-4-6",
+  model: "claude-opus-4-6",
 };
 
 // ---------------------------------------------------------------------------
