@@ -1,4 +1,3 @@
-import { query } from "@anthropic-ai/claude-agent-sdk";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
@@ -6,16 +5,13 @@ import type { EmailAttachment, ParsedEmail } from "./email";
 import type { WorkspaceEmailConfig } from "./types";
 
 import { USER_HOME, resolveSlugToPath } from "./claude-fs";
-import { upsertSession } from "./explorer-db";
 import {
   addEmailEvent,
   tagOutboundEmailEvents,
   updateEmailEventAttachments,
   updateEmailEventStatus,
 } from "./explorer-store";
-import { createSessionHooks } from "./session-hooks";
-
-const { CLAUDECODE: _CC, ...cleanEnv } = process.env;
+import { spawnAgent } from "./spawn-agent";
 
 /** Root directory where materialised email directories are stored */
 const EMAIL_STORE = join(USER_HOME, "emails");
@@ -235,75 +231,24 @@ ${config.prompt}`;
         ? USER_HOME
         : await resolveSlugToPath(config.projectSlug);
 
-      const explorerServerPath = join(
-        process.cwd(),
-        "tools",
-        "explorer-server.ts"
-      );
-      const baseUrl =
-        process.env.EXPLORER_BASE_URL ??
-        `http://localhost:${process.env.PORT ?? 3000}`;
+      let capturedSessionId: string | undefined;
 
-      const conversation = query({
+      const conversation = spawnAgent({
         prompt,
-        options: {
-          model: "claude-opus-4-6",
-          executable: "bun",
-          permissionMode: "bypassPermissions",
-          allowDangerouslySkipPermissions: true,
-          env: cleanEnv,
-          ...(cwd ? { cwd } : {}),
-          ...(config.onInbound === "existing_session" && config.sessionId
-            ? { resume: config.sessionId }
-            : {}),
-          hooks: createSessionHooks("email"),
-          mcpServers: {
-            [process.env.INSTANCE_NAME ?? "claude-explorer"]: {
-              command: "bun",
-              args: [explorerServerPath],
-              env: {
-                EXPLORER_BASE_URL: baseUrl,
-                EXPLORER_RPC_URL: `${baseUrl}/rpc`,
-                ...(process.env.RPC_INTERNAL_TOKEN
-                  ? { RPC_INTERNAL_TOKEN: process.env.RPC_INTERNAL_TOKEN }
-                  : {}),
-              },
-            },
-          },
+        source: "email",
+        cwd,
+        projectSlug: config.projectSlug,
+        resume:
+          config.onInbound === "existing_session" && config.sessionId
+            ? config.sessionId
+            : undefined,
+        onSessionId: (id) => {
+          capturedSessionId = id;
         },
       });
 
-      let capturedSessionId: string | undefined;
-      for await (const msg of conversation) {
-        if (
-          msg.type === "system" &&
-          msg.subtype === "init" &&
-          "session_id" in msg
-        ) {
-          capturedSessionId = msg.session_id as string;
-          // Explicitly persist project_path — SDK hook input.cwd is unreliable.
-          if (cwd) upsertSession(capturedSessionId, { project_path: cwd });
-        }
-        if (capturedSessionId && msg.type === "result") {
-          const r = msg as {
-            total_cost_usd?: number;
-            usage?: { input_tokens?: number; output_tokens?: number };
-            num_turns?: number;
-            duration_ms?: number;
-            is_error?: boolean;
-            subtype?: string;
-          };
-          upsertSession(capturedSessionId, {
-            cost_usd: r.total_cost_usd ?? null,
-            input_tokens: r.usage?.input_tokens ?? null,
-            output_tokens: r.usage?.output_tokens ?? null,
-            num_turns: r.num_turns ?? null,
-            duration_ms: r.duration_ms ?? null,
-            ...(r.is_error
-              ? { state: "error", error: r.subtype ?? "error" }
-              : {}),
-          });
-        }
+      for await (const _msg of conversation) {
+        // spawnAgent handles session ID capture + result metrics internally
       }
 
       await updateEmailEventStatus(eventId, "success", capturedSessionId);

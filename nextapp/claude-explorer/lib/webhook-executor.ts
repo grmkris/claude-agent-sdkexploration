@@ -1,13 +1,5 @@
-import { query } from "@anthropic-ai/claude-agent-sdk";
-import { join } from "node:path";
-
 import type { WebhookConfig } from "./types";
 
-// Strip CLAUDECODE to allow the Agent SDK to spawn inside a Claude Code container
-const { CLAUDECODE: _CC, ...cleanEnv } = process.env;
-
-import { USER_HOME, resolveSlugToPath } from "./claude-fs";
-import { upsertSession } from "./explorer-db";
 import {
   updateWebhookStatus,
   incrementWebhookTriggerCount,
@@ -15,31 +7,8 @@ import {
   updateWebhookEventStatus,
 } from "./explorer-store";
 import { emitActivity } from "./linear-agent";
-import { createSessionHooks } from "./session-hooks";
+import { spawnAgent } from "./spawn-agent";
 import { getProvider } from "./webhook-providers";
-
-// Explorer MCP server config — gives webhook-spawned Claude sessions access
-// to Linear tools, email, crons, etc.
-const explorerServerPath = join(process.cwd(), "tools", "explorer-server.ts");
-const baseUrl =
-  process.env.EXPLORER_BASE_URL ??
-  `http://localhost:${process.env.PORT ?? 3000}`;
-
-function getExplorerMcpConfig() {
-  return {
-    [process.env.INSTANCE_NAME ?? "claude-explorer"]: {
-      command: "bun",
-      args: [explorerServerPath],
-      env: {
-        EXPLORER_BASE_URL: baseUrl,
-        EXPLORER_RPC_URL: `${baseUrl}/rpc`,
-        ...(process.env.RPC_INTERNAL_TOKEN
-          ? { RPC_INTERNAL_TOKEN: process.env.RPC_INTERNAL_TOKEN }
-          : {}),
-      },
-    },
-  };
-}
 
 export function executeWebhook(
   webhook: WebhookConfig,
@@ -90,59 +59,20 @@ export function executeWebhook(
     await updateWebhookStatus(webhook.id, "running", now);
 
     try {
-      const cwd = webhook.projectSlug
-        ? await resolveSlugToPath(webhook.projectSlug)
-        : undefined;
-      const conversation = query({
+      let capturedSessionId: string | undefined;
+
+      const conversation = spawnAgent({
         prompt,
-        options: {
-          model: "claude-opus-4-6",
-          executable: "bun",
-          permissionMode: "bypassPermissions",
-          allowDangerouslySkipPermissions: true,
-          env: cleanEnv,
-          mcpServers: getExplorerMcpConfig(),
-          hooks: createSessionHooks("webhook"),
-          ...(cwd ? { cwd } : {}),
-          ...(webhook.sessionId ? { resume: webhook.sessionId } : {}),
+        source: "webhook",
+        projectSlug: webhook.projectSlug,
+        resume: webhook.sessionId,
+        onSessionId: (id) => {
+          capturedSessionId = id;
         },
       });
 
-      let capturedSessionId: string | undefined;
-      for await (const msg of conversation) {
-        if (
-          msg.type === "system" &&
-          msg.subtype === "init" &&
-          "session_id" in msg
-        ) {
-          capturedSessionId = msg.session_id as string;
-          // Always persist project_path so the session appears correctly in
-          // the sessions list. Fall back to USER_HOME (root workspace) when
-          // no projectSlug is configured — this correctly shows "root" in UI.
-          upsertSession(capturedSessionId, {
-            project_path: cwd ?? USER_HOME,
-          });
-        }
-        if (capturedSessionId && msg.type === "result") {
-          const r = msg as {
-            total_cost_usd?: number;
-            usage?: { input_tokens?: number; output_tokens?: number };
-            num_turns?: number;
-            duration_ms?: number;
-            is_error?: boolean;
-            subtype?: string;
-          };
-          upsertSession(capturedSessionId, {
-            cost_usd: r.total_cost_usd ?? null,
-            input_tokens: r.usage?.input_tokens ?? null,
-            output_tokens: r.usage?.output_tokens ?? null,
-            num_turns: r.num_turns ?? null,
-            duration_ms: r.duration_ms ?? null,
-            ...(r.is_error
-              ? { state: "error", error: r.subtype ?? "error" }
-              : {}),
-          });
-        }
+      for await (const _msg of conversation) {
+        // spawnAgent handles session ID capture + result metrics internally
       }
 
       await updateWebhookEventStatus(eventId, "success", capturedSessionId);

@@ -1,14 +1,8 @@
-import { query } from "@anthropic-ai/claude-agent-sdk";
 import { CronExpressionParser } from "cron-parser";
-import { join } from "node:path";
 
 import type { CronJob } from "./types";
 
-// Strip CLAUDECODE to allow the Agent SDK to spawn inside a Claude Code container
-const { CLAUDECODE: _CC, ...cleanEnv } = process.env;
-
 import { resolveSlugToPath } from "./claude-fs";
-import { upsertSession } from "./explorer-db";
 import {
   getCrons,
   updateCronStatus,
@@ -16,7 +10,7 @@ import {
   updateCronEventStatus,
   tagOutboundEmailEvents,
 } from "./explorer-store";
-import { createSessionHooks } from "./session-hooks";
+import { spawnAgent } from "./spawn-agent";
 
 let intervalId: ReturnType<typeof setInterval> | null = null;
 
@@ -54,84 +48,21 @@ export async function executeCron(cron: CronJob): Promise<void> {
     const cwd = await resolveProjectPath(cron);
     console.log(`[cron ${cron.id}] Executing: "${cron.prompt}" in ${cwd}`);
 
-    // Build the explorer MCP server config — same pattern as email-executor.
-    // The Agent SDK passes --setting-sources="" which bypasses ~/.claude.json,
-    // so we must pass mcpServers explicitly to give cron agents email_send etc.
-    const explorerServerPath = join(
-      process.cwd(),
-      "tools",
-      "explorer-server.ts"
-    );
-    const baseUrl =
-      process.env.EXPLORER_BASE_URL ??
-      `http://localhost:${process.env.PORT ?? 3000}`;
+    let capturedSessionId: string | undefined;
 
-    const conversation = query({
+    const conversation = spawnAgent({
       prompt: cron.prompt,
-      options: {
-        model: "claude-opus-4-6",
-        executable: "bun",
-        permissionMode: "bypassPermissions",
-        allowDangerouslySkipPermissions: true,
-        env: cleanEnv,
-        cwd,
-        hooks: createSessionHooks("cron"),
-        ...(cron.sessionId ? { resume: cron.sessionId } : {}),
-        mcpServers: {
-          [process.env.INSTANCE_NAME ?? "claude-explorer"]: {
-            command: "bun",
-            args: [explorerServerPath],
-            env: {
-              EXPLORER_BASE_URL: baseUrl,
-              EXPLORER_RPC_URL: `${baseUrl}/rpc`,
-              ...(process.env.RPC_INTERNAL_TOKEN
-                ? { RPC_INTERNAL_TOKEN: process.env.RPC_INTERNAL_TOKEN }
-                : {}),
-            },
-          },
-        },
+      source: "cron",
+      cwd,
+      projectSlug: cron.projectSlug,
+      resume: cron.sessionId,
+      onSessionId: (id) => {
+        capturedSessionId = id;
       },
     });
 
-    // Drain the iterator, capture session ID and result metrics
-    let capturedSessionId: string | undefined;
-    for await (const msg of conversation) {
-      if (
-        !capturedSessionId &&
-        msg &&
-        typeof msg === "object" &&
-        "session_id" in msg
-      ) {
-        capturedSessionId = (msg as { session_id: string }).session_id;
-        // Explicitly persist project_path — SDK hook input.cwd is unreliable.
-        upsertSession(capturedSessionId, { project_path: cwd });
-      }
-      if (
-        capturedSessionId &&
-        msg &&
-        typeof msg === "object" &&
-        "type" in msg &&
-        (msg as { type: string }).type === "result"
-      ) {
-        const r = msg as {
-          total_cost_usd?: number;
-          usage?: { input_tokens?: number; output_tokens?: number };
-          num_turns?: number;
-          duration_ms?: number;
-          is_error?: boolean;
-          subtype?: string;
-        };
-        upsertSession(capturedSessionId, {
-          cost_usd: r.total_cost_usd ?? null,
-          input_tokens: r.usage?.input_tokens ?? null,
-          output_tokens: r.usage?.output_tokens ?? null,
-          num_turns: r.num_turns ?? null,
-          duration_ms: r.duration_ms ?? null,
-          ...(r.is_error
-            ? { state: "error", error: r.subtype ?? "error" }
-            : {}),
-        });
-      }
+    for await (const _msg of conversation) {
+      // spawnAgent handles session ID capture + result metrics internally
     }
 
     console.log(

@@ -10,6 +10,7 @@ import { z } from "zod";
 import type { SessionRow, SessionState as DbSessionState } from "./explorer-db";
 import type { SDKMessage } from "./types";
 
+import { buildAgentContext } from "./agent-context";
 import {
   listProjects,
   getSessionMessages,
@@ -148,6 +149,7 @@ import {
   MCP_CATALOG,
   type SkillsShSkill,
 } from "./mcp-catalog";
+import { resolveAllMcpServers } from "./mcp-resolver";
 import {
   ProjectSchema,
   SessionMetaSchema,
@@ -700,74 +702,30 @@ const chatProc = os
             ? ({ type: "disabled" } as const)
             : undefined;
 
-      // --- Build merged MCP servers ---
-      // Read all MCP configs from disk, filter by default/optional preference,
-      // and build the final set to pass explicitly to query().
-      const explorerName = process.env.INSTANCE_NAME ?? "claude-explorer";
-      const explorerServerPath_ = explorerServerPath; // alias for closure clarity
-      const explorerMcpConfig = {
-        command: "bun",
-        args: [explorerServerPath_],
-        env: {
-          EXPLORER_BASE_URL: baseUrl,
-          EXPLORER_RPC_URL: `${baseUrl}/rpc`,
-          ...(process.env.RPC_INTERNAL_TOKEN
-            ? { RPC_INTERNAL_TOKEN: process.env.RPC_INTERNAL_TOKEN }
-            : {}),
-        },
-      };
-
-      const finalMcpServers: Record<string, unknown> = {
-        [explorerName]: explorerMcpConfig,
-      };
-
-      try {
-        const userMcps = await readUserMcpServers();
-        const projectMcps = input.cwd
-          ? ((await readProjectMcpConfig(input.cwd)) ?? {})
-          : {};
-        const localMcps = input.cwd ? await readLocalMcpServers(input.cwd) : {};
-
-        // Build set of selected optional MCPs
-        const enabledOptionalSet = new Set<string>();
-        if (input.enabledOptionalMcps) {
-          for (const m of input.enabledOptionalMcps) {
-            enabledOptionalSet.add(`${m.scope}:${m.name}`);
-          }
-        } else if (input.resume) {
-          // For resumed sessions without explicit selections, load saved ones
-          const saved = getSessionMcpSelections(input.resume);
-          for (const s of saved) {
-            enabledOptionalSet.add(`${s.scope}:${s.server_name}`);
-          }
-        }
-
-        // Get preferences from DB
-        const prefs = getMcpPreferences(input.cwd ?? undefined);
-        const prefMap = new Map(
-          prefs.map((p) => [`${p.scope}:${p.server_name}`, p.mode])
-        );
-
-        function shouldIncludeMcp(name: string, scope: string): boolean {
-          if (name === explorerName) return false; // already included
-          const mode = prefMap.get(`${scope}:${name}`) ?? "default";
-          if (mode === "default") return true;
-          return enabledOptionalSet.has(`${scope}:${name}`);
-        }
-
-        for (const [name, config] of Object.entries(userMcps)) {
-          if (shouldIncludeMcp(name, "user")) finalMcpServers[name] = config;
-        }
-        for (const [name, config] of Object.entries(projectMcps)) {
-          if (shouldIncludeMcp(name, "project")) finalMcpServers[name] = config;
-        }
-        for (const [name, config] of Object.entries(localMcps)) {
-          if (shouldIncludeMcp(name, "local")) finalMcpServers[name] = config;
-        }
-      } catch {
-        // best-effort — if reading disk configs fails, just use the explorer MCP
-        console.warn("[chatProc] Failed to read MCP configs from disk");
+      // --- Build merged MCP servers via shared resolver ---
+      // Resolves explorer + user + project + local MCPs, applying preferences.
+      let enabledOptionalMcps = input.enabledOptionalMcps;
+      if (!enabledOptionalMcps && input.resume) {
+        // For resumed sessions without explicit selections, load saved ones
+        const saved = getSessionMcpSelections(input.resume);
+        enabledOptionalMcps = saved.map((s) => ({
+          name: s.server_name,
+          scope: s.scope as "user" | "project" | "local",
+        }));
       }
+      const finalMcpServers = await resolveAllMcpServers(input.cwd, {
+        enabledOptionalMcps,
+      });
+
+      // --- Build agent context for system prompt ---
+      const projectSlug = input.cwd
+        ? await resolveSlugForCwd(input.cwd).catch(() => undefined)
+        : undefined;
+      const agentContext = await buildAgentContext({
+        cwd: input.cwd,
+        projectSlug,
+        source: "chat",
+      });
 
       const conversation = query({
         prompt: buildPromptArg(
@@ -787,6 +745,18 @@ const chatProc = os
             console.error("[chat] stderr:", data);
           },
           ...(thinkingConfig ? { thinking: thinkingConfig } : {}),
+          // Inject agent environment context via system prompt
+          ...(agentContext
+            ? {
+                systemPrompt: {
+                  type: "preset" as const,
+                  preset: "claude_code" as const,
+                  append: agentContext,
+                },
+              }
+            : {}),
+          // Enable project CLAUDE.md loading when we have a real cwd
+          ...(input.cwd ? { settingSources: ["project" as const] } : {}),
           // Intercept AskUserQuestion and ExitPlanMode to pause for user input
           canUseTool: async (
             toolName: string,
@@ -1937,59 +1907,27 @@ const rootChatProc = os
             : undefined;
 
       // --- Build merged MCP servers for root chat (user-scope only) ---
-      const rootExplorerName = process.env.INSTANCE_NAME ?? "claude-explorer";
-      const rootExplorerMcpConfig = {
-        command: "bun",
-        args: [explorerServerPath],
-        env: {
-          EXPLORER_BASE_URL: baseUrl,
-          EXPLORER_RPC_URL: `${baseUrl}/rpc`,
-          ...(process.env.RPC_INTERNAL_TOKEN
-            ? { RPC_INTERNAL_TOKEN: process.env.RPC_INTERNAL_TOKEN }
-            : {}),
-        },
-      };
-
-      const rootFinalMcpServers: Record<string, unknown> = {
-        [rootExplorerName]: rootExplorerMcpConfig,
-      };
-
-      try {
-        const userMcps = await readUserMcpServers();
-
-        // Build set of selected optional MCPs
-        const rootEnabledOptionalSet = new Set<string>();
-        if (input.enabledOptionalMcps) {
-          for (const m of input.enabledOptionalMcps) {
-            rootEnabledOptionalSet.add(`${m.scope}:${m.name}`);
-          }
-        } else if (input.resume) {
-          const saved = getSessionMcpSelections(input.resume);
-          for (const s of saved) {
-            rootEnabledOptionalSet.add(`${s.scope}:${s.server_name}`);
-          }
-        }
-
-        const rootPrefs = getMcpPreferences();
-        const rootPrefMap = new Map(
-          rootPrefs.map((p) => [`${p.scope}:${p.server_name}`, p.mode])
-        );
-
-        for (const [name, config] of Object.entries(userMcps)) {
-          if (name === rootExplorerName) continue;
-          const mode = rootPrefMap.get(`user:${name}`) ?? "default";
-          if (
-            mode === "default" ||
-            rootEnabledOptionalSet.has(`user:${name}`)
-          ) {
-            rootFinalMcpServers[name] = config;
-          }
-        }
-      } catch {
-        console.warn(
-          "[rootChatProc] Failed to read user MCP configs from disk"
-        );
+      // --- Build merged MCP servers for root workspace via shared resolver ---
+      let rootEnabledOptionalMcps = input.enabledOptionalMcps;
+      if (!rootEnabledOptionalMcps && input.resume) {
+        const saved = getSessionMcpSelections(input.resume);
+        rootEnabledOptionalMcps = saved.map((s) => ({
+          name: s.server_name,
+          scope: s.scope as "user" | "project" | "local",
+        }));
       }
+      // Root workspace has no project cwd — only user-level MCPs + explorer
+      const rootFinalMcpServers = await resolveAllMcpServers(undefined, {
+        enabledOptionalMcps: rootEnabledOptionalMcps,
+      });
+
+      // Build root workspace context for system prompt
+      const rootContext = await buildAgentContext({
+        cwd: USER_HOME,
+        source: "root_chat",
+        extraContext:
+          "You are the root workspace assistant for Claude Explorer. You have cross-project access via MCP tools (project_list, project_sessions, cron_create, webhook_create, etc). Use them to help manage all projects.",
+      });
 
       const conversation = query({
         prompt: buildPromptArg(
@@ -2188,6 +2126,7 @@ const rootChatProc = os
             type: "preset",
             preset: "claude_code",
             append:
+              rootContext ||
               "You are the root workspace assistant for Claude Explorer. You have cross-project access via MCP tools (project_list, project_sessions, cron_create, webhook_create, etc). Use them to help manage all projects.",
           },
           mcpServers: rootFinalMcpServers as Record<

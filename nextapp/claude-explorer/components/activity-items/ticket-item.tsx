@@ -85,9 +85,12 @@ export function TicketItem({
         )}
 
         {/* Status color dot as icon */}
-        <div className="mt-1 shrink-0">
+        <div className={cn("shrink-0", compact ? "mt-0.5" : "mt-1")}>
           <span
-            className="block h-3 w-3 rounded-full border-2"
+            className={cn(
+              "block rounded-full border-2",
+              compact ? "h-2.5 w-2.5" : "h-3 w-3"
+            )}
             style={{
               borderColor: raw.statusColor,
               backgroundColor: `${raw.statusColor}20`,

@@ -356,20 +356,22 @@ export function GitTab({ slug }: { slug: string | null }) {
   return (
     <div className="flex flex-col">
       {/* Action bar */}
-      <div className="flex flex-wrap items-center gap-1.5 border-b px-3 py-2">
-        <span className="text-xs font-medium text-foreground">
-          {gitStatus.branch}
-        </span>
-        {hasChanges ? (
-          <span className="text-[10px] text-yellow-400">
-            {gitStatus.changes.length} change
-            {gitStatus.changes.length !== 1 ? "s" : ""}
+      <div className="flex flex-col gap-1.5 border-b px-3 py-2">
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs font-medium text-foreground">
+            {gitStatus.branch}
           </span>
-        ) : (
-          <span className="text-[10px] text-green-400">clean</span>
-        )}
+          {hasChanges ? (
+            <span className="text-[10px] text-yellow-400">
+              {gitStatus.changes.length} change
+              {gitStatus.changes.length !== 1 ? "s" : ""}
+            </span>
+          ) : (
+            <span className="text-[10px] text-green-400">clean</span>
+          )}
+        </div>
 
-        <div className="ml-auto flex items-center gap-1">
+        <div className="flex flex-wrap items-center gap-1">
           <button
             type="button"
             disabled={isBusy}
