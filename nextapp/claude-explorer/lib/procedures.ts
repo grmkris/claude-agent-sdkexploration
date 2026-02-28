@@ -972,7 +972,10 @@ const chatProc = os
               });
             }
 
-            return { behavior: "allow" as const };
+            return {
+              behavior: "allow" as const,
+              updatedInput: (toolInput as Record<string, unknown>) ?? {},
+            };
           },
           mcpServers: finalMcpServers as Record<
             string,
@@ -2176,7 +2179,10 @@ const rootChatProc = os
               });
             }
 
-            return { behavior: "allow" as const };
+            return {
+              behavior: "allow" as const,
+              updatedInput: (toolInput as Record<string, unknown>) ?? {},
+            };
           },
           systemPrompt: {
             type: "preset",

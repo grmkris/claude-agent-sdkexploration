@@ -499,17 +499,17 @@ export function ProjectIntegrations({ slug }: { slug: string }) {
 
   if (integrations.length === 0 && !showForm) {
     return (
-      <div className="mb-4">
-        <div className="flex items-center gap-2">
-          <h3 className="text-xs font-medium text-muted-foreground">
+      <div>
+        <div className="flex items-center justify-between px-2 pb-1">
+          <span className="text-[11px] font-medium text-sidebar-foreground/70">
             Integrations
-          </h3>
+          </span>
           <button
             onClick={() => {
               setShowSection(true);
               setShowForm(true);
             }}
-            className="text-[10px] text-muted-foreground hover:text-foreground"
+            className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
           >
             + add
           </button>
@@ -526,11 +526,11 @@ export function ProjectIntegrations({ slug }: { slug: string }) {
   }
 
   return (
-    <div className="mb-4">
-      <div className="mb-2 flex items-center gap-2">
+    <div>
+      <div className="flex items-center justify-between px-2 pb-1">
         <button
           onClick={() => setShowSection(!showSection)}
-          className="flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground"
+          className="flex items-center gap-1 text-[11px] font-medium text-sidebar-foreground/70 hover:text-foreground transition-colors"
         >
           <ChevronIcon open={showSection} />
           Integrations
@@ -543,7 +543,7 @@ export function ProjectIntegrations({ slug }: { slug: string }) {
             setShowSection(true);
             setShowForm(!showForm);
           }}
-          className="text-[10px] text-muted-foreground hover:text-foreground"
+          className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
         >
           {showForm ? "cancel" : "+ add"}
         </button>
