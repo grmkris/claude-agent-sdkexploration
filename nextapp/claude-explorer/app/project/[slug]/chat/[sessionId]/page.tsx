@@ -55,6 +55,7 @@ export default function SessionChatPage({
       : settings.bypassPermissions
         ? "bypassPermissions"
         : "default",
+    model: settings.model,
   });
 
   // Register compact callback so the AgentTabBar can trigger it

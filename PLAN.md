@@ -1,121 +1,91 @@
-# UI Redesign Plan
+# Plan: Add Model Selector to ChatSettingsBar
 
-## Problem Summary
+## Overview
 
-1. **Archive button** in `AgentTabBar` top-right corner gets accidentally clicked when reaching for the sidebar trigger.
-2. **`ChatSettingsBar`** (Thinking / Auto-approve / Plan mode) uses plain switches with text labels — functional but not visually polished.
-
----
-
-## Change 1 — Redesign `SessionFirstMessageBanner` into a `SessionHeaderBar`
-
-**File:** `components/session-first-message-banner.tsx`
-
-Transform the plain collapsible "STARTED WITH" text strip into a proper session header bar that has two zones:
-
-```
-[ ← back? ] [ first prompt text (truncated/expandable) ] [ ⚙ Archive | ··· ]
-```
-
-### What changes:
-- Keep the existing first-prompt text (truncated, expandable on click) on the **left/center**
-- Add an **Archive button** (the existing `<ArchiveChatButton>` logic, inlined or imported) on the **right side** of this bar
-- Accept `sessionId` and `slug` props (already has them) — pass `projectSlug` for archive navigation too
-- Remove `<ArchiveChatButton>` import from `AgentTabBar` and `AgentTabMobile`
-- Remove `ArchiveChatButton` from the right slot of both tab bar files
-
-### Props needed:
-- `sessionId: string` ✅ already present
-- `slug: string` ✅ already present  
-- `projectSlug?: string | null` — new, needed so archive button knows where to navigate back to
-
-The archive mutation logic (currently in `archive-chat-button.tsx`) can either be:
-- **Option A:** Keep `ArchiveChatButton` as a standalone component and simply render it inside the banner's right slot
-- **Option B:** Inline the archive logic into the banner
-
-→ **Use Option A** (simpler, less duplication). The banner just renders `<ArchiveChatButton />` in its right slot — the component already reads `sessionId` from the URL via `usePathname()` so no extra props needed.
-
-### New visual layout of the bar:
-```
-bg-muted/30, border-b, px-3 py-1.5, flex items-start gap-2
-
-LEFT:  "STARTED WITH" label (10px uppercase muted)
-MID:   first prompt text (truncated, flex-1)
-RIGHT: [ArchiveChatButton h-6 w-6] [chevron expand/collapse icon]
-```
-
-The whole bar is still clickable to expand/collapse (via the text area click), but the right action buttons have `e.stopPropagation()` so they don't toggle expand.
+Add a model dropdown to the `ChatSettingsBar` component (the row with Thinking / Auto-approve / Plan mode chips), sitting inline at the right end of the chips row. The selected model flows through the settings object all the way to the server, replacing the two hardcoded `"claude-sonnet-4-6"` strings.
 
 ---
 
-## Change 2 — Remove `ArchiveChatButton` from the tab bars
+## Architecture (current state)
 
-**Files:**
-- `components/agent-tabs/agent-tab-bar.tsx` — remove `<ArchiveChatButton />` from the right `<div>` slot (line ~319)
-- `components/agent-tabs/agent-tab-mobile.tsx` — remove `<ArchiveChatButton />` from the right slot (line ~110)
-- Remove the `ArchiveChatButton` import from both files
-
-After removal, the right slot of `AgentTabBar` only contains:
-```tsx
-<div className="flex shrink-0 items-center gap-0.5 border-l border-border/50 px-1.5">
-  <RightSidebarTrigger className="md:hidden" />
-</div>
 ```
-(On desktop the border-l div becomes empty — we can drop it entirely on desktop or keep just the trigger.)
+Page (4 pages: /chat, /chat/[id], /project/[slug]/chat, /project/[slug]/chat/[id])
+  └─ useState<ChatSettings>  { thinkingEnabled, bypassPermissions, planMode }
+       ├─ <ChatSettingsBar>     renders the chips row
+       └─ useRootChatStream / useChatStream  →  client.rootChat / client.chat  →  procedures.ts
+                                                                                    model: "claude-sonnet-4-6" (hardcoded x2)
+```
 
 ---
 
-## Change 3 — Redesign `ChatSettingsBar` into pill/chip toggles
+## UI Placement
 
-**File:** `components/chat-settings-bar.tsx`
+The model selector goes at the **right end** of the existing chips row, after Plan mode:
 
-Replace the three `Switch + Label` rows with **compact segmented pill buttons** that look like mode chips. This makes the bar feel more intentional and less like an afterthought.
-
-### New design concept:
 ```
-┌─────────────────────────────────────────────────────────┐
-│  [🧠 Thinking]  [✓ Auto-approve]  [📋 Plan mode]        │
-│   (amber pill)   (green pill)       (blue pill)          │
-└─────────────────────────────────────────────────────────┘
+[ 🧠 Thinking ]  [ ✓ Auto-approve ]  [ 📋 Plan mode ]          [ Sonnet 4.6 ▾ ]
 ```
 
-Each toggle is a **button-style chip** (not a Switch+Label pair):
-- Inactive state: `bg-muted/50 text-muted-foreground border border-transparent rounded-full px-2.5 py-1 text-xs`
-- Active state: colored bg + colored text, e.g.:
-  - Thinking active: `bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30`
-  - Auto-approve active: `bg-green-500/15 text-green-600 dark:text-green-400 border-green-500/30`
-  - Plan mode active: `bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30`
-- Disabled state: `opacity-40 cursor-not-allowed`
-- Icon + text inside each chip (same icons as before, 11px)
-
-The mutual-exclusion logic (plan mode disables auto-approve) stays exactly the same.
-
-The "Plan mode active" info banner above the bar stays as-is (it's already nice).
-
-### Implementation approach:
-- Keep the same `ChatSettings` type, `DEFAULT_CHAT_SETTINGS`, and `ChatSettingsBar` props — **no API changes**
-- Replace the `<Switch>` + `<Label>` for each toggle with a single `<button>` chip
-- Remove the `Switch` import (no longer needed)
-- Keep the `Label` import removal too since labels aren't needed for chip buttons
+It uses the existing shadcn `<Select>` component (already used in `tmux-launcher.tsx`) styled compactly to fit the settings bar aesthetic.
 
 ---
 
-## File Change Summary
+## Files to Change (8 files)
 
-| File | Change |
-|------|--------|
-| `components/session-first-message-banner.tsx` | Add `<ArchiveChatButton />` to right slot; add stopPropagation on it |
-| `components/agent-tabs/agent-tab-bar.tsx` | Remove `<ArchiveChatButton />` and its import |
-| `components/agent-tabs/agent-tab-mobile.tsx` | Remove `<ArchiveChatButton />` and its import |
-| `components/chat-settings-bar.tsx` | Replace Switch+Label toggles with pill chip buttons |
+### 1. `components/chat-settings-bar.tsx`
+- Add `model: string` to the `ChatSettings` type.
+- Update `DEFAULT_CHAT_SETTINGS` to default to `"claude-sonnet-4-6"`.
+- Export a `MODELS` constant:
+  ```ts
+  export const MODELS = [
+    { value: "claude-opus-4-5",   label: "Opus 4.5" },
+    { value: "claude-sonnet-4-5", label: "Sonnet 4.5" },
+    { value: "claude-haiku-4-5",  label: "Haiku 4.5" },
+    { value: "claude-opus-4-6",   label: "Opus 4.6" },
+    { value: "claude-sonnet-4-6", label: "Sonnet 4.6" },
+    { value: "claude-haiku-4-6",  label: "Haiku 4.6" },
+  ] as const;
+  ```
+- Import `Select / SelectContent / SelectItem / SelectTrigger / SelectValue` from `@/components/ui/select`.
+- Render a compact `<Select>` at the right end of the chips row (with `ml-auto`), showing the short label (e.g. "Sonnet 4.6").
+- Style the trigger as a small rounded pill to match the rest of the bar.
 
-**No API changes, no schema changes, no new files needed.**
+### 2. `hooks/use-root-chat-stream.ts`
+- Add `model?: string` to `RootChatStreamOpts`.
+- Spread `model: opts?.model` into the `client.rootChat(...)` call.
+- Add `opts?.model` to the `useCallback` dependency array.
+
+### 3. `hooks/use-chat-stream.ts`
+- Same change for `ChatStreamOpts` / `client.chat(...)`.
+
+### 4. `lib/procedures.ts`
+- Add `model: z.string().optional()` to the input schema of **both** `chatProc` and `rootChatProc`.
+- Replace `model: "claude-sonnet-4-6"` with `model: input.model ?? "claude-sonnet-4-6"` in both handlers.
+
+### 5–8. All four page files
+Add `model: settings.model` to the hook options:
+
+| Page | Hook |
+|------|------|
+| `app/chat/page.tsx` | `useRootChatStream` |
+| `app/chat/[sessionId]/page.tsx` | `useRootChatStream` |
+| `app/project/[slug]/chat/page.tsx` | `useChatStream` |
+| `app/project/[slug]/chat/[sessionId]/page.tsx` | `useChatStream` |
+
+---
+
+## What Does NOT Change
+- `ChatInput` component — no changes needed.
+- `ContextBar` read-only model display — already reads from the session record, which is populated by the server and will show the correct model automatically.
+- The tmux launcher model list — independent, generates CLI commands only.
+- The linear chat executor — out of scope.
 
 ---
 
 ## Order of Implementation
 
-1. `chat-settings-bar.tsx` — pill redesign (self-contained, no dependencies)
-2. `session-first-message-banner.tsx` — add archive button to right slot
-3. `agent-tab-bar.tsx` — remove archive button + import
-4. `agent-tab-mobile.tsx` — remove archive button + import
+1. `lib/procedures.ts` — add `model` input + use it (server-side, self-contained)
+2. `components/chat-settings-bar.tsx` — extend type + add UI dropdown
+3. `hooks/use-root-chat-stream.ts` — thread model through
+4. `hooks/use-chat-stream.ts` — thread model through
+5. All four page files — pass `settings.model` to hooks

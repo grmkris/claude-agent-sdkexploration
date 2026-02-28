@@ -46,6 +46,7 @@ export type RootChatStreamOpts = {
     | "acceptEdits"
     | "plan"
     | "dontAsk";
+  model?: string;
 };
 
 export function useRootChatStream(
@@ -129,6 +130,7 @@ export function useRootChatStream(
               ...(opts?.permissionMode
                 ? { permissionMode: opts.permissionMode }
                 : {}),
+              ...(opts?.model ? { model: opts.model } : {}),
             },
             { signal: ac.signal }
           );
@@ -159,7 +161,7 @@ export function useRootChatStream(
         }
       })();
     },
-    [sessionId, opts?.resume, opts?.thinking, opts?.permissionMode]
+    [sessionId, opts?.resume, opts?.thinking, opts?.permissionMode, opts?.model]
   );
 
   const answerQuestion = useCallback(

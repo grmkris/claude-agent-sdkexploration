@@ -53,6 +53,7 @@ function NewChatContent({
       : settings.bypassPermissions
         ? "bypassPermissions"
         : "default",
+    model: settings.model,
   });
 
   // Auto-send the initial prompt (from project creation) once the cwd is ready.

@@ -51,6 +51,7 @@ export type ChatStreamOpts = {
     | "acceptEdits"
     | "plan"
     | "dontAsk";
+  model?: string;
 };
 
 export function useChatStream(opts?: ChatStreamOpts): UseChatStreamReturn {
@@ -136,6 +137,7 @@ export function useChatStream(opts?: ChatStreamOpts): UseChatStreamReturn {
               ...(opts?.permissionMode
                 ? { permissionMode: opts.permissionMode }
                 : {}),
+              ...(opts?.model ? { model: opts.model } : {}),
             },
             { signal: ac.signal }
           );
@@ -166,7 +168,14 @@ export function useChatStream(opts?: ChatStreamOpts): UseChatStreamReturn {
         }
       })();
     },
-    [sessionId, opts?.resume, opts?.cwd, opts?.thinking, opts?.permissionMode]
+    [
+      sessionId,
+      opts?.resume,
+      opts?.cwd,
+      opts?.thinking,
+      opts?.permissionMode,
+      opts?.model,
+    ]
   );
 
   const answerQuestion = useCallback(

@@ -17,7 +17,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import type { RecentSession } from "@/lib/types";
 
@@ -186,6 +186,8 @@ function SessionRow({
     : "root";
   const timeAgo = getTimeAgo(session.lastModified ?? session.timestamp);
 
+  const isActive = session.sessionState === "active";
+
   return (
     <SidebarMenuItem>
       <div
@@ -205,6 +207,9 @@ function SessionRow({
                 {showProjectLabel ? `${projectLabel} · ` : ""}
                 {timeAgo}
                 <SourceIcon source={session.source} />
+                {isActive && (
+                  <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-green-500 animate-pulse" />
+                )}
               </span>
             </div>
           </SidebarMenuButton>
@@ -358,6 +363,36 @@ export function SessionsPanel({
 
   const isRootView = !filterSlug;
 
+  // ---------------------------------------------------------------------------
+  // Stable sort: prevent items from jumping around while agents are running.
+  // We keep the display order frozen in a ref and only allow a full reorder
+  // when the user has been idle (no mouse movement over the panel) for 30 s.
+  // ---------------------------------------------------------------------------
+
+  /** Ordered list of session IDs currently shown — never reordered while active */
+  const stableOrderRef = useRef<string[]>([]);
+  /** Always-current map of id → session data */
+  const sessionMapRef = useRef<Map<string, RecentSession>>(new Map());
+  /** True while the user's mouse is over the panel (or within the last 30 s) */
+  const isUserActiveRef = useRef(false);
+  /** setTimeout handle for the idle countdown */
+  const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Dummy state to force a re-render when the idle timer fires */
+  const [, setIdleTick] = useState(0);
+
+  const IDLE_MS = 30_000;
+
+  /** Call on every mouse-move/enter inside the panel */
+  const handlePanelActivity = () => {
+    isUserActiveRef.current = true;
+    if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+    idleTimerRef.current = setTimeout(() => {
+      isUserActiveRef.current = false;
+      // Force a render so stableFiltered (below) recalculates using fresh order
+      setIdleTick((n) => n + 1);
+    }, IDLE_MS);
+  };
+
   function toggleFilter(f: SourceFilter) {
     setActiveFilters((prev) =>
       prev.includes(f) ? prev.filter((x) => x !== f) : [...prev, f]
@@ -384,6 +419,39 @@ export function SessionsPanel({
       : projectFiltered.filter((s) =>
           activeFilters.includes(getSourceFilter(s.source))
         );
+
+  // ---------------------------------------------------------------------------
+  // Sync sessionMapRef with the latest filtered data every render, then derive
+  // a stable display list from stableOrderRef.
+  // ---------------------------------------------------------------------------
+
+  // Always keep the content map up to date
+  const filteredIds = new Set(filtered.map((s) => s.id));
+  for (const s of filtered) sessionMapRef.current.set(s.id, s);
+  // Remove sessions that are no longer in the filtered list
+  for (const id of sessionMapRef.current.keys()) {
+    if (!filteredIds.has(id)) sessionMapRef.current.delete(id);
+  }
+
+  if (isUserActiveRef.current) {
+    // User is hovering — only append brand-new sessions to the bottom; no reorder
+    const existingIds = new Set(stableOrderRef.current);
+    for (const s of filtered) {
+      if (!existingIds.has(s.id)) stableOrderRef.current.push(s.id);
+    }
+    // Prune IDs that are no longer in filtered
+    stableOrderRef.current = stableOrderRef.current.filter((id) =>
+      filteredIds.has(id)
+    );
+  } else {
+    // User is idle — full reorder to reflect latest updated_at order
+    stableOrderRef.current = filtered.map((s) => s.id);
+  }
+
+  // Resolve IDs → session objects for rendering
+  const stableFiltered = stableOrderRef.current
+    .map((id) => sessionMapRef.current.get(id))
+    .filter(Boolean) as RecentSession[];
 
   // Build groups for grouped view (root view only)
   const groups: Array<{
@@ -428,7 +496,15 @@ export function SessionsPanel({
       : "No sessions yet";
 
   return (
-    <SidebarGroupContent>
+    <SidebarGroupContent onMouseMove={handlePanelActivity} onMouseLeave={() => {
+      // Start the idle countdown immediately when the mouse leaves the panel
+      if (!idleTimerRef.current) {
+        idleTimerRef.current = setTimeout(() => {
+          isUserActiveRef.current = false;
+          setIdleTick((n) => n + 1);
+        }, IDLE_MS);
+      }
+    }}>
       {/* Root-view toolbar: project filter dropdown + group-by toggle */}
       {isRootView && (
         <div className="px-2 pb-1.5 pt-0.5 flex items-center gap-1.5">
@@ -542,7 +618,7 @@ export function SessionsPanel({
               </SidebarMenuItem>
             ))}
 
-          {filtered.map((session) => (
+          {stableFiltered.map((session) => (
             <SessionRow
               key={session.id}
               session={session}
@@ -553,7 +629,7 @@ export function SessionsPanel({
             />
           ))}
 
-          {!isLoading && filtered.length === 0 && (
+          {!isLoading && stableFiltered.length === 0 && (
             <div className="px-2 py-4 text-center text-xs text-muted-foreground">
               {noResults}
             </div>

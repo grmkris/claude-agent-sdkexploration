@@ -623,6 +623,7 @@ const chatProc = os
           "dontAsk",
         ])
         .optional(),
+      model: z.string().optional(),
     })
   )
   .output(eventIterator(z.custom<SDKMessage>()))
@@ -675,7 +676,7 @@ const chatProc = os
       const conversation = query({
         prompt: buildPromptArg(input.prompt, input.resume, input.images),
         options: {
-          model: "claude-sonnet-4-6",
+          model: input.model ?? "claude-sonnet-4-6",
           executable: "bun",
           permissionMode: effectivePermMode,
           allowDangerouslySkipPermissions: needsDangerous,
@@ -1720,6 +1721,7 @@ const rootChatProc = os
           "dontAsk",
         ])
         .optional(),
+      model: z.string().optional(),
     })
   )
   .output(eventIterator(z.custom<SDKMessage>()))
@@ -1760,7 +1762,7 @@ const rootChatProc = os
       const conversation = query({
         prompt: buildPromptArg(input.prompt, input.resume, input.images),
         options: {
-          model: "claude-sonnet-4-6",
+          model: input.model ?? "claude-sonnet-4-6",
           executable: "bun",
           permissionMode: effectivePermMode,
           allowDangerouslySkipPermissions: needsDangerous,

@@ -44,6 +44,7 @@ function RootNewChatContent() {
       : settings.bypassPermissions
         ? "bypassPermissions"
         : "default",
+    model: settings.model,
   });
 
   const setPrimary = useMutation({
