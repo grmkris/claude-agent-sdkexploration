@@ -14,6 +14,7 @@ import { RightSidebar } from "@/components/right-sidebar";
 import { RightSidebarProvider } from "@/components/ui/right-sidebar-context";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { Workspace } from "@/components/workspace";
 
 import { Providers } from "./providers";
 
@@ -72,7 +73,7 @@ export default async function RootLayout({
                 <SidebarInset className="overflow-hidden h-svh">
                   <AgentTabBar />
                   <div className="flex flex-1 flex-col overflow-hidden">
-                    {children}
+                    <Workspace>{children}</Workspace>
                   </div>
                 </SidebarInset>
                 <RightSidebar />

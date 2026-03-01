@@ -44,6 +44,7 @@
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-pdf": "^10.4.1",
+    "react-resizable-panels": "^4.7.0",
     "react-shiki": "^0.9.1",
     "shadcn": "^3.8.5",
     "streamdown": "^2.3.0",

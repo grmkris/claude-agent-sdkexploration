@@ -7,6 +7,7 @@ import { AgentTabProvider } from "@/components/agent-tabs/tab-context";
 import { ContextTrayProvider } from "@/components/context-tray/context-tray-context";
 import { useLiveUpdates } from "@/hooks/use-live-updates";
 import { CompactProvider } from "@/lib/session-compact-context";
+import { WorkspaceProvider } from "@/lib/workspace-context";
 
 function LiveUpdatesProvider({ children }: { children: React.ReactNode }) {
   useLiveUpdates();
@@ -36,7 +37,9 @@ export function Providers({
       <LiveUpdatesProvider>
         <AgentTabProvider defaultVisible={tabBarVisible}>
           <CompactProvider>
-            <ContextTrayProvider>{children}</ContextTrayProvider>
+            <WorkspaceProvider>
+              <ContextTrayProvider>{children}</ContextTrayProvider>
+            </WorkspaceProvider>
           </CompactProvider>
         </AgentTabProvider>
       </LiveUpdatesProvider>
