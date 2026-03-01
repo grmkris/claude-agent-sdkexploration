@@ -1,5 +1,6 @@
 "use client";
 
+import { usePathname, useSearchParams } from "next/navigation";
 import { useRouter } from "next/navigation";
 import * as React from "react";
 
@@ -50,48 +51,15 @@ type WorkspaceContextProps = {
 };
 
 // ---------------------------------------------------------------------------
-// Persistence
-// ---------------------------------------------------------------------------
-
-const STORAGE_KEY = "workspace-panels-v2";
-
-function loadState(): WorkspaceState {
-  if (typeof window === "undefined")
-    return {
-      panels: [],
-      focusedPanelId: null,
-      activeGroupId: null,
-      activeGroupName: null,
-    };
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw) as WorkspaceState;
-      return {
-        panels: parsed.panels ?? [],
-        focusedPanelId: parsed.focusedPanelId ?? null,
-        activeGroupId: parsed.activeGroupId ?? null,
-        activeGroupName: parsed.activeGroupName ?? null,
-      };
-    }
-  } catch {}
-  return {
-    panels: [],
-    focusedPanelId: null,
-    activeGroupId: null,
-    activeGroupName: null,
-  };
-}
-
-function saveState(state: WorkspaceState) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  } catch {}
-}
-
-// ---------------------------------------------------------------------------
 // Context
 // ---------------------------------------------------------------------------
+
+const EMPTY_STATE: WorkspaceState = {
+  panels: [],
+  focusedPanelId: null,
+  activeGroupId: null,
+  activeGroupName: null,
+};
 
 const WorkspaceContext = React.createContext<WorkspaceContextProps | null>(
   null
@@ -107,9 +75,79 @@ export function useWorkspace() {
 
 export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  const [state, setState] = React.useState<WorkspaceState>(loadState);
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const [state, setState] = React.useState<WorkspaceState>(EMPTY_STATE);
+
+  const hydrated = React.useRef(false);
+  const lastSyncedUrl = React.useRef<string | null>(null);
 
   const hasPanels = state.panels.length > 0;
+
+  // ── Mount: hydrate from DB ────────────────────────────────────────────
+
+  React.useEffect(() => {
+    client.workspaceGroups
+      .getActive()
+      .then((group) => {
+        if (group && group.sessions.length > 0) {
+          const panels: WorkspacePanel[] = group.sessions.map((s) => ({
+            id: crypto.randomUUID(),
+            sessionId: s.sessionId,
+          }));
+          setState({
+            panels,
+            focusedPanelId: panels[0].id,
+            activeGroupId: group.id,
+            activeGroupName: group.name,
+          });
+        }
+        hydrated.current = true;
+      })
+      .catch(() => {
+        hydrated.current = true;
+      });
+  }, []);
+
+  // ── URL sync effect — fixes navigation bug ────────────────────────────
+
+  React.useEffect(() => {
+    if (!hydrated.current) return;
+
+    const url =
+      pathname + (searchParams.toString() ? `?${searchParams.toString()}` : "");
+    if (lastSyncedUrl.current === url) return;
+    lastSyncedUrl.current = url;
+
+    // /project/[slug]/chat/[sessionId]
+    const projectSessionMatch = pathname.match(
+      /^\/project\/([^/]+)\/chat\/([^/]+)$/
+    );
+    if (projectSessionMatch) {
+      replaceSession(projectSessionMatch[2], projectSessionMatch[1]);
+      return;
+    }
+
+    // /project/[slug]/chat
+    const projectNewMatch = pathname.match(/^\/project\/([^/]+)\/chat$/);
+    if (projectNewMatch) {
+      replaceNewSession(projectNewMatch[1]);
+      return;
+    }
+
+    // /chat/[sessionId]
+    const rootSessionMatch = pathname.match(/^\/chat\/([^/]+)$/);
+    if (rootSessionMatch) {
+      replaceSession(rootSessionMatch[1]);
+      return;
+    }
+
+    // /chat
+    if (pathname === "/chat") {
+      replaceNewSession();
+      return;
+    }
+  }, [pathname, searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Helper: sync session add to active group ───────────────────────────
 
@@ -139,9 +177,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
         const existing = prev.panels.find((p) => p.sessionId === sessionId);
         if (existing) {
           if (prev.focusedPanelId === existing.id) return prev;
-          const next = { ...prev, focusedPanelId: existing.id };
-          saveState(next);
-          return next;
+          return { ...prev, focusedPanelId: existing.id };
         }
 
         const newPanel: WorkspacePanel = {
@@ -149,14 +185,12 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
           sessionId,
           projectSlug,
         };
-        const next = {
+        syncAddToGroup(prev.activeGroupId, sessionId);
+        return {
           ...prev,
           panels: [...prev.panels, newPanel],
           focusedPanelId: newPanel.id,
         };
-        saveState(next);
-        syncAddToGroup(prev.activeGroupId, sessionId);
-        return next;
       });
     },
     [syncAddToGroup]
@@ -170,13 +204,11 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
         sessionId: null,
         projectSlug,
       };
-      const next = {
+      return {
         ...prev,
         panels: [...prev.panels, newPanel],
         focusedPanelId: newPanel.id,
       };
-      saveState(next);
-      return next;
     });
     return panelId;
   }, []);
@@ -202,43 +234,36 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
           .filter((p) => p.sessionId)
           .map((p) => p.sessionId!);
 
-        const next: WorkspaceState = {
+        return {
           panels: newPanels,
           focusedPanelId: newPanel.id,
           activeGroupId: null,
           activeGroupName: groupName,
         };
-        saveState(next);
-        return next;
       }
 
-      const next = {
+      return {
         ...prev,
         panels: newPanels,
         focusedPanelId: newPanel.id,
       };
-      saveState(next);
-      return next;
     });
 
     if (shouldCreateGroup) {
       client.workspaceGroups
         .create({ name: groupName })
         .then(({ id: groupId }) => {
+          client.workspaceGroups.setActive({ groupId }).catch(() => {});
           existingSessions.forEach((sid, i) => {
             client.workspaceGroups
               .addSession({ groupId, sessionId: sid, position: i })
               .catch(() => {});
           });
-          setState((current) => {
-            const next = {
-              ...current,
-              activeGroupId: groupId,
-              activeGroupName: groupName,
-            };
-            saveState(next);
-            return next;
-          });
+          setState((current) => ({
+            ...current,
+            activeGroupId: groupId,
+            activeGroupName: groupName,
+          }));
         })
         .catch(() => {});
     }
@@ -254,9 +279,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
           prev.panels[0].sessionId === sessionId
         ) {
           if (prev.focusedPanelId === prev.panels[0].id) return prev;
-          const next = { ...prev, focusedPanelId: prev.panels[0].id };
-          saveState(next);
-          return next;
+          return { ...prev, focusedPanelId: prev.panels[0].id };
         }
 
         const newPanel: WorkspacePanel = {
@@ -264,15 +287,30 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
           sessionId,
           projectSlug,
         };
-        const next: WorkspaceState = {
+        return {
           panels: [newPanel],
           focusedPanelId: newPanel.id,
           activeGroupId: null,
           activeGroupName: null,
         };
-        saveState(next);
-        return next;
       });
+
+      // Create group in DB for this single session
+      const groupName = `Workspace ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+      client.workspaceGroups
+        .create({ name: groupName })
+        .then(({ id: groupId }) => {
+          client.workspaceGroups.setActive({ groupId }).catch(() => {});
+          client.workspaceGroups
+            .addSession({ groupId, sessionId })
+            .catch(() => {});
+          setState((current) => ({
+            ...current,
+            activeGroupId: groupId,
+            activeGroupName: groupName,
+          }));
+        })
+        .catch(() => {});
     },
     []
   );
@@ -286,15 +324,28 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
           sessionId: null,
           projectSlug,
         };
-        const next: WorkspaceState = {
+        return {
           panels: [newPanel],
           focusedPanelId: newPanel.id,
           activeGroupId: null,
           activeGroupName: null,
         };
-        saveState(next);
-        return next;
       });
+
+      // Create group in DB
+      const groupName = `Workspace ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+      client.workspaceGroups
+        .create({ name: groupName })
+        .then(({ id: groupId }) => {
+          client.workspaceGroups.setActive({ groupId }).catch(() => {});
+          setState((current) => ({
+            ...current,
+            activeGroupId: groupId,
+            activeGroupName: groupName,
+          }));
+        })
+        .catch(() => {});
+
       return panelId;
     },
     []
@@ -322,20 +373,22 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
         }
 
         // Clear group if no panels left
-        const next: WorkspaceState = {
+        if (remaining.length === 0) {
+          client.workspaceGroups.clearActive().catch(() => {});
+          router.push("/");
+          return {
+            panels: [],
+            focusedPanelId: null,
+            activeGroupId: null,
+            activeGroupName: null,
+          };
+        }
+
+        return {
           ...prev,
           panels: remaining,
           focusedPanelId: nextFocused,
-          activeGroupId: remaining.length === 0 ? null : prev.activeGroupId,
-          activeGroupName: remaining.length === 0 ? null : prev.activeGroupName,
         };
-        saveState(next);
-
-        if (remaining.length === 0) {
-          router.push("/");
-        }
-
-        return next;
       });
     },
     [router, syncRemoveFromGroup]
@@ -344,9 +397,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
   const focusPanel = React.useCallback((panelId: string) => {
     setState((prev) => {
       if (prev.focusedPanelId === panelId) return prev;
-      const next = { ...prev, focusedPanelId: panelId };
-      saveState(next);
-      return next;
+      return { ...prev, focusedPanelId: panelId };
     });
   }, []);
 
@@ -362,14 +413,12 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
         }
         syncAddToGroup(prev.activeGroupId, sessionId);
 
-        const next = {
+        return {
           ...prev,
           panels: prev.panels.map((p) =>
             p.id === panelId ? { ...p, sessionId } : p
           ),
         };
-        saveState(next);
-        return next;
       });
     },
     [syncAddToGroup, syncRemoveFromGroup]
@@ -393,24 +442,26 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
         panels.push({ id: crypto.randomUUID(), sessionId: null });
       }
 
-      const next: WorkspaceState = {
+      setState({
         panels,
         focusedPanelId: panels[0].id,
         activeGroupId: group.id,
         activeGroupName: group.name,
-      };
-      setState(next);
-      saveState(next);
+      });
+
+      // Mark active in DB
+      client.workspaceGroups.setActive({ groupId }).catch(() => {});
     },
     []
   );
 
   const clearGroup = React.useCallback(() => {
-    setState((prev) => {
-      const next = { ...prev, activeGroupId: null, activeGroupName: null };
-      saveState(next);
-      return next;
-    });
+    setState((prev) => ({
+      ...prev,
+      activeGroupId: null,
+      activeGroupName: null,
+    }));
+    client.workspaceGroups.clearActive().catch(() => {});
   }, []);
 
   const saveAsGroup = React.useCallback(
@@ -432,11 +483,14 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
         )
       );
 
-      setState((prev) => {
-        const next = { ...prev, activeGroupId: id, activeGroupName: name };
-        saveState(next);
-        return next;
-      });
+      // Mark active
+      client.workspaceGroups.setActive({ groupId: id }).catch(() => {});
+
+      setState((prev) => ({
+        ...prev,
+        activeGroupId: id,
+        activeGroupName: name,
+      }));
 
       return id;
     },

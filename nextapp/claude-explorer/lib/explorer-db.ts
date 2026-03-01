@@ -200,6 +200,15 @@ function getDB(): Database {
     CREATE INDEX IF NOT EXISTS idx_wgs_group ON workspace_group_sessions(group_id);
   `);
 
+  // Migration: add is_active column to workspace_groups
+  try {
+    db.exec(
+      "ALTER TABLE workspace_groups ADD COLUMN is_active INTEGER DEFAULT 0"
+    );
+  } catch {
+    // Column already exists
+  }
+
   // Migration: add fork tracking columns to existing DBs
   try {
     db.exec("ALTER TABLE sessions ADD COLUMN parent_session_id TEXT");
@@ -918,6 +927,36 @@ export function getGroupSessions(groupId: string): WorkspaceGroupSessionRow[] {
       "SELECT * FROM workspace_group_sessions WHERE group_id = ? ORDER BY position ASC"
     )
     .all(groupId);
+}
+
+export function getActiveWorkspaceGroup():
+  | (WorkspaceGroupRow & { sessions: WorkspaceGroupSessionRow[] })
+  | null {
+  const d = getDB();
+  const group = d
+    .query<WorkspaceGroupRow, []>(
+      "SELECT * FROM workspace_groups WHERE is_active = 1 LIMIT 1"
+    )
+    .get();
+  if (!group) return null;
+  const sessions = d
+    .query<WorkspaceGroupSessionRow, [string]>(
+      "SELECT * FROM workspace_group_sessions WHERE group_id = ? ORDER BY position ASC"
+    )
+    .all(group.id);
+  return { ...group, sessions };
+}
+
+export function setActiveWorkspaceGroup(groupId: string): void {
+  const d = getDB();
+  d.query("UPDATE workspace_groups SET is_active = 0").run();
+  d.query("UPDATE workspace_groups SET is_active = 1 WHERE id = ?").run(
+    groupId
+  );
+}
+
+export function clearActiveWorkspaceGroup(): void {
+  getDB().query("UPDATE workspace_groups SET is_active = 0").run();
 }
 
 // --- Search ---

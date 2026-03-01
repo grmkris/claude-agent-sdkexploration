@@ -87,6 +87,9 @@ import {
   deleteWorkspaceGroup as dbDeleteWorkspaceGroup,
   addSessionToGroup as dbAddSessionToGroup,
   removeSessionFromGroup as dbRemoveSessionFromGroup,
+  getActiveWorkspaceGroup as dbGetActiveWorkspaceGroup,
+  setActiveWorkspaceGroup as dbSetActiveWorkspaceGroup,
+  clearActiveWorkspaceGroup as dbClearActiveWorkspaceGroup,
 } from "./explorer-db";
 import {
   getFavorites,
@@ -3841,6 +3844,40 @@ const removeSessionFromGroupProc = os
     return { ok: true };
   });
 
+const getActiveGroupProc = os
+  .output(WorkspaceGroupDetailSchema.nullable())
+  .handler(async () => {
+    const group = dbGetActiveWorkspaceGroup();
+    if (!group) return null;
+    return {
+      id: group.id,
+      name: group.name,
+      projectPath: group.project_path,
+      sessionCount: group.sessions.length,
+      createdAt: group.created_at,
+      updatedAt: group.updated_at,
+      sessions: group.sessions.map((s) => ({
+        sessionId: s.session_id,
+        position: s.position,
+      })),
+    };
+  });
+
+const setActiveGroupProc = os
+  .input(z.object({ groupId: z.string() }))
+  .output(z.object({ ok: z.boolean() }))
+  .handler(async ({ input }) => {
+    dbSetActiveWorkspaceGroup(input.groupId);
+    return { ok: true };
+  });
+
+const clearActiveGroupProc = os
+  .output(z.object({ ok: z.boolean() }))
+  .handler(async () => {
+    dbClearActiveWorkspaceGroup();
+    return { ok: true };
+  });
+
 export const router = {
   projects: {
     list: listProjectsProc,
@@ -4002,5 +4039,8 @@ export const router = {
     delete: deleteWorkspaceGroupProc,
     addSession: addSessionToGroupProc,
     removeSession: removeSessionFromGroupProc,
+    getActive: getActiveGroupProc,
+    setActive: setActiveGroupProc,
+    clearActive: clearActiveGroupProc,
   },
 };

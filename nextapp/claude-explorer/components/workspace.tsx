@@ -97,7 +97,7 @@ function PanelHeader({
     <div
       className={cn(
         "flex shrink-0 items-center gap-1.5 border-b px-2 text-xs",
-        isFocused ? "h-9 bg-muted/50 border-b-primary/20" : "h-8 bg-background"
+        isFocused ? "h-8 bg-muted/50 border-b-primary/20" : "h-8 bg-background"
       )}
     >
       {/* Group indicator (first panel only) */}
