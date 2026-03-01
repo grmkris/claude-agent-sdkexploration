@@ -17,11 +17,14 @@ import {
   ResizablePanel,
   ResizablePanelGroup,
 } from "@/components/ui/resizable";
+import { RightSidebarTrigger } from "@/components/ui/right-sidebar-trigger";
+import { SidebarTrigger } from "@/components/ui/sidebar";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { orpc } from "@/lib/orpc";
 import { useCompact } from "@/lib/session-compact-context";
 import { cn } from "@/lib/utils";
@@ -251,6 +254,7 @@ export function Workspace({ children }: { children: React.ReactNode }) {
     openNewPanel,
   } = useWorkspace();
   const pathname = usePathname();
+  const isMobile = useIsMobile();
 
   // Show workspace when we have panels AND the URL is a session/chat route
   const isSessionRoute = /\/chat(\/|$)/.test(pathname);
@@ -283,6 +287,24 @@ export function Workspace({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
+      {/* Mobile-only sidebar triggers — replaces the hidden AgentTabMobile row */}
+      {isMobile && (
+        <div className="flex h-8 shrink-0 items-stretch border-b md:hidden">
+          <div className="flex shrink-0 items-center gap-0.5 border-r border-border/50 px-1.5">
+            <SidebarTrigger />
+          </div>
+          <div className="flex flex-1 items-center justify-center text-xs text-muted-foreground">
+            {panels.length > 1
+              ? `${panels.length} panels`
+              : panels[0]?.sessionId
+                ? "Session"
+                : "New conversation"}
+          </div>
+          <div className="flex shrink-0 items-center gap-0.5 border-l border-border/50 px-1.5">
+            <RightSidebarTrigger />
+          </div>
+        </div>
+      )}
       <div className="flex flex-1 overflow-x-auto overflow-y-hidden">
         <div
           className="flex h-full"
