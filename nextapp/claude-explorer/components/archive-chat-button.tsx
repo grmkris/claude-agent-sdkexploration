@@ -16,10 +16,13 @@ export function ArchiveChatButton({
   size = "default",
   sessionId: sessionIdProp,
   projectSlug: projectSlugProp,
+  onArchived,
 }: {
   size?: "default" | "sm";
   sessionId?: string | null;
   projectSlug?: string | null;
+  /** Called after a successful archive. When provided, replaces the default router.push navigation. */
+  onArchived?: () => void;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -52,8 +55,12 @@ export function ArchiveChatButton({
     onSuccess: (_data, archived) => {
       void queryClient.invalidateQueries();
       if (archived) {
-        // Navigating away after archiving
-        router.push(projectSlug ? `/project/${projectSlug}` : "/");
+        if (onArchived) {
+          onArchived();
+        } else {
+          // Default: navigate away after archiving
+          router.push(projectSlug ? `/project/${projectSlug}` : "/");
+        }
       }
       // If unarchiving, just stay on the page — the button will update to show the archive state
     },

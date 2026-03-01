@@ -3801,12 +3801,17 @@ const createWorkspaceGroupProc = os
     z.object({
       name: z.string(),
       projectPath: z.string().optional(),
+      projectSlug: z.string().optional(),
     })
   )
   .output(z.object({ id: z.string() }))
   .handler(async ({ input }) => {
     const id = crypto.randomUUID();
-    dbCreateWorkspaceGroup(id, input.name, input.projectPath);
+    let projectPath = input.projectPath;
+    if (!projectPath && input.projectSlug) {
+      projectPath = await resolveSlugToPath(input.projectSlug);
+    }
+    dbCreateWorkspaceGroup(id, input.name, projectPath);
     return { id };
   });
 

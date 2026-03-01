@@ -15,7 +15,6 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import * as React from "react";
 
-import { ArchiveChatButton } from "@/components/archive-chat-button";
 import { SessionsPanel } from "@/components/sessions-panel";
 import { Button } from "@/components/ui/button";
 import { useRightSidebar } from "@/components/ui/right-sidebar-context";
@@ -49,33 +48,6 @@ const RIGHT_SIDEBAR_WIDTH_MOBILE = "18rem";
 function extractSlug(pathname: string): string | null {
   const match = pathname.match(/^\/project\/([^/]+)/);
   return match ? match[1] : null;
-}
-
-/** Extract session ID from paths like /chat/[id] or /project/[slug]/chat/[id] */
-function extractSessionId(pathname: string): string | null {
-  const match = pathname.match(/\/chat\/([a-f0-9-]+)/);
-  return match?.[1] ?? null;
-}
-
-function ForkIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-    >
-      <circle cx="12" cy="18" r="3" />
-      <circle cx="6" cy="6" r="3" />
-      <circle cx="18" cy="6" r="3" />
-      <path d="M18 9v2c0 .6-.4 1-1 1H7c-.6 0-1-.4-1-1V9" />
-      <path d="M12 12v3" />
-    </svg>
-  );
 }
 
 function sourceIcon(source: string | null | undefined) {
@@ -203,7 +175,6 @@ function RightSidebarInner() {
   const pathname = usePathname();
   const router = useRouter();
   const activeSlug = extractSlug(pathname);
-  const activeSessionId = extractSessionId(pathname);
 
   if (!isMobile && state === "collapsed") {
     return <CollapsedRightSidebar activeSlug={activeSlug} />;
@@ -211,40 +182,12 @@ function RightSidebarInner() {
 
   const label = activeSlug ? "This project" : "All projects";
 
-  const handleForkSession = () => {
-    if (!activeSessionId) return;
-    const forkId = crypto.randomUUID();
-    const base = activeSlug ? `/project/${activeSlug}/chat` : "/chat";
-    router.push(
-      `${base}?_fork=1&parentSessionId=${activeSessionId}&forkSessionId=${forkId}`
-    );
-  };
-
   return (
     <div className="bg-sidebar flex size-full flex-col">
       <SidebarHeader className="border-b px-2 py-0">
         <div className="flex h-9 items-center gap-1.5">
           <RightSidebarTrigger className="-ml-0.5 shrink-0" />
           <span className="flex-1 text-sm font-semibold">Sessions</span>
-          <ArchiveChatButton size="sm" />
-          {activeSessionId && (
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="h-6 w-6 text-muted-foreground hover:text-foreground"
-                    onClick={handleForkSession}
-                  >
-                    <ForkIcon className="h-3.5 w-3.5" />
-                    <span className="sr-only">Fork Session</span>
-                  </Button>
-                }
-              />
-              <TooltipContent side="bottom">Fork Session</TooltipContent>
-            </Tooltip>
-          )}
           <Tooltip>
             <TooltipTrigger
               render={

@@ -109,6 +109,13 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
             activeGroupId: group.id,
             activeGroupName: group.name,
           });
+
+          // Prevent URL sync from destroying the hydrated multi-panel state.
+          // Mark the current URL as already synced so the URL effect skips it.
+          const currentUrl =
+            window.location.pathname +
+            (window.location.search ? window.location.search : "");
+          lastSyncedUrl.current = currentUrl;
         }
         setIsHydrated(true);
       })
@@ -259,7 +266,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
 
     if (shouldCreateGroup) {
       client.workspaceGroups
-        .create({ name: groupName })
+        .create({ name: groupName, projectSlug })
         .then(({ id: groupId }) => {
           client.workspaceGroups.setActive({ groupId }).catch(() => {});
           existingSessions.forEach((sid, i) => {
@@ -331,7 +338,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       // Create group in DB for this single session
       const groupName = `Workspace ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
       client.workspaceGroups
-        .create({ name: groupName })
+        .create({ name: groupName, projectSlug })
         .then(({ id: groupId }) => {
           client.workspaceGroups.setActive({ groupId }).catch(() => {});
           client.workspaceGroups
@@ -368,7 +375,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       // Create group in DB
       const groupName = `Workspace ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
       client.workspaceGroups
-        .create({ name: groupName })
+        .create({ name: groupName, projectSlug })
         .then(({ id: groupId }) => {
           client.workspaceGroups.setActive({ groupId }).catch(() => {});
           setState((current) => ({

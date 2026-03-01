@@ -5,22 +5,61 @@ import * as React from "react";
 
 import type { LiveSession } from "@/components/resume-session-popover";
 
+import { ArchiveChatButton } from "@/components/archive-chat-button";
 import { ACTIVE_STATES, formatTokens } from "@/components/context-bar";
 import { ConversationsPopover } from "@/components/conversations-popover";
 import { RightSidebarTrigger } from "@/components/ui/right-sidebar-trigger";
 import { SidebarTrigger } from "@/components/ui/sidebar";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { orpc } from "@/lib/orpc";
 import { useCompact } from "@/lib/session-compact-context";
+import { useWorkspace } from "@/lib/workspace-context";
 
 import { AgentTabMobile } from "./agent-tab-mobile";
 import { useAgentTabs } from "./tab-context";
 
 // ---------------------------------------------------------------------------
+// ForkIcon — inline SVG
+// ---------------------------------------------------------------------------
+
+function ForkIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+    >
+      <circle cx="12" cy="18" r="3" />
+      <circle cx="6" cy="6" r="3" />
+      <circle cx="18" cy="6" r="3" />
+      <path d="M18 9v2c0 .6-.4 1-1 1H7c-.6 0-1-.4-1-1V9" />
+      <path d="M12 12v3" />
+    </svg>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // SessionInfoBar — shown in the center slot when a session tab is active
 // ---------------------------------------------------------------------------
 
-function SessionInfoBar({ sessionId }: { sessionId: string }) {
+function SessionInfoBar({
+  sessionId,
+  projectSlug,
+}: {
+  sessionId: string;
+  projectSlug?: string;
+}) {
   const { onCompact } = useCompact();
+  const { openForkPanel } = useWorkspace();
 
   const { data } = useQuery({
     ...orpc.liveState.session.queryOptions({ input: { sessionId } }),
@@ -111,6 +150,29 @@ function SessionInfoBar({ sessionId }: { sessionId: string }) {
         <span>⟳</span>
         <span>Compact</span>
       </button>
+
+      {/* Archive button */}
+      <ArchiveChatButton
+        size="sm"
+        sessionId={sessionId}
+        projectSlug={projectSlug}
+      />
+
+      {/* Fork button — splits into multi-panel workspace */}
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <button
+              onClick={() => openForkPanel(sessionId, projectSlug)}
+              className="shrink-0 rounded p-0.5 text-muted-foreground/50 transition-colors hover:bg-muted hover:text-foreground"
+              aria-label="Fork session"
+            />
+          }
+        >
+          <ForkIcon className="h-3.5 w-3.5" />
+        </TooltipTrigger>
+        <TooltipContent side="bottom">Fork session</TooltipContent>
+      </Tooltip>
     </div>
   );
 }
@@ -276,7 +338,10 @@ export function AgentTabBar() {
       {isSessionTab ? (
         <div className="flex flex-1 items-stretch overflow-hidden">
           <ConversationsPopover trigger={popoverTrigger} />
-          <SessionInfoBar sessionId={activeTab.sessionId!} />
+          <SessionInfoBar
+            sessionId={activeTab.sessionId!}
+            projectSlug={activeTab.projectSlug}
+          />
         </div>
       ) : (
         <ConversationsPopover trigger={popoverTrigger} />

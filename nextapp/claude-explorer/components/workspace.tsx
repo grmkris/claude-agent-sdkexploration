@@ -75,6 +75,7 @@ function PanelHeader({
   onSplit,
   onClose,
   onFork,
+  onArchive,
 }: {
   panel: WorkspacePanel;
   isFocused: boolean;
@@ -84,6 +85,7 @@ function PanelHeader({
   onSplit: () => void;
   onClose: () => void;
   onFork: () => void;
+  onArchive: () => void;
 }) {
   const { onCompact } = useCompact();
   const activeCount = useActiveCount();
@@ -228,6 +230,7 @@ function PanelHeader({
           size="sm"
           sessionId={panel.sessionId}
           projectSlug={panel.projectSlug}
+          onArchived={onArchive}
         />
       )}
 
@@ -413,6 +416,7 @@ export function Workspace({ children }: { children: React.ReactNode }) {
                         if (!panel.sessionId) return;
                         openForkPanel(panel.sessionId, panel.projectSlug);
                       }}
+                      onArchive={() => closePanel(panel.id)}
                     />
                     <SessionPane
                       sessionId={panel.sessionId}
