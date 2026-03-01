@@ -22,8 +22,14 @@ type WorkspaceContextProps = {
   panels: WorkspacePanel[];
   focusedPanelId: string | null;
   hasPanels: boolean;
+  /** Additive — adds panel alongside existing ones (for split view) */
   openSession: (sessionId: string, projectSlug?: string) => void;
+  /** Additive — adds new-session panel alongside existing ones */
   openNewSession: (projectSlug?: string) => string; // returns panelId
+  /** Replace — clears all panels, shows single session */
+  replaceSession: (sessionId: string, projectSlug?: string) => void;
+  /** Replace — clears all panels, shows single new session */
+  replaceNewSession: (projectSlug?: string) => string; // returns panelId
   closePanel: (panelId: string) => void;
   focusPanel: (panelId: string) => void;
   updatePanelSession: (panelId: string, sessionId: string) => void;
@@ -33,7 +39,7 @@ type WorkspaceContextProps = {
 // Persistence
 // ---------------------------------------------------------------------------
 
-const STORAGE_KEY = "workspace-panels-v1";
+const STORAGE_KEY = "workspace-panels-v2";
 
 function loadState(): WorkspaceState {
   if (typeof window === "undefined")
@@ -121,6 +127,57 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     return panelId;
   }, []);
 
+  const replaceSession = React.useCallback(
+    (sessionId: string, projectSlug?: string) => {
+      setState((prev) => {
+        // If the only panel already shows this session, just focus it
+        if (
+          prev.panels.length === 1 &&
+          prev.panels[0].sessionId === sessionId
+        ) {
+          if (prev.focusedPanelId === prev.panels[0].id) return prev;
+          const next = { ...prev, focusedPanelId: prev.panels[0].id };
+          saveState(next);
+          return next;
+        }
+
+        const newPanel: WorkspacePanel = {
+          id: crypto.randomUUID(),
+          sessionId,
+          projectSlug,
+        };
+        const next: WorkspaceState = {
+          panels: [newPanel],
+          focusedPanelId: newPanel.id,
+        };
+        saveState(next);
+        return next;
+      });
+    },
+    []
+  );
+
+  const replaceNewSession = React.useCallback(
+    (projectSlug?: string): string => {
+      const panelId = crypto.randomUUID();
+      setState(() => {
+        const newPanel: WorkspacePanel = {
+          id: panelId,
+          sessionId: null,
+          projectSlug,
+        };
+        const next: WorkspaceState = {
+          panels: [newPanel],
+          focusedPanelId: newPanel.id,
+        };
+        saveState(next);
+        return next;
+      });
+      return panelId;
+    },
+    []
+  );
+
   const closePanel = React.useCallback(
     (panelId: string) => {
       setState((prev) => {
@@ -190,6 +247,16 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
+      // Cmd+\: split — open new panel alongside current
+      if (e.key === "\\" && state.panels.length > 0) {
+        e.preventDefault();
+        const current = state.panels.find(
+          (p) => p.id === state.focusedPanelId
+        );
+        openNewSession(current?.projectSlug);
+        return;
+      }
+
       // Cmd+[ / Cmd+]: cycle focus between panels
       if ((e.key === "[" || e.key === "]") && state.panels.length > 1) {
         e.preventDefault();
@@ -205,7 +272,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [state.panels, state.focusedPanelId, closePanel, focusPanel]);
+  }, [state.panels, state.focusedPanelId, closePanel, focusPanel, openNewSession]);
 
   // ── Context value ──────────────────────────────────────────────────────
 
@@ -216,6 +283,8 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       hasPanels,
       openSession,
       openNewSession,
+      replaceSession,
+      replaceNewSession,
       closePanel,
       focusPanel,
       updatePanelSession,
@@ -226,6 +295,8 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       hasPanels,
       openSession,
       openNewSession,
+      replaceSession,
+      replaceNewSession,
       closePanel,
       focusPanel,
       updatePanelSession,

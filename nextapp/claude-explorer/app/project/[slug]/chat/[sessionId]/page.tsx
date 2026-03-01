@@ -10,11 +10,11 @@ export default function SessionChatPage({
   params: Promise<{ slug: string; sessionId: string }>;
 }) {
   const { slug, sessionId } = use(params);
-  const { openSession } = useWorkspace();
+  const { replaceSession } = useWorkspace();
 
   useEffect(() => {
-    openSession(sessionId, slug);
-  }, [sessionId, slug, openSession]);
+    replaceSession(sessionId, slug);
+  }, [sessionId, slug, replaceSession]);
 
   // Workspace component handles rendering via panels
   return null;

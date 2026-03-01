@@ -7,15 +7,15 @@ import { useWorkspace } from "@/lib/workspace-context";
 // ── Inner component ──────────────────────────────────────────────────────
 
 function RootNewChatPageInner() {
-  const { openNewSession } = useWorkspace();
+  const { replaceNewSession } = useWorkspace();
   const didOpen = useRef(false);
 
   useEffect(() => {
     if (didOpen.current) return;
     didOpen.current = true;
     // TODO: pass forkParams through to the workspace panel
-    openNewSession(); // root session (no project slug)
-  }, [openNewSession]);
+    replaceNewSession(); // root session (no project slug)
+  }, [replaceNewSession]);
 
   return null;
 }

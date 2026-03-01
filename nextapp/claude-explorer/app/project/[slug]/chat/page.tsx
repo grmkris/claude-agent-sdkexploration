@@ -7,15 +7,15 @@ import { useWorkspace } from "@/lib/workspace-context";
 // ── Inner component that reads search params ──────────────────────────────
 
 function NewChatPageInner({ slug }: { slug: string }) {
-  const { openNewSession } = useWorkspace();
+  const { replaceNewSession } = useWorkspace();
   const didOpen = useRef(false);
 
   useEffect(() => {
     if (didOpen.current) return;
     didOpen.current = true;
     // TODO: pass initialPrompt, initialChips, forkParams to the workspace panel
-    openNewSession(slug);
-  }, [slug, openNewSession]);
+    replaceNewSession(slug);
+  }, [slug, replaceNewSession]);
 
   return null;
 }
