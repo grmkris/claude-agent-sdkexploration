@@ -3,9 +3,10 @@
 import { Add01Icon, Cancel01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useQuery } from "@tanstack/react-query";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import * as React from "react";
 
+import { ArchiveChatButton } from "@/components/archive-chat-button";
 import { ACTIVE_STATES, formatTokens } from "@/components/context-bar";
 import {
   ConversationsPopover,
@@ -37,6 +38,31 @@ import { useWorkspace, type WorkspacePanel } from "@/lib/workspace-context";
 const MIN_PANEL_WIDTH_PX = 450;
 
 // ---------------------------------------------------------------------------
+// ForkIcon — inline SVG (same as right-sidebar)
+// ---------------------------------------------------------------------------
+
+function ForkIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+    >
+      <circle cx="12" cy="18" r="3" />
+      <circle cx="6" cy="6" r="3" />
+      <circle cx="18" cy="6" r="3" />
+      <path d="M18 9v2c0 .6-.4 1-1 1H7c-.6 0-1-.4-1-1V9" />
+      <path d="M12 12v3" />
+    </svg>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // PanelHeader — compact header per panel (enriched for focused panel)
 // ---------------------------------------------------------------------------
 
@@ -48,6 +74,7 @@ function PanelHeader({
   isLast,
   onSplit,
   onClose,
+  onFork,
 }: {
   panel: WorkspacePanel;
   isFocused: boolean;
@@ -56,6 +83,7 @@ function PanelHeader({
   isLast: boolean;
   onSplit: () => void;
   onClose: () => void;
+  onFork: () => void;
 }) {
   const { onCompact } = useCompact();
   const activeCount = useActiveCount();
@@ -194,6 +222,36 @@ function PanelHeader({
         </button>
       )}
 
+      {/* Archive button (focused panel with existing session only) */}
+      {isFocused && panel.sessionId && (
+        <ArchiveChatButton
+          size="sm"
+          sessionId={panel.sessionId}
+          projectSlug={panel.projectSlug}
+        />
+      )}
+
+      {/* Fork button (focused panel with existing session only) */}
+      {isFocused && panel.sessionId && (
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onFork();
+                }}
+                className={btnClass}
+                aria-label="Fork session"
+              />
+            }
+          >
+            <ForkIcon className="h-3 w-3" />
+          </TooltipTrigger>
+          <TooltipContent side="bottom">Fork session</TooltipContent>
+        </Tooltip>
+      )}
+
       {/* Add panel button (last panel only) */}
       {isLast && (
         <Tooltip>
@@ -254,6 +312,7 @@ export function Workspace({ children }: { children: React.ReactNode }) {
     openNewPanel,
   } = useWorkspace();
   const pathname = usePathname();
+  const router = useRouter();
   const isMobile = useIsMobile();
 
   // Show workspace when we have panels AND the URL is a session/chat route
@@ -350,6 +409,16 @@ export function Workspace({ children }: { children: React.ReactNode }) {
                       isLast={i === panels.length - 1}
                       onSplit={() => openNewPanel(panel.projectSlug)}
                       onClose={() => closePanel(panel.id)}
+                      onFork={() => {
+                        if (!panel.sessionId) return;
+                        const forkId = crypto.randomUUID();
+                        const base = panel.projectSlug
+                          ? `/project/${panel.projectSlug}/chat`
+                          : "/chat";
+                        router.push(
+                          `${base}?_fork=1&parentSessionId=${panel.sessionId}&forkSessionId=${forkId}`
+                        );
+                      }}
                     />
                     <SessionPane
                       sessionId={panel.sessionId}

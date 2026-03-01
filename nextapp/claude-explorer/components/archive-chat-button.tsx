@@ -14,22 +14,24 @@ import { orpc } from "@/lib/orpc";
 
 export function ArchiveChatButton({
   size = "default",
+  sessionId: sessionIdProp,
+  projectSlug: projectSlugProp,
 }: {
   size?: "default" | "sm";
+  sessionId?: string | null;
+  projectSlug?: string | null;
 }) {
   const pathname = usePathname();
   const router = useRouter();
   const queryClient = useQueryClient();
 
-  // Extract session ID and optional project slug from URL.
-  // Matches /project/:slug/chat/:sessionId  OR  /chat/:sessionId
-  // Does NOT match new-chat pages (/chat or /project/:slug/chat) because those
-  // lack the trailing session ID segment.
+  // Use props when provided, otherwise extract from URL.
   const projectChatMatch = pathname.match(/\/project\/([^/]+)\/chat\/([^/]+)$/);
   const rootChatMatch = pathname.match(/^\/chat\/([^/]+)$/);
 
-  const sessionId = projectChatMatch?.[2] ?? rootChatMatch?.[1];
-  const projectSlug = projectChatMatch?.[1] ?? null;
+  const sessionId =
+    sessionIdProp ?? projectChatMatch?.[2] ?? rootChatMatch?.[1];
+  const projectSlug = projectSlugProp ?? projectChatMatch?.[1] ?? null;
 
   // Query the live session row to know whether it's already archived
   const { data: sessionData } = useQuery({
