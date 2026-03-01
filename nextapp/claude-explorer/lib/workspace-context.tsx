@@ -3,6 +3,8 @@
 import { useRouter } from "next/navigation";
 import * as React from "react";
 
+import { client } from "./orpc-client";
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -16,12 +18,16 @@ export type WorkspacePanel = {
 type WorkspaceState = {
   panels: WorkspacePanel[];
   focusedPanelId: string | null;
+  activeGroupId: string | null;
+  activeGroupName: string | null;
 };
 
 type WorkspaceContextProps = {
   panels: WorkspacePanel[];
   focusedPanelId: string | null;
   hasPanels: boolean;
+  activeGroupId: string | null;
+  activeGroupName: string | null;
   /** Additive — adds panel alongside existing ones (for split view) */
   openSession: (sessionId: string, projectSlug?: string) => void;
   /** Additive — adds new-session panel alongside existing ones */
@@ -33,6 +39,12 @@ type WorkspaceContextProps = {
   closePanel: (panelId: string) => void;
   focusPanel: (panelId: string) => void;
   updatePanelSession: (panelId: string, sessionId: string) => void;
+  /** Load a workspace group — fetches sessions and populates panels */
+  loadGroup: (groupId: string, projectSlug?: string) => Promise<void>;
+  /** Clear the active group without closing panels */
+  clearGroup: () => void;
+  /** Save current panels as a new workspace group */
+  saveAsGroup: (name: string, projectPath?: string) => Promise<string>;
 };
 
 // ---------------------------------------------------------------------------
@@ -43,12 +55,20 @@ const STORAGE_KEY = "workspace-panels-v2";
 
 function loadState(): WorkspaceState {
   if (typeof window === "undefined")
-    return { panels: [], focusedPanelId: null };
+    return { panels: [], focusedPanelId: null, activeGroupId: null, activeGroupName: null };
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return JSON.parse(raw) as WorkspaceState;
+    if (raw) {
+      const parsed = JSON.parse(raw) as WorkspaceState;
+      return {
+        panels: parsed.panels ?? [],
+        focusedPanelId: parsed.focusedPanelId ?? null,
+        activeGroupId: parsed.activeGroupId ?? null,
+        activeGroupName: parsed.activeGroupName ?? null,
+      };
+    }
   } catch {}
-  return { panels: [], focusedPanelId: null };
+  return { panels: [], focusedPanelId: null, activeGroupId: null, activeGroupName: null };
 }
 
 function saveState(state: WorkspaceState) {
@@ -79,12 +99,29 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
 
   const hasPanels = state.panels.length > 0;
 
+  // ── Helper: sync session add to active group ───────────────────────────
+
+  const syncAddToGroup = React.useCallback(
+    (groupId: string | null, sessionId: string | null) => {
+      if (!groupId || !sessionId) return;
+      client.workspaceGroups.addSession({ groupId, sessionId }).catch(() => {});
+    },
+    []
+  );
+
+  const syncRemoveFromGroup = React.useCallback(
+    (groupId: string | null, sessionId: string | null) => {
+      if (!groupId || !sessionId) return;
+      client.workspaceGroups.removeSession({ groupId, sessionId }).catch(() => {});
+    },
+    []
+  );
+
   // ── Panel operations ────────────────────────────────────────────────────
 
   const openSession = React.useCallback(
     (sessionId: string, projectSlug?: string) => {
       setState((prev) => {
-        // Check if panel already exists for this session
         const existing = prev.panels.find((p) => p.sessionId === sessionId);
         if (existing) {
           if (prev.focusedPanelId === existing.id) return prev;
@@ -99,14 +136,16 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
           projectSlug,
         };
         const next = {
+          ...prev,
           panels: [...prev.panels, newPanel],
           focusedPanelId: newPanel.id,
         };
         saveState(next);
+        syncAddToGroup(prev.activeGroupId, sessionId);
         return next;
       });
     },
-    []
+    [syncAddToGroup]
   );
 
   const openNewSession = React.useCallback((projectSlug?: string): string => {
@@ -118,6 +157,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
         projectSlug,
       };
       const next = {
+        ...prev,
         panels: [...prev.panels, newPanel],
         focusedPanelId: newPanel.id,
       };
@@ -130,7 +170,6 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
   const replaceSession = React.useCallback(
     (sessionId: string, projectSlug?: string) => {
       setState((prev) => {
-        // If the only panel already shows this session, just focus it
         if (
           prev.panels.length === 1 &&
           prev.panels[0].sessionId === sessionId
@@ -149,6 +188,8 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
         const next: WorkspaceState = {
           panels: [newPanel],
           focusedPanelId: newPanel.id,
+          activeGroupId: null,
+          activeGroupName: null,
         };
         saveState(next);
         return next;
@@ -169,6 +210,8 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
         const next: WorkspaceState = {
           panels: [newPanel],
           focusedPanelId: newPanel.id,
+          activeGroupId: null,
+          activeGroupName: null,
         };
         saveState(next);
         return next;
@@ -181,8 +224,14 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
   const closePanel = React.useCallback(
     (panelId: string) => {
       setState((prev) => {
+        const panel = prev.panels.find((p) => p.id === panelId);
         const idx = prev.panels.findIndex((p) => p.id === panelId);
         if (idx === -1) return prev;
+
+        // Sync removal from active group
+        if (panel?.sessionId) {
+          syncRemoveFromGroup(prev.activeGroupId, panel.sessionId);
+        }
 
         const remaining = prev.panels.filter((p) => p.id !== panelId);
         let nextFocused = prev.focusedPanelId;
@@ -193,10 +242,16 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
           nextFocused = neighbor?.id ?? null;
         }
 
-        const next = { panels: remaining, focusedPanelId: nextFocused };
+        // Clear group if no panels left
+        const next: WorkspaceState = {
+          ...prev,
+          panels: remaining,
+          focusedPanelId: nextFocused,
+          activeGroupId: remaining.length === 0 ? null : prev.activeGroupId,
+          activeGroupName: remaining.length === 0 ? null : prev.activeGroupName,
+        };
         saveState(next);
 
-        // Navigate away if no panels left
         if (remaining.length === 0) {
           router.push("/");
         }
@@ -204,7 +259,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
         return next;
       });
     },
-    [router]
+    [router, syncRemoveFromGroup]
   );
 
   const focusPanel = React.useCallback((panelId: string) => {
@@ -221,6 +276,13 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       setState((prev) => {
         const panel = prev.panels.find((p) => p.id === panelId);
         if (!panel || panel.sessionId === sessionId) return prev;
+
+        // Sync: remove old session from group, add new one
+        if (panel.sessionId) {
+          syncRemoveFromGroup(prev.activeGroupId, panel.sessionId);
+        }
+        syncAddToGroup(prev.activeGroupId, sessionId);
+
         const next = {
           ...prev,
           panels: prev.panels.map((p) =>
@@ -231,7 +293,72 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
         return next;
       });
     },
-    []
+    [syncAddToGroup, syncRemoveFromGroup]
+  );
+
+  // ── Group operations ──────────────────────────────────────────────────
+
+  const loadGroup = React.useCallback(async (groupId: string, projectSlug?: string) => {
+    const group = await client.workspaceGroups.get({ id: groupId });
+    if (!group) return;
+
+    const panels: WorkspacePanel[] = group.sessions.map((s) => ({
+      id: crypto.randomUUID(),
+      sessionId: s.sessionId,
+      projectSlug,
+    }));
+
+    // Ensure at least one panel
+    if (panels.length === 0) {
+      panels.push({ id: crypto.randomUUID(), sessionId: null });
+    }
+
+    const next: WorkspaceState = {
+      panels,
+      focusedPanelId: panels[0].id,
+      activeGroupId: group.id,
+      activeGroupName: group.name,
+    };
+    setState(next);
+    saveState(next);
+  }, []);
+
+  const clearGroup = React.useCallback(() => {
+    setState((prev) => {
+      const next = { ...prev, activeGroupId: null, activeGroupName: null };
+      saveState(next);
+      return next;
+    });
+  }, []);
+
+  const saveAsGroup = React.useCallback(
+    async (name: string, projectPath?: string): Promise<string> => {
+      const { id } = await client.workspaceGroups.create({ name, projectPath });
+
+      // Add all current sessions with real IDs
+      const sessionsToAdd = state.panels
+        .filter((p) => p.sessionId)
+        .map((p, i) => ({ sessionId: p.sessionId!, position: i }));
+
+      await Promise.all(
+        sessionsToAdd.map((s) =>
+          client.workspaceGroups.addSession({
+            groupId: id,
+            sessionId: s.sessionId,
+            position: s.position,
+          })
+        )
+      );
+
+      setState((prev) => {
+        const next = { ...prev, activeGroupId: id, activeGroupName: name };
+        saveState(next);
+        return next;
+      });
+
+      return id;
+    },
+    [state.panels]
   );
 
   // ── Keyboard shortcuts ──────────────────────────────────────────────────
@@ -285,6 +412,8 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       panels: state.panels,
       focusedPanelId: state.focusedPanelId,
       hasPanels,
+      activeGroupId: state.activeGroupId,
+      activeGroupName: state.activeGroupName,
       openSession,
       openNewSession,
       replaceSession,
@@ -292,11 +421,16 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       closePanel,
       focusPanel,
       updatePanelSession,
+      loadGroup,
+      clearGroup,
+      saveAsGroup,
     }),
     [
       state.panels,
       state.focusedPanelId,
       hasPanels,
+      state.activeGroupId,
+      state.activeGroupName,
       openSession,
       openNewSession,
       replaceSession,
@@ -304,6 +438,9 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       closePanel,
       focusPanel,
       updatePanelSession,
+      loadGroup,
+      clearGroup,
+      saveAsGroup,
     ]
   );
 

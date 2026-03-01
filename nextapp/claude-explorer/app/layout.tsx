@@ -6,7 +6,7 @@ import { cookies } from "next/headers";
 import "./globals.css";
 import Script from "next/script";
 
-import { AgentTabBar } from "@/components/agent-tabs/agent-tab-bar";
+import { ConditionalAgentTabBar } from "@/components/conditional-agent-tab-bar";
 import { ContextTray } from "@/components/context-tray/context-tray";
 import { GlobalSearch } from "@/components/global-search";
 import { ProjectSidebar } from "@/components/project-sidebar";
@@ -71,7 +71,7 @@ export default async function RootLayout({
               <RightSidebarProvider defaultOpen={rightSidebarOpen}>
                 <ProjectSidebar />
                 <SidebarInset className="overflow-hidden h-svh">
-                  <AgentTabBar />
+                  <ConditionalAgentTabBar />
                   <div className="flex flex-1 flex-col overflow-hidden">
                     <Workspace>{children}</Workspace>
                   </div>

@@ -3,13 +3,17 @@
 import type { IconSvgElement } from "@hugeicons/react";
 
 import {
+  Add01Icon,
   Archive01Icon,
   ArchiveIcon,
   ArrowDown01Icon,
+  Cancel01Icon,
   Clock01Icon,
+  Folder01Icon,
   LayerIcon,
   Layout01Icon,
   Mail01Icon,
+  PencilEdit01Icon,
   UserIcon,
   WebhookIcon,
 } from "@hugeicons/core-free-icons";
@@ -37,6 +41,7 @@ import {
 } from "@/components/ui/tooltip";
 import { orpc } from "@/lib/orpc";
 import { cn, getTimeAgo } from "@/lib/utils";
+import { useWorkspace } from "@/lib/workspace-context";
 
 // ---------------------------------------------------------------------------
 // Source config
@@ -283,6 +288,253 @@ function ProjectGroup({
 }
 
 // ---------------------------------------------------------------------------
+// WorkspaceGroupsSection — groups list in the sidebar
+// ---------------------------------------------------------------------------
+
+function WorkspaceGroupsSection({
+  projectPath,
+  projectSlug,
+}: {
+  projectPath?: string;
+  projectSlug?: string;
+}) {
+  const queryClient = useQueryClient();
+  const { activeGroupId, loadGroup, saveAsGroup, panels } = useWorkspace();
+  const [creating, setCreating] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+
+  const { data: groups = [], isLoading } = useQuery({
+    ...orpc.workspaceGroups.list.queryOptions({
+      input: projectPath ? { projectPath } : {},
+    }),
+    refetchInterval: 15_000,
+  });
+
+  const createMutation = useMutation({
+    ...orpc.workspaceGroups.create.mutationOptions(),
+    onSuccess: (result) => {
+      void queryClient.invalidateQueries({
+        queryKey: orpc.workspaceGroups.list.queryOptions({
+          input: projectPath ? { projectPath } : {},
+        }).queryKey,
+      });
+      setCreating(false);
+      setNewName("");
+      // Auto-load the newly created group
+      void loadGroup(result.id, projectSlug);
+    },
+  });
+
+  const deleteMutation = useMutation({
+    ...orpc.workspaceGroups.delete.mutationOptions(),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: orpc.workspaceGroups.list.queryOptions({
+          input: projectPath ? { projectPath } : {},
+        }).queryKey,
+      });
+    },
+  });
+
+  const renameMutation = useMutation({
+    ...orpc.workspaceGroups.rename.mutationOptions(),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: orpc.workspaceGroups.list.queryOptions({
+          input: projectPath ? { projectPath } : {},
+        }).queryKey,
+      });
+      setRenamingId(null);
+      setRenameValue("");
+    },
+  });
+
+  const hasSessions = panels.some((p) => p.sessionId);
+
+  if (isLoading && groups.length === 0) return null;
+
+  return (
+    <div className="border-b border-border pb-1.5">
+      <div className="flex items-center justify-between px-3 py-1">
+        <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+          Workspace Groups
+        </span>
+        <div className="flex items-center gap-1">
+          {/* Save current panels as group */}
+          {hasSessions && !activeGroupId && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <button
+                      onClick={async () => {
+                        const name = `Group ${groups.length + 1}`;
+                        await saveAsGroup(name, projectPath);
+                        void queryClient.invalidateQueries({
+                          queryKey: orpc.workspaceGroups.list.queryOptions({
+                            input: projectPath ? { projectPath } : {},
+                          }).queryKey,
+                        });
+                      }}
+                      className="rounded p-0.5 text-muted-foreground/60 hover:text-foreground transition-colors"
+                    />
+                  }
+                >
+                  <HugeiconsIcon icon={Folder01Icon} size={12} />
+                </TooltipTrigger>
+                <TooltipContent side="left" className="text-xs">
+                  Save panels as group
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
+          {/* New group button */}
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <button
+                    onClick={() => setCreating(true)}
+                    className="rounded p-0.5 text-muted-foreground/60 hover:text-foreground transition-colors"
+                  />
+                }
+              >
+                <HugeiconsIcon icon={Add01Icon} size={12} />
+              </TooltipTrigger>
+              <TooltipContent side="left" className="text-xs">
+                New group
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </div>
+      </div>
+
+      {/* Create new group input */}
+      {creating && (
+        <div className="px-3 pb-1.5 flex items-center gap-1">
+          <input
+            type="text"
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            placeholder="Group name..."
+            className="flex-1 min-w-0 rounded border border-border bg-background px-1.5 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+            autoFocus
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && newName.trim()) {
+                createMutation.mutate({ name: newName.trim(), projectPath });
+              }
+              if (e.key === "Escape") {
+                setCreating(false);
+                setNewName("");
+              }
+            }}
+          />
+          <button
+            onClick={() => {
+              setCreating(false);
+              setNewName("");
+            }}
+            className="rounded p-0.5 text-muted-foreground hover:text-foreground"
+          >
+            <HugeiconsIcon icon={Cancel01Icon} size={12} />
+          </button>
+        </div>
+      )}
+
+      {/* Group list */}
+      {groups.length > 0 && (
+        <SidebarMenu>
+          {groups.map((group) => (
+            <SidebarMenuItem key={group.id}>
+              <div className="group flex items-center">
+                {renamingId === group.id ? (
+                  <div className="flex-1 min-w-0 px-2 py-0.5">
+                    <input
+                      type="text"
+                      value={renameValue}
+                      onChange={(e) => setRenameValue(e.target.value)}
+                      className="w-full rounded border border-border bg-background px-1.5 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+                      autoFocus
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && renameValue.trim()) {
+                          renameMutation.mutate({
+                            id: group.id,
+                            name: renameValue.trim(),
+                          });
+                        }
+                        if (e.key === "Escape") {
+                          setRenamingId(null);
+                          setRenameValue("");
+                        }
+                      }}
+                      onBlur={() => {
+                        setRenamingId(null);
+                        setRenameValue("");
+                      }}
+                    />
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => void loadGroup(group.id, projectSlug)}
+                    className="min-w-0 flex-1"
+                  >
+                    <SidebarMenuButton isActive={activeGroupId === group.id}>
+                      <div className="flex min-w-0 flex-1 items-center gap-1.5">
+                        <HugeiconsIcon
+                          icon={Folder01Icon}
+                          size={12}
+                          className="shrink-0 text-muted-foreground"
+                        />
+                        <span className="truncate text-sm">{group.name}</span>
+                        <span className="ml-auto shrink-0 text-[10px] text-muted-foreground tabular-nums">
+                          {group.sessionCount}
+                        </span>
+                      </div>
+                    </SidebarMenuButton>
+                  </button>
+                )}
+                {/* Inline actions — visible on hover */}
+                {renamingId !== group.id && (
+                  <div className="flex shrink-0 items-center gap-0.5 pr-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setRenamingId(group.id);
+                        setRenameValue(group.name);
+                      }}
+                      className="rounded p-0.5 text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      <HugeiconsIcon icon={PencilEdit01Icon} size={10} />
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        deleteMutation.mutate({ id: group.id });
+                      }}
+                      className="rounded p-0.5 text-muted-foreground hover:text-destructive transition-colors"
+                    >
+                      <HugeiconsIcon icon={Cancel01Icon} size={10} />
+                    </button>
+                  </div>
+                )}
+              </div>
+            </SidebarMenuItem>
+          ))}
+        </SidebarMenu>
+      )}
+
+      {groups.length === 0 && !creating && (
+        <div className="px-3 pb-1 text-[10px] text-muted-foreground">
+          No workspace groups yet
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // SessionsPanel
 // ---------------------------------------------------------------------------
 
@@ -299,6 +551,15 @@ export function SessionsPanel({
   showProjectLabel?: boolean;
 }) {
   const queryClient = useQueryClient();
+
+  // Resolve slug → path for workspace groups filtering
+  const { data: resolvedProject } = useQuery({
+    ...orpc.projects.resolveSlug.queryOptions({
+      input: { slug: filterSlug! },
+    }),
+    enabled: !!filterSlug,
+    staleTime: 60_000,
+  });
 
   const queryInput = { limit: 50, ...(filterSlug ? { slug: filterSlug } : {}) };
 
@@ -511,6 +772,9 @@ export function SessionsPanel({
         }
       }}
     >
+      {/* Workspace Groups */}
+      <WorkspaceGroupsSection projectPath={resolvedProject?.path} projectSlug={filterSlug} />
+
       {/* Root-view toolbar: project filter dropdown + group-by toggle */}
       {isRootView && (
         <div className="px-2 pb-1.5 pt-0.5 flex items-center gap-1.5">

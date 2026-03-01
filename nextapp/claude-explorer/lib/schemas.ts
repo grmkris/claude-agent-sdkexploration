@@ -237,6 +237,24 @@ export const SavedPromptSchema = z.object({
   updatedAt: z.string().optional(),
 });
 
+export const WorkspaceGroupSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  projectPath: z.string().nullable(),
+  sessionCount: z.number(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+
+export const WorkspaceGroupDetailSchema = WorkspaceGroupSchema.extend({
+  sessions: z.array(
+    z.object({
+      sessionId: z.string(),
+      position: z.number(),
+    })
+  ),
+});
+
 export const ExplorerStoreSchema = z.object({
   favorites: FavoritesSchema,
   crons: z.array(CronJobSchema),
@@ -276,6 +294,8 @@ export type WorkspaceEmailConfig = z.infer<typeof WorkspaceEmailConfigSchema>;
 export type EmailEvent = z.infer<typeof EmailEventSchema>;
 export type OAuthApp = z.infer<typeof OAuthAppSchema>;
 export type SavedPrompt = z.infer<typeof SavedPromptSchema>;
+export type WorkspaceGroup = z.infer<typeof WorkspaceGroupSchema>;
+export type WorkspaceGroupDetail = z.infer<typeof WorkspaceGroupDetailSchema>;
 
 // --- Analytics schemas ---
 

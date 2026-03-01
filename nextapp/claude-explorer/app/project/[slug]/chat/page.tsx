@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, use, useEffect, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 
 import { useWorkspace } from "@/lib/workspace-context";
 
@@ -8,14 +9,15 @@ import { useWorkspace } from "@/lib/workspace-context";
 
 function NewChatPageInner({ slug }: { slug: string }) {
   const { replaceNewSession } = useWorkspace();
-  const didOpen = useRef(false);
+  const searchParams = useSearchParams();
+  const newKey = searchParams.get("_new") ?? "default";
+  const handledKey = useRef<string | null>(null);
 
   useEffect(() => {
-    if (didOpen.current) return;
-    didOpen.current = true;
-    // TODO: pass initialPrompt, initialChips, forkParams to the workspace panel
+    if (handledKey.current === newKey) return;
+    handledKey.current = newKey;
     replaceNewSession(slug);
-  }, [slug, replaceNewSession]);
+  }, [newKey, slug, replaceNewSession]);
 
   return null;
 }

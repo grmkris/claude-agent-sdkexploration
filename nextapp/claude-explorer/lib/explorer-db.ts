@@ -182,6 +182,24 @@ function getDB(): Database {
     CREATE INDEX IF NOT EXISTS idx_sms_session ON session_mcp_selections(session_id);
   `);
 
+  // Migration: workspace groups tables
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS workspace_groups (
+      id          TEXT PRIMARY KEY,
+      name        TEXT NOT NULL,
+      project_path TEXT,
+      created_at  TEXT NOT NULL,
+      updated_at  TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS workspace_group_sessions (
+      group_id    TEXT NOT NULL REFERENCES workspace_groups(id),
+      session_id  TEXT NOT NULL,
+      position    INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (group_id, session_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_wgs_group ON workspace_group_sessions(group_id);
+  `);
+
   // Migration: add fork tracking columns to existing DBs
   try {
     db.exec("ALTER TABLE sessions ADD COLUMN parent_session_id TEXT");
@@ -763,6 +781,145 @@ export function getSessionMcpSelections(
       "SELECT * FROM session_mcp_selections WHERE session_id = ?"
     )
     .all(sessionId);
+}
+
+// --- Search ---
+
+// --- Workspace Groups ---
+
+export interface WorkspaceGroupRow {
+  id: string;
+  name: string;
+  project_path: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WorkspaceGroupSessionRow {
+  group_id: string;
+  session_id: string;
+  position: number;
+}
+
+export function createWorkspaceGroup(
+  id: string,
+  name: string,
+  projectPath?: string
+): void {
+  const now = new Date().toISOString();
+  getDB()
+    .query(
+      `INSERT INTO workspace_groups (id, name, project_path, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?)`
+    )
+    .run(id, name, projectPath ?? null, now, now);
+}
+
+export function listWorkspaceGroups(
+  projectPath?: string
+): (WorkspaceGroupRow & { session_count: number })[] {
+  const d = getDB();
+  if (projectPath) {
+    return d
+      .query<WorkspaceGroupRow & { session_count: number }, [string]>(
+        `SELECT g.*, COUNT(gs.session_id) as session_count
+         FROM workspace_groups g
+         LEFT JOIN workspace_group_sessions gs ON gs.group_id = g.id
+         WHERE g.project_path = ?
+         GROUP BY g.id
+         ORDER BY g.updated_at DESC`
+      )
+      .all(projectPath);
+  }
+  return d
+    .query<WorkspaceGroupRow & { session_count: number }, []>(
+      `SELECT g.*, COUNT(gs.session_id) as session_count
+       FROM workspace_groups g
+       LEFT JOIN workspace_group_sessions gs ON gs.group_id = g.id
+       GROUP BY g.id
+       ORDER BY g.updated_at DESC`
+    )
+    .all();
+}
+
+export function getWorkspaceGroup(
+  id: string
+): (WorkspaceGroupRow & { sessions: WorkspaceGroupSessionRow[] }) | null {
+  const d = getDB();
+  const group = d
+    .query<WorkspaceGroupRow, [string]>(
+      "SELECT * FROM workspace_groups WHERE id = ?"
+    )
+    .get(id);
+  if (!group) return null;
+  const sessions = d
+    .query<WorkspaceGroupSessionRow, [string]>(
+      "SELECT * FROM workspace_group_sessions WHERE group_id = ? ORDER BY position ASC"
+    )
+    .all(id);
+  return { ...group, sessions };
+}
+
+export function renameWorkspaceGroup(id: string, name: string): void {
+  getDB()
+    .query(
+      "UPDATE workspace_groups SET name = ?, updated_at = ? WHERE id = ?"
+    )
+    .run(name, new Date().toISOString(), id);
+}
+
+export function deleteWorkspaceGroup(id: string): void {
+  const d = getDB();
+  d.query("DELETE FROM workspace_group_sessions WHERE group_id = ?").run(id);
+  d.query("DELETE FROM workspace_groups WHERE id = ?").run(id);
+}
+
+export function addSessionToGroup(
+  groupId: string,
+  sessionId: string,
+  position?: number
+): void {
+  const d = getDB();
+  const pos =
+    position ??
+    (d
+      .query<{ max_pos: number | null }, [string]>(
+        "SELECT MAX(position) as max_pos FROM workspace_group_sessions WHERE group_id = ?"
+      )
+      .get(groupId)?.max_pos ?? -1) + 1;
+
+  d.query(
+    `INSERT INTO workspace_group_sessions (group_id, session_id, position)
+     VALUES (?, ?, ?)
+     ON CONFLICT(group_id, session_id) DO UPDATE SET position = excluded.position`
+  ).run(groupId, sessionId, pos);
+
+  d.query("UPDATE workspace_groups SET updated_at = ? WHERE id = ?").run(
+    new Date().toISOString(),
+    groupId
+  );
+}
+
+export function removeSessionFromGroup(
+  groupId: string,
+  sessionId: string
+): void {
+  const d = getDB();
+  d.query(
+    "DELETE FROM workspace_group_sessions WHERE group_id = ? AND session_id = ?"
+  ).run(groupId, sessionId);
+  d.query("UPDATE workspace_groups SET updated_at = ? WHERE id = ?").run(
+    new Date().toISOString(),
+    groupId
+  );
+}
+
+export function getGroupSessions(groupId: string): WorkspaceGroupSessionRow[] {
+  return getDB()
+    .query<WorkspaceGroupSessionRow, [string]>(
+      "SELECT * FROM workspace_group_sessions WHERE group_id = ? ORDER BY position ASC"
+    )
+    .all(groupId);
 }
 
 // --- Search ---

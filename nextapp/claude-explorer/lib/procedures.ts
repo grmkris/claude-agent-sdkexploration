@@ -80,6 +80,13 @@ import {
   getSessionForks,
   getSessionAncestry,
   searchSessions as dbSearchSessions,
+  createWorkspaceGroup as dbCreateWorkspaceGroup,
+  listWorkspaceGroups as dbListWorkspaceGroups,
+  getWorkspaceGroup as dbGetWorkspaceGroup,
+  renameWorkspaceGroup as dbRenameWorkspaceGroup,
+  deleteWorkspaceGroup as dbDeleteWorkspaceGroup,
+  addSessionToGroup as dbAddSessionToGroup,
+  removeSessionFromGroup as dbRemoveSessionFromGroup,
 } from "./explorer-db";
 import {
   getFavorites,
@@ -174,6 +181,8 @@ import {
   EmailEventSchema,
   TmuxSessionSchema,
   SavedPromptSchema,
+  WorkspaceGroupSchema,
+  WorkspaceGroupDetailSchema,
 } from "./schemas";
 import { searchProjectFiles } from "./search";
 import { createSessionHooks } from "./session-hooks";
@@ -3743,6 +3752,97 @@ const searchProc = os
     return { files, sessions };
   });
 
+// --- Workspace Groups ---
+
+const listWorkspaceGroupsProc = os
+  .input(
+    z.object({ projectPath: z.string().optional() }).optional()
+  )
+  .output(z.array(WorkspaceGroupSchema))
+  .handler(async ({ input }) => {
+    const rows = dbListWorkspaceGroups(input?.projectPath);
+    return rows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      projectPath: r.project_path,
+      sessionCount: r.session_count,
+      createdAt: r.created_at,
+      updatedAt: r.updated_at,
+    }));
+  });
+
+const getWorkspaceGroupProc = os
+  .input(z.object({ id: z.string() }))
+  .output(WorkspaceGroupDetailSchema.nullable())
+  .handler(async ({ input }) => {
+    const group = dbGetWorkspaceGroup(input.id);
+    if (!group) return null;
+    return {
+      id: group.id,
+      name: group.name,
+      projectPath: group.project_path,
+      sessionCount: group.sessions.length,
+      createdAt: group.created_at,
+      updatedAt: group.updated_at,
+      sessions: group.sessions.map((s) => ({
+        sessionId: s.session_id,
+        position: s.position,
+      })),
+    };
+  });
+
+const createWorkspaceGroupProc = os
+  .input(
+    z.object({
+      name: z.string(),
+      projectPath: z.string().optional(),
+    })
+  )
+  .output(z.object({ id: z.string() }))
+  .handler(async ({ input }) => {
+    const id = crypto.randomUUID();
+    dbCreateWorkspaceGroup(id, input.name, input.projectPath);
+    return { id };
+  });
+
+const renameWorkspaceGroupProc = os
+  .input(z.object({ id: z.string(), name: z.string() }))
+  .output(z.object({ ok: z.boolean() }))
+  .handler(async ({ input }) => {
+    dbRenameWorkspaceGroup(input.id, input.name);
+    return { ok: true };
+  });
+
+const deleteWorkspaceGroupProc = os
+  .input(z.object({ id: z.string() }))
+  .output(z.object({ ok: z.boolean() }))
+  .handler(async ({ input }) => {
+    dbDeleteWorkspaceGroup(input.id);
+    return { ok: true };
+  });
+
+const addSessionToGroupProc = os
+  .input(
+    z.object({
+      groupId: z.string(),
+      sessionId: z.string(),
+      position: z.number().optional(),
+    })
+  )
+  .output(z.object({ ok: z.boolean() }))
+  .handler(async ({ input }) => {
+    dbAddSessionToGroup(input.groupId, input.sessionId, input.position);
+    return { ok: true };
+  });
+
+const removeSessionFromGroupProc = os
+  .input(z.object({ groupId: z.string(), sessionId: z.string() }))
+  .output(z.object({ ok: z.boolean() }))
+  .handler(async ({ input }) => {
+    dbRemoveSessionFromGroup(input.groupId, input.sessionId);
+    return { ok: true };
+  });
+
 export const router = {
   projects: {
     list: listProjectsProc,
@@ -3895,5 +3995,14 @@ export const router = {
     addComment: linearAddCommentProc,
     listMyIssues: linearListMyIssuesProc,
     createSession: linearCreateSessionProc,
+  },
+  workspaceGroups: {
+    list: listWorkspaceGroupsProc,
+    get: getWorkspaceGroupProc,
+    create: createWorkspaceGroupProc,
+    rename: renameWorkspaceGroupProc,
+    delete: deleteWorkspaceGroupProc,
+    addSession: addSessionToGroupProc,
+    removeSession: removeSessionFromGroupProc,
   },
 };
