@@ -1,6 +1,6 @@
 "use client";
 
-import { Cancel01Icon } from "@hugeicons/core-free-icons";
+import { Add01Icon, Cancel01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useQuery } from "@tanstack/react-query";
 import { usePathname } from "next/navigation";
@@ -12,6 +12,11 @@ import {
   ResizablePanel,
   ResizablePanelGroup,
 } from "@/components/ui/resizable";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { orpc } from "@/lib/orpc";
 import { cn } from "@/lib/utils";
 import { useWorkspace, type WorkspacePanel } from "@/lib/workspace-context";
@@ -29,10 +34,16 @@ const MIN_PANEL_WIDTH_PX = 450;
 function PanelHeader({
   panel,
   isFocused,
+  panelIndex,
+  panelCount,
+  onSplit,
   onClose,
 }: {
   panel: WorkspacePanel;
   isFocused: boolean;
+  panelIndex: number;
+  panelCount: number;
+  onSplit: () => void;
   onClose: () => void;
 }) {
   const { data } = useQuery({
@@ -53,6 +64,9 @@ function PanelHeader({
     ? data.model.replace(/^claude-/, "").replace(/-\d{8}$/, "")
     : null;
 
+  const btnClass =
+    "shrink-0 rounded p-0.5 text-muted-foreground/50 transition-colors hover:bg-muted hover:text-foreground";
+
   return (
     <div
       className={cn(
@@ -63,6 +77,13 @@ function PanelHeader({
       {/* Activity dot */}
       {isActive && (
         <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-green-500 animate-pulse" />
+      )}
+
+      {/* Panel index indicator (multi-panel only) */}
+      {panelCount > 1 && (
+        <span className="shrink-0 rounded bg-muted px-1 py-0.5 font-mono text-[9px] text-foreground/40">
+          {panelIndex + 1}/{panelCount}
+        </span>
       )}
 
       {/* Title */}
@@ -77,17 +98,45 @@ function PanelHeader({
         </span>
       )}
 
-      {/* Close button */}
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          onClose();
-        }}
-        className="shrink-0 rounded p-0.5 text-muted-foreground/50 transition-colors hover:bg-muted hover:text-foreground"
-        aria-label="Close panel"
-      >
-        <HugeiconsIcon icon={Cancel01Icon} size={12} />
-      </button>
+      {/* Split button */}
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onSplit();
+              }}
+              className={btnClass}
+              aria-label="Split view"
+            />
+          }
+        >
+          <HugeiconsIcon icon={Add01Icon} size={12} />
+        </TooltipTrigger>
+        <TooltipContent side="bottom">Split view (⌘\)</TooltipContent>
+      </Tooltip>
+
+      {/* Close button (multi-panel only) */}
+      {panelCount > 1 && (
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onClose();
+                }}
+                className={btnClass}
+                aria-label="Close panel"
+              />
+            }
+          >
+            <HugeiconsIcon icon={Cancel01Icon} size={12} />
+          </TooltipTrigger>
+          <TooltipContent side="bottom">Close panel (⌘W)</TooltipContent>
+        </Tooltip>
+      )}
     </div>
   );
 }
@@ -177,13 +226,14 @@ export function Workspace({ children }: { children: React.ReactNode }) {
                   )}
                   onClick={() => focusPanel(panel.id)}
                 >
-                  {panels.length > 1 && (
-                    <PanelHeader
-                      panel={panel}
-                      isFocused={panel.id === focusedPanelId}
-                      onClose={() => closePanel(panel.id)}
-                    />
-                  )}
+                  <PanelHeader
+                    panel={panel}
+                    isFocused={panel.id === focusedPanelId}
+                    panelIndex={i}
+                    panelCount={panels.length}
+                    onSplit={() => openNewSession(panel.projectSlug)}
+                    onClose={() => closePanel(panel.id)}
+                  />
                   <SessionPane
                     sessionId={panel.sessionId}
                     projectSlug={panel.projectSlug}

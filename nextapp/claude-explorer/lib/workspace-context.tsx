@@ -250,9 +250,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       // Cmd+\: split — open new panel alongside current
       if (e.key === "\\" && state.panels.length > 0) {
         e.preventDefault();
-        const current = state.panels.find(
-          (p) => p.id === state.focusedPanelId
-        );
+        const current = state.panels.find((p) => p.id === state.focusedPanelId);
         openNewSession(current?.projectSlug);
         return;
       }
@@ -272,7 +270,13 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [state.panels, state.focusedPanelId, closePanel, focusPanel, openNewSession]);
+  }, [
+    state.panels,
+    state.focusedPanelId,
+    closePanel,
+    focusPanel,
+    openNewSession,
+  ]);
 
   // ── Context value ──────────────────────────────────────────────────────
 
