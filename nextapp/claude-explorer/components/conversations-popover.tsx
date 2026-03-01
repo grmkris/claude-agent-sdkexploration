@@ -23,7 +23,7 @@ import { getTimeAgo } from "@/lib/utils";
 export function ConversationsPopover({
   trigger,
 }: {
-  trigger: React.ReactNode;
+  trigger: React.ReactElement;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -99,7 +99,7 @@ export function ConversationsPopover({
 
   return (
     <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
-      <PopoverTrigger asChild>{trigger}</PopoverTrigger>
+      <PopoverTrigger render={trigger} />
       <PopoverContent align="center" className="w-96 p-0" sideOffset={4}>
         {/* Header */}
         <div className="flex items-center justify-between border-b px-3 py-2">
