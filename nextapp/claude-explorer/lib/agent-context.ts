@@ -322,6 +322,17 @@ export async function buildAgentContext(
   // Agent source
   lines.push(`Agent source: ${opts.source}`);
 
+  // Port safety — prevent agent dev servers from colliding with the API
+  const apiPort = process.env.PORT ?? "41920";
+  lines.push("");
+  lines.push(
+    `IMPORTANT: This machine's management API runs on port ${apiPort}. ` +
+      `Do NOT start any server on this port — doing so will crash the host service. ` +
+      `When starting development servers, always set an explicit port (e.g. --port 9000, -p 9001). ` +
+      `Avoid common default ports (3000, 8080, 5173, 4200, 8000) as other services may use them. ` +
+      `Use ports in the range 9000-9999 for your dev servers.`
+  );
+
   // Extra context
   if (opts.extraContext) {
     lines.push("", opts.extraContext);

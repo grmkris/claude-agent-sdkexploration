@@ -146,7 +146,7 @@ export RPC_INTERNAL_TOKEN=$(head -c 32 /dev/urandom | base64 | tr -d '/+=' | hea
 MCP_NAME="${INSTANCE_NAME:-claude-explorer}"
 su bun -c "claude mcp remove -s user $MCP_NAME" 2>/dev/null || true
 su bun -c "claude mcp add -s user $MCP_NAME \
-  -e EXPLORER_BASE_URL=http://localhost:${PORT:-3000} \
+  -e EXPLORER_BASE_URL=http://localhost:${PORT:-41920} \
   -e RPC_INTERNAL_TOKEN=${RPC_INTERNAL_TOKEN} \
   -- bun /app/tools/explorer-server.ts" 2>/dev/null || true
 
@@ -162,7 +162,7 @@ cd /app
 su bun -c "bun cron-worker.ts" &
 CRON_PID=$!
 
-su bun -c "bun --bun next start -p ${PORT:-3000}" &
+su bun -c "bun --bun next start -p ${PORT:-41920}" &
 NEXT_PID=$!
 
 # Trap signals to shut down all

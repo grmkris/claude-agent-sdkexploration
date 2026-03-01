@@ -12,7 +12,7 @@ import { registerAllTools } from "./mcp/orpc-to-mcp";
 
 const baseUrl =
   process.env.EXPLORER_BASE_URL ??
-  `http://localhost:${process.env.PORT ?? 3000}`;
+  `http://localhost:${process.env.PORT ?? 41920}`;
 const rpcToken = process.env.RPC_INTERNAL_TOKEN;
 const link = new RPCLink({
   url: process.env.EXPLORER_RPC_URL ?? `${baseUrl}/rpc`,

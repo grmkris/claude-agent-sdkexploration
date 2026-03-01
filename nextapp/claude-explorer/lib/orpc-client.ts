@@ -9,7 +9,7 @@ const link = new RPCLink({
   url:
     typeof window !== "undefined"
       ? `${window.location.origin}/rpc`
-      : "http://localhost:3000/rpc",
+      : `http://localhost:${process.env.PORT ?? 41920}/rpc`,
 });
 
 export const client: RouterClient<typeof router> = createORPCClient(link);

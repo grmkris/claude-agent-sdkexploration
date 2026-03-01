@@ -2291,7 +2291,7 @@ const webhookSetupInstructionsProc = os
 
     const baseUrl =
       process.env.EXPLORER_BASE_URL ??
-      `http://localhost:${process.env.PORT ?? 3000}`;
+      `http://localhost:${process.env.PORT ?? 41920}`;
     const webhookUrl = `${baseUrl}/api/webhooks/${webhook.id}`;
 
     const catalog = getCatalog(webhook.provider);
@@ -2395,7 +2395,7 @@ const createWebhookForIntegrationProc = os
 
     const baseUrl =
       process.env.EXPLORER_BASE_URL ??
-      `http://localhost:${process.env.PORT ?? 3000}`;
+      `http://localhost:${process.env.PORT ?? 41920}`;
     const webhookUrl = `${baseUrl}/api/webhooks/${webhook.id}`;
 
     // Attempt auto-creation

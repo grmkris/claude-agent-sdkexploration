@@ -105,10 +105,10 @@ ENV NODE_ENV=production
 ENV HOSTNAME=0.0.0.0
 ENV CLAUDE_CONFIG_DIR=/home/bun/.claude
 
-EXPOSE 3000
+EXPOSE 41920
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD curl -f http://localhost:3000/login || exit 1
+    CMD curl -f http://localhost:${PORT:-41920}/login || exit 1
 
 USER root
 ENTRYPOINT ["dumb-init", "--"]

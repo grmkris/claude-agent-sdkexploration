@@ -34,7 +34,7 @@ export function buildExplorerMcpConfig(): {
   const explorerServerPath = join(process.cwd(), "tools", "explorer-server.ts");
   const baseUrl =
     process.env.EXPLORER_BASE_URL ??
-    `http://localhost:${process.env.PORT ?? 3000}`;
+    `http://localhost:${process.env.PORT ?? 41920}`;
 
   return {
     name: process.env.INSTANCE_NAME ?? "claude-explorer",
