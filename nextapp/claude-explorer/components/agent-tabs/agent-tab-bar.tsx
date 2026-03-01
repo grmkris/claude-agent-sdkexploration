@@ -7,7 +7,6 @@ import type { LiveSession } from "@/components/resume-session-popover";
 
 import { ArchiveChatButton } from "@/components/archive-chat-button";
 import { ACTIVE_STATES, formatTokens } from "@/components/context-bar";
-import { ConversationsPopover } from "@/components/conversations-popover";
 import { RightSidebarTrigger } from "@/components/ui/right-sidebar-trigger";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import {
@@ -15,6 +14,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { useCommandPalette } from "@/lib/command-palette-context";
 import { orpc } from "@/lib/orpc";
 import { useCompact } from "@/lib/session-compact-context";
 import { useWorkspace } from "@/lib/workspace-context";
@@ -191,13 +191,6 @@ export function AgentTabBar() {
 
   const { data: projects = [] } = useQuery(orpc.projects.list.queryOptions());
 
-  const { data: recentSessions = [] } = useQuery({
-    ...orpc.sessions.timeline.queryOptions({
-      input: { limit: 50 },
-    }),
-    refetchInterval: 15_000,
-  });
-
   // Build session state map
   const sessionStateMap = React.useMemo(() => {
     const map = new Map<string, LiveSession>();
@@ -260,36 +253,12 @@ export function AgentTabBar() {
     }
   }, [tabs, sessionStateMap, updateTabTitle]);
 
-  // Build list of project slugs that appear in recent sessions (for filter chips)
-  const projectsWithSessions = React.useMemo(() => {
-    const slugs = new Set<string>();
-    for (const s of recentSessions) {
-      if (s.projectSlug) slugs.add(s.projectSlug);
-    }
-    for (const s of liveSessions as LiveSession[]) {
-      if (s.project_path) {
-        const proj = projects.find(
-          (p) =>
-            s.project_path === p.path ||
-            s.project_path?.startsWith(p.path + "/")
-        );
-        if (proj) slugs.add(proj.slug);
-      }
-    }
-    return Array.from(slugs).sort();
-  }, [recentSessions, liveSessions, projects]);
-
   // Mobile: delegate
   if (isMobile) {
-    return (
-      <AgentTabMobile
-        sessionStateMap={sessionStateMap}
-        recentSessions={recentSessions}
-        projects={projects}
-        projectsWithSessions={projectsWithSessions}
-      />
-    );
+    return <AgentTabMobile />;
   }
+
+  const { setOpen: openCommandPalette } = useCommandPalette();
 
   const activeCount = (liveSessions as LiveSession[]).filter(
     (s) => s.state !== "done" && s.state !== "stopped" && s.state !== "error"
@@ -297,8 +266,9 @@ export function AgentTabBar() {
 
   const isSessionTab = activeTab?.type === "session" && !!activeTab.sessionId;
 
-  const popoverTrigger = (
+  const conversationsButton = (
     <button
+      onClick={() => openCommandPalette(true)}
       className={[
         isSessionTab
           ? "flex shrink-0 items-center gap-1 border-r border-border/50 px-2.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
@@ -337,14 +307,14 @@ export function AgentTabBar() {
       {/* CENTER */}
       {isSessionTab ? (
         <div className="flex flex-1 items-stretch overflow-hidden">
-          <ConversationsPopover trigger={popoverTrigger} />
+          {conversationsButton}
           <SessionInfoBar
             sessionId={activeTab.sessionId!}
             projectSlug={activeTab.projectSlug}
           />
         </div>
       ) : (
-        <ConversationsPopover trigger={popoverTrigger} />
+        conversationsButton
       )}
 
       {/* RIGHT: right sidebar trigger (mobile only) */}

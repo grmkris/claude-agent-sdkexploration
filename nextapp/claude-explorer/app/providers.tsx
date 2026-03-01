@@ -6,6 +6,7 @@ import { Suspense, useState } from "react";
 import { AgentTabProvider } from "@/components/agent-tabs/tab-context";
 import { ContextTrayProvider } from "@/components/context-tray/context-tray-context";
 import { useLiveUpdates } from "@/hooks/use-live-updates";
+import { CommandPaletteProvider } from "@/lib/command-palette-context";
 import { CompactProvider } from "@/lib/session-compact-context";
 import { WorkspaceProvider } from "@/lib/workspace-context";
 
@@ -39,7 +40,9 @@ export function Providers({
           <CompactProvider>
             <Suspense>
               <WorkspaceProvider>
-                <ContextTrayProvider>{children}</ContextTrayProvider>
+                <CommandPaletteProvider>
+                  <ContextTrayProvider>{children}</ContextTrayProvider>
+                </CommandPaletteProvider>
               </WorkspaceProvider>
             </Suspense>
           </CompactProvider>

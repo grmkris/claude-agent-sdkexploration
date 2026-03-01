@@ -8,10 +8,6 @@ import * as React from "react";
 
 import { ArchiveChatButton } from "@/components/archive-chat-button";
 import { ACTIVE_STATES, formatTokens } from "@/components/context-bar";
-import {
-  ConversationsPopover,
-  useActiveCount,
-} from "@/components/conversations-popover";
 import { SessionPane } from "@/components/session-pane";
 import {
   ResizableHandle,
@@ -25,7 +21,9 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { useActiveCount } from "@/hooks/use-active-count";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useCommandPalette } from "@/lib/command-palette-context";
 import { orpc } from "@/lib/orpc";
 import { useCompact } from "@/lib/session-compact-context";
 import { cn } from "@/lib/utils";
@@ -89,6 +87,7 @@ function PanelHeader({
 }) {
   const { onCompact } = useCompact();
   const activeCount = useActiveCount();
+  const { setOpen: openCommandPalette } = useCommandPalette();
 
   const { data } = useQuery({
     ...orpc.liveState.session.queryOptions({
@@ -127,28 +126,27 @@ function PanelHeader({
         isFocused ? "h-8 bg-muted/50 border-b-primary/20" : "h-8 bg-background"
       )}
     >
-      {/* Conversations popover trigger (focused panel only) */}
+      {/* Command palette trigger (focused panel only) */}
       {isFocused && (
-        <ConversationsPopover
-          trigger={
-            <button
-              onClick={(e) => e.stopPropagation()}
-              className={cn(
-                "flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-xs text-muted-foreground transition-colors hover:text-foreground",
-                activeCount === 0 && "opacity-40"
-              )}
-            >
-              {activeCount > 0 ? (
-                <>
-                  <span className="inline-block h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
-                  <span>{activeCount}</span>
-                </>
-              ) : (
-                <span className="text-[10px]">☰</span>
-              )}
-            </button>
-          }
-        />
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            openCommandPalette(true);
+          }}
+          className={cn(
+            "flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-xs text-muted-foreground transition-colors hover:text-foreground",
+            activeCount === 0 && "opacity-40"
+          )}
+        >
+          {activeCount > 0 ? (
+            <>
+              <span className="inline-block h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
+              <span>{activeCount}</span>
+            </>
+          ) : (
+            <span className="text-[10px]">☰</span>
+          )}
+        </button>
       )}
 
       {/* Activity dot */}

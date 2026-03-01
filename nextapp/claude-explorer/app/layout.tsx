@@ -8,12 +8,12 @@ import Script from "next/script";
 
 import { ConditionalAgentTabBar } from "@/components/conditional-agent-tab-bar";
 import { ContextTray } from "@/components/context-tray/context-tray";
-import { GlobalSearch } from "@/components/global-search";
 import { ProjectSidebar } from "@/components/project-sidebar";
 import { RightSidebar } from "@/components/right-sidebar";
 import { RightSidebarProvider } from "@/components/ui/right-sidebar-context";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { UnifiedCommandPalette } from "@/components/unified-command-palette";
 import { Workspace } from "@/components/workspace";
 
 import { Providers } from "./providers";
@@ -65,7 +65,7 @@ export default async function RootLayout({
       >
         <Providers tabBarVisible={tabBarVisible}>
           <TooltipProvider>
-            <GlobalSearch />
+            <UnifiedCommandPalette />
             <ContextTray />
             <SidebarProvider defaultOpen={leftSidebarOpen}>
               <RightSidebarProvider defaultOpen={rightSidebarOpen}>
