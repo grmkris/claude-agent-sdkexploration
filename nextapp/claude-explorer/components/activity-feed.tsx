@@ -19,6 +19,7 @@ import type {
 import { ActivityDetailSheet } from "@/components/activity-detail-sheet";
 import { CommitItem } from "@/components/activity-items/commit-item";
 import { CronEventItem } from "@/components/activity-items/cron-event-item";
+import { DeploymentItem } from "@/components/activity-items/deployment-item";
 import { EmailEventItem } from "@/components/activity-items/email-event-item";
 import { TicketItem } from "@/components/activity-items/ticket-item";
 import { WebhookEventItem } from "@/components/activity-items/webhook-event-item";
@@ -779,12 +780,21 @@ export function ActivityFeed({
     });
   }, [allItems, activeTypes, activeTicketStatuses]);
 
-  // Deployments are always suppressed as standalone rows — they surface inline
-  // on commit rows as clickable badges. No separate absorbed-ids logic needed.
+  // Deployments that match a commit show inline as badges on that commit row.
+  // Orphaned deployments (commit hash not in git log, e.g. after force-push)
+  // are kept as standalone rows so Railway activity is always visible.
 
   const groupedItems = useMemo(
-    () => groupByDate(filteredItems.filter((i) => i.type !== "deployment")),
-    [filteredItems]
+    () =>
+      groupByDate(
+        filteredItems.filter((i) => {
+          if (i.type !== "deployment") return true;
+          // Keep deployment as standalone row only if it has no matching commit
+          const raw = i.raw as DeploymentRaw;
+          return !deploymentToCommit.has(raw.id);
+        })
+      ),
+    [filteredItems, deploymentToCommit]
   );
 
   // ── Chat handler ─────────────────────────────────────────────────────────
@@ -1134,6 +1144,17 @@ export function ActivityFeed({
                               raw,
                             })
                           }
+                        />
+                      );
+                    }
+                    case "deployment": {
+                      const raw = item.raw as DeploymentRaw;
+                      return (
+                        <DeploymentItem
+                          key={item.id}
+                          raw={raw}
+                          onStartChat={() => handleStartChat(item)}
+                          relatedCommit={deploymentToCommit.get(raw.id)}
                         />
                       );
                     }

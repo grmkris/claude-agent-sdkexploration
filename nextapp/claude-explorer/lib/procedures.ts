@@ -860,51 +860,54 @@ const chatProc = os
                 const homedir = (await import("node:os")).homedir();
                 const plansDir = join(homedir, ".claude", "plans");
 
-                // 1. Explicit path in tool input
+                // Collect ALL candidate plan files with their mtimes,
+                // then pick the most recently modified one. This avoids
+                // the old 60-second heuristic which missed plans when
+                // the agent took longer to explore, and the uppercase-only
+                // cwd/PLAN.md fallback which picked up stale files.
+                const candidates: Array<{ path: string; mtimeMs: number }> = [];
+
+                // 1. Explicit path from tool input (forward-compat)
                 const explicitPath =
                   (typedInput.planFilePath as string | undefined) ??
                   (typedInput.plan_file_path as string | undefined);
                 if (explicitPath) {
-                  planText = await readFile(explicitPath, "utf-8").catch(
-                    () => ""
-                  );
-                  if (planText) planFilePath = explicitPath;
+                  const s = await fsStat(explicitPath).catch(() => null);
+                  if (s)
+                    candidates.push({ path: explicitPath, mtimeMs: s.mtimeMs });
                 }
 
-                // 2. Most recently modified plan file (written ≤ 60 s ago)
-                if (!planText) {
-                  try {
-                    const now = Date.now();
-                    const files = await readdir(plansDir);
-                    const mdFiles = files.filter((f) => f.endsWith(".md"));
-                    const stats = await Promise.all(
-                      mdFiles.map(async (f) => ({
-                        name: f,
-                        mtimeMs: (await fsStat(join(plansDir, f))).mtimeMs,
-                      }))
-                    );
-                    // Sort newest first
-                    stats.sort((a, b) => b.mtimeMs - a.mtimeMs);
-                    const recent = stats.find((s) => now - s.mtimeMs < 60_000);
-                    if (recent) {
-                      const resolvedPath = join(plansDir, recent.name);
-                      planText = await readFile(resolvedPath, "utf-8").catch(
-                        () => ""
-                      );
-                      if (planText) planFilePath = resolvedPath;
-                    }
-                  } catch {
-                    // ~/.claude/plans/ may not exist — that's fine
+                // 2. ALL .md files in ~/.claude/plans/ (no time cutoff)
+                try {
+                  const files = await readdir(plansDir);
+                  const mdFiles = files.filter((f) => f.endsWith(".md"));
+                  const fileStats = await Promise.all(
+                    mdFiles.map(async (f) => {
+                      const p = join(plansDir, f);
+                      const s = await fsStat(p).catch(() => null);
+                      return s ? { path: p, mtimeMs: s.mtimeMs } : null;
+                    })
+                  );
+                  for (const s of fileStats) if (s) candidates.push(s);
+                } catch {
+                  // ~/.claude/plans/ may not exist — that's fine
+                }
+
+                // 3. Check both PLAN.md and plan.md in cwd
+                if (input.cwd) {
+                  for (const name of ["PLAN.md", "plan.md"]) {
+                    const p = join(input.cwd, name);
+                    const s = await fsStat(p).catch(() => null);
+                    if (s) candidates.push({ path: p, mtimeMs: s.mtimeMs });
                   }
                 }
 
-                // 3. Legacy cwd/PLAN.md fallback
-                if (!planText && input.cwd) {
-                  const legacyPath = join(input.cwd, "PLAN.md");
-                  planText = await readFile(legacyPath, "utf-8").catch(
-                    () => ""
-                  );
-                  if (planText) planFilePath = legacyPath;
+                // Pick the most recently modified candidate
+                candidates.sort((a, b) => b.mtimeMs - a.mtimeMs);
+                if (candidates.length > 0) {
+                  const best = candidates[0];
+                  planText = await readFile(best.path, "utf-8").catch(() => "");
+                  if (planText) planFilePath = best.path;
                 }
               }
 
@@ -2023,7 +2026,7 @@ const rootChatProc = os
                 }
               }
 
-              // Scan ~/.claude/plans/ for the most recently modified plan file,
+              // Scan for the most recently modified plan file,
               // or reuse persisted plan text if this is a resume.
               let planText = storedPlan?.planText ?? "";
               let planFilePath = storedPlan?.planFilePath ?? "";
@@ -2036,41 +2039,42 @@ const rootChatProc = os
                 const homedir = (await import("node:os")).homedir();
                 const plansDir = join(homedir, ".claude", "plans");
 
-                // 1. Explicit path in tool input
+                // Collect ALL candidate plan files with their mtimes,
+                // then pick the most recently modified one.
+                const candidates: Array<{ path: string; mtimeMs: number }> = [];
+
+                // 1. Explicit path from tool input (forward-compat)
                 const explicitPath =
                   (typedInput.planFilePath as string | undefined) ??
                   (typedInput.plan_file_path as string | undefined);
                 if (explicitPath) {
-                  planText = await readFile(explicitPath, "utf-8").catch(
-                    () => ""
-                  );
-                  if (planText) planFilePath = explicitPath;
+                  const s = await fsStat(explicitPath).catch(() => null);
+                  if (s)
+                    candidates.push({ path: explicitPath, mtimeMs: s.mtimeMs });
                 }
 
-                // 2. Most recently modified plan file (written ≤ 60 s ago)
-                if (!planText) {
-                  try {
-                    const now = Date.now();
-                    const files = await readdir(plansDir);
-                    const mdFiles = files.filter((f) => f.endsWith(".md"));
-                    const stats = await Promise.all(
-                      mdFiles.map(async (f) => ({
-                        name: f,
-                        mtimeMs: (await fsStat(join(plansDir, f))).mtimeMs,
-                      }))
-                    );
-                    stats.sort((a, b) => b.mtimeMs - a.mtimeMs);
-                    const recent = stats.find((s) => now - s.mtimeMs < 60_000);
-                    if (recent) {
-                      const resolvedPath = join(plansDir, recent.name);
-                      planText = await readFile(resolvedPath, "utf-8").catch(
-                        () => ""
-                      );
-                      if (planText) planFilePath = resolvedPath;
-                    }
-                  } catch {
-                    // ~/.claude/plans/ may not exist — that's fine
-                  }
+                // 2. ALL .md files in ~/.claude/plans/ (no time cutoff)
+                try {
+                  const files = await readdir(plansDir);
+                  const mdFiles = files.filter((f) => f.endsWith(".md"));
+                  const fileStats = await Promise.all(
+                    mdFiles.map(async (f) => {
+                      const p = join(plansDir, f);
+                      const s = await fsStat(p).catch(() => null);
+                      return s ? { path: p, mtimeMs: s.mtimeMs } : null;
+                    })
+                  );
+                  for (const s of fileStats) if (s) candidates.push(s);
+                } catch {
+                  // ~/.claude/plans/ may not exist — that's fine
+                }
+
+                // Pick the most recently modified candidate
+                candidates.sort((a, b) => b.mtimeMs - a.mtimeMs);
+                if (candidates.length > 0) {
+                  const best = candidates[0];
+                  planText = await readFile(best.path, "utf-8").catch(() => "");
+                  if (planText) planFilePath = best.path;
                 }
               }
 
