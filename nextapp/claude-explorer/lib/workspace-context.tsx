@@ -79,7 +79,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
   const searchParams = useSearchParams();
   const [state, setState] = React.useState<WorkspaceState>(EMPTY_STATE);
 
-  const hydrated = React.useRef(false);
+  const [isHydrated, setIsHydrated] = React.useState(false);
   const lastSyncedUrl = React.useRef<string | null>(null);
 
   const hasPanels = state.panels.length > 0;
@@ -102,17 +102,17 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
             activeGroupName: group.name,
           });
         }
-        hydrated.current = true;
+        setIsHydrated(true);
       })
       .catch(() => {
-        hydrated.current = true;
+        setIsHydrated(true);
       });
   }, []);
 
   // ── URL sync effect — fixes navigation bug ────────────────────────────
 
   React.useEffect(() => {
-    if (!hydrated.current) return;
+    if (!isHydrated) return;
 
     const url =
       pathname + (searchParams.toString() ? `?${searchParams.toString()}` : "");
@@ -147,7 +147,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       replaceNewSession();
       return;
     }
-  }, [pathname, searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [pathname, searchParams, isHydrated]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Helper: sync session add to active group ───────────────────────────
 
