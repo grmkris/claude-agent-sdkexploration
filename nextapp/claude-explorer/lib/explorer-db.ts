@@ -862,9 +862,7 @@ export function getWorkspaceGroup(
 
 export function renameWorkspaceGroup(id: string, name: string): void {
   getDB()
-    .query(
-      "UPDATE workspace_groups SET name = ?, updated_at = ? WHERE id = ?"
-    )
+    .query("UPDATE workspace_groups SET name = ?, updated_at = ? WHERE id = ?")
     .run(name, new Date().toISOString(), id);
 }
 

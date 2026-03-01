@@ -32,6 +32,8 @@ type WorkspaceContextProps = {
   openSession: (sessionId: string, projectSlug?: string) => void;
   /** Additive — adds new-session panel alongside existing ones */
   openNewSession: (projectSlug?: string) => string; // returns panelId
+  /** Additive — adds panel, auto-creates group when going multi-panel */
+  openNewPanel: (projectSlug?: string) => string; // returns panelId
   /** Replace — clears all panels, shows single session */
   replaceSession: (sessionId: string, projectSlug?: string) => void;
   /** Replace — clears all panels, shows single new session */
@@ -55,7 +57,12 @@ const STORAGE_KEY = "workspace-panels-v2";
 
 function loadState(): WorkspaceState {
   if (typeof window === "undefined")
-    return { panels: [], focusedPanelId: null, activeGroupId: null, activeGroupName: null };
+    return {
+      panels: [],
+      focusedPanelId: null,
+      activeGroupId: null,
+      activeGroupName: null,
+    };
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
@@ -68,7 +75,12 @@ function loadState(): WorkspaceState {
       };
     }
   } catch {}
-  return { panels: [], focusedPanelId: null, activeGroupId: null, activeGroupName: null };
+  return {
+    panels: [],
+    focusedPanelId: null,
+    activeGroupId: null,
+    activeGroupName: null,
+  };
 }
 
 function saveState(state: WorkspaceState) {
@@ -112,7 +124,9 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
   const syncRemoveFromGroup = React.useCallback(
     (groupId: string | null, sessionId: string | null) => {
       if (!groupId || !sessionId) return;
-      client.workspaceGroups.removeSession({ groupId, sessionId }).catch(() => {});
+      client.workspaceGroups
+        .removeSession({ groupId, sessionId })
+        .catch(() => {});
     },
     []
   );
@@ -164,6 +178,71 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       saveState(next);
       return next;
     });
+    return panelId;
+  }, []);
+
+  const openNewPanel = React.useCallback((projectSlug?: string): string => {
+    const panelId = crypto.randomUUID();
+    let shouldCreateGroup = false;
+    let existingSessions: string[] = [];
+    let groupName = "";
+
+    setState((prev) => {
+      const newPanel: WorkspacePanel = {
+        id: panelId,
+        sessionId: null,
+        projectSlug,
+      };
+      const newPanels = [...prev.panels, newPanel];
+
+      if (prev.panels.length >= 1 && !prev.activeGroupId) {
+        shouldCreateGroup = true;
+        groupName = `Workspace ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+        existingSessions = prev.panels
+          .filter((p) => p.sessionId)
+          .map((p) => p.sessionId!);
+
+        const next: WorkspaceState = {
+          panels: newPanels,
+          focusedPanelId: newPanel.id,
+          activeGroupId: null,
+          activeGroupName: groupName,
+        };
+        saveState(next);
+        return next;
+      }
+
+      const next = {
+        ...prev,
+        panels: newPanels,
+        focusedPanelId: newPanel.id,
+      };
+      saveState(next);
+      return next;
+    });
+
+    if (shouldCreateGroup) {
+      client.workspaceGroups
+        .create({ name: groupName })
+        .then(({ id: groupId }) => {
+          existingSessions.forEach((sid, i) => {
+            client.workspaceGroups
+              .addSession({ groupId, sessionId: sid, position: i })
+              .catch(() => {});
+          });
+          setState((current) => {
+            const next = {
+              ...current,
+              activeGroupId: groupId,
+              activeGroupName: groupName,
+            };
+            saveState(next);
+            return next;
+          });
+        })
+        .catch(() => {});
+    }
+
     return panelId;
   }, []);
 
@@ -298,30 +377,33 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
 
   // ── Group operations ──────────────────────────────────────────────────
 
-  const loadGroup = React.useCallback(async (groupId: string, projectSlug?: string) => {
-    const group = await client.workspaceGroups.get({ id: groupId });
-    if (!group) return;
+  const loadGroup = React.useCallback(
+    async (groupId: string, projectSlug?: string) => {
+      const group = await client.workspaceGroups.get({ id: groupId });
+      if (!group) return;
 
-    const panels: WorkspacePanel[] = group.sessions.map((s) => ({
-      id: crypto.randomUUID(),
-      sessionId: s.sessionId,
-      projectSlug,
-    }));
+      const panels: WorkspacePanel[] = group.sessions.map((s) => ({
+        id: crypto.randomUUID(),
+        sessionId: s.sessionId,
+        projectSlug,
+      }));
 
-    // Ensure at least one panel
-    if (panels.length === 0) {
-      panels.push({ id: crypto.randomUUID(), sessionId: null });
-    }
+      // Ensure at least one panel
+      if (panels.length === 0) {
+        panels.push({ id: crypto.randomUUID(), sessionId: null });
+      }
 
-    const next: WorkspaceState = {
-      panels,
-      focusedPanelId: panels[0].id,
-      activeGroupId: group.id,
-      activeGroupName: group.name,
-    };
-    setState(next);
-    saveState(next);
-  }, []);
+      const next: WorkspaceState = {
+        panels,
+        focusedPanelId: panels[0].id,
+        activeGroupId: group.id,
+        activeGroupName: group.name,
+      };
+      setState(next);
+      saveState(next);
+    },
+    []
+  );
 
   const clearGroup = React.useCallback(() => {
     setState((prev) => {
@@ -378,7 +460,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       if (e.key === "\\" && state.panels.length > 0) {
         e.preventDefault();
         const current = state.panels.find((p) => p.id === state.focusedPanelId);
-        openNewSession(current?.projectSlug);
+        openNewPanel(current?.projectSlug);
         return;
       }
 
@@ -402,7 +484,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     state.focusedPanelId,
     closePanel,
     focusPanel,
-    openNewSession,
+    openNewPanel,
   ]);
 
   // ── Context value ──────────────────────────────────────────────────────
@@ -416,6 +498,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       activeGroupName: state.activeGroupName,
       openSession,
       openNewSession,
+      openNewPanel,
       replaceSession,
       replaceNewSession,
       closePanel,
@@ -433,6 +516,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       state.activeGroupName,
       openSession,
       openNewSession,
+      openNewPanel,
       replaceSession,
       replaceNewSession,
       closePanel,

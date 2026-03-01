@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import * as React from "react";
 
 import type { LiveSession } from "@/components/resume-session-popover";
+
 import { StateBadgeInline } from "@/components/session-state-badge";
 import {
   Popover,

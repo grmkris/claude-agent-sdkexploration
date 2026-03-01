@@ -1,7 +1,7 @@
 "use client";
 
-import { Suspense, useEffect, useRef } from "react";
 import { useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useRef } from "react";
 
 import { useWorkspace } from "@/lib/workspace-context";
 

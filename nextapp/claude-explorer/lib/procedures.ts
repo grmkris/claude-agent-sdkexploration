@@ -3755,9 +3755,7 @@ const searchProc = os
 // --- Workspace Groups ---
 
 const listWorkspaceGroupsProc = os
-  .input(
-    z.object({ projectPath: z.string().optional() }).optional()
-  )
+  .input(z.object({ projectPath: z.string().optional() }).optional())
   .output(z.array(WorkspaceGroupSchema))
   .handler(async ({ input }) => {
     const rows = dbListWorkspaceGroups(input?.projectPath);

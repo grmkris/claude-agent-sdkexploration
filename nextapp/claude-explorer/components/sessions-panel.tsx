@@ -3,7 +3,6 @@
 import type { IconSvgElement } from "@hugeicons/react";
 
 import {
-  Add01Icon,
   Archive01Icon,
   ArchiveIcon,
   ArrowDown01Icon,
@@ -299,9 +298,7 @@ function WorkspaceGroupsSection({
   projectSlug?: string;
 }) {
   const queryClient = useQueryClient();
-  const { activeGroupId, loadGroup, saveAsGroup, panels } = useWorkspace();
-  const [creating, setCreating] = useState(false);
-  const [newName, setNewName] = useState("");
+  const { activeGroupId, loadGroup } = useWorkspace();
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
 
@@ -310,21 +307,6 @@ function WorkspaceGroupsSection({
       input: projectPath ? { projectPath } : {},
     }),
     refetchInterval: 15_000,
-  });
-
-  const createMutation = useMutation({
-    ...orpc.workspaceGroups.create.mutationOptions(),
-    onSuccess: (result) => {
-      void queryClient.invalidateQueries({
-        queryKey: orpc.workspaceGroups.list.queryOptions({
-          input: projectPath ? { projectPath } : {},
-        }).queryKey,
-      });
-      setCreating(false);
-      setNewName("");
-      // Auto-load the newly created group
-      void loadGroup(result.id, projectSlug);
-    },
   });
 
   const deleteMutation = useMutation({
@@ -351,8 +333,6 @@ function WorkspaceGroupsSection({
     },
   });
 
-  const hasSessions = panels.some((p) => p.sessionId);
-
   if (isLoading && groups.length === 0) return null;
 
   return (
@@ -361,87 +341,7 @@ function WorkspaceGroupsSection({
         <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
           Workspace Groups
         </span>
-        <div className="flex items-center gap-1">
-          {/* Save current panels as group */}
-          {hasSessions && !activeGroupId && (
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    <button
-                      onClick={async () => {
-                        const name = `Group ${groups.length + 1}`;
-                        await saveAsGroup(name, projectPath);
-                        void queryClient.invalidateQueries({
-                          queryKey: orpc.workspaceGroups.list.queryOptions({
-                            input: projectPath ? { projectPath } : {},
-                          }).queryKey,
-                        });
-                      }}
-                      className="rounded p-0.5 text-muted-foreground/60 hover:text-foreground transition-colors"
-                    />
-                  }
-                >
-                  <HugeiconsIcon icon={Folder01Icon} size={12} />
-                </TooltipTrigger>
-                <TooltipContent side="left" className="text-xs">
-                  Save panels as group
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          )}
-          {/* New group button */}
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <button
-                    onClick={() => setCreating(true)}
-                    className="rounded p-0.5 text-muted-foreground/60 hover:text-foreground transition-colors"
-                  />
-                }
-              >
-                <HugeiconsIcon icon={Add01Icon} size={12} />
-              </TooltipTrigger>
-              <TooltipContent side="left" className="text-xs">
-                New group
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        </div>
       </div>
-
-      {/* Create new group input */}
-      {creating && (
-        <div className="px-3 pb-1.5 flex items-center gap-1">
-          <input
-            type="text"
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            placeholder="Group name..."
-            className="flex-1 min-w-0 rounded border border-border bg-background px-1.5 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
-            autoFocus
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && newName.trim()) {
-                createMutation.mutate({ name: newName.trim(), projectPath });
-              }
-              if (e.key === "Escape") {
-                setCreating(false);
-                setNewName("");
-              }
-            }}
-          />
-          <button
-            onClick={() => {
-              setCreating(false);
-              setNewName("");
-            }}
-            className="rounded p-0.5 text-muted-foreground hover:text-foreground"
-          >
-            <HugeiconsIcon icon={Cancel01Icon} size={12} />
-          </button>
-        </div>
-      )}
 
       {/* Group list */}
       {groups.length > 0 && (
@@ -525,7 +425,7 @@ function WorkspaceGroupsSection({
         </SidebarMenu>
       )}
 
-      {groups.length === 0 && !creating && (
+      {groups.length === 0 && (
         <div className="px-3 pb-1 text-[10px] text-muted-foreground">
           No workspace groups yet
         </div>
@@ -773,7 +673,10 @@ export function SessionsPanel({
       }}
     >
       {/* Workspace Groups */}
-      <WorkspaceGroupsSection projectPath={resolvedProject?.path} projectSlug={filterSlug} />
+      <WorkspaceGroupsSection
+        projectPath={resolvedProject?.path}
+        projectSlug={filterSlug}
+      />
 
       {/* Root-view toolbar: project filter dropdown + group-by toggle */}
       {isRootView && (

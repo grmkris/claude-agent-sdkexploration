@@ -46,6 +46,8 @@ function PanelHeader({
   isFocused,
   panelIndex,
   panelCount,
+  groupName,
+  onDetach,
   onSplit,
   onClose,
 }: {
@@ -53,6 +55,8 @@ function PanelHeader({
   isFocused: boolean;
   panelIndex: number;
   panelCount: number;
+  groupName?: string | null;
+  onDetach?: () => void;
   onSplit: () => void;
   onClose: () => void;
 }) {
@@ -96,6 +100,34 @@ function PanelHeader({
         isFocused ? "h-9 bg-muted/50 border-b-primary/20" : "h-8 bg-background"
       )}
     >
+      {/* Group indicator (first panel only) */}
+      {panelIndex === 0 && groupName && (
+        <>
+          <div className="flex shrink-0 items-center gap-1 rounded bg-muted/60 px-1.5 py-0.5">
+            <HugeiconsIcon
+              icon={Folder01Icon}
+              size={10}
+              className="text-muted-foreground"
+            />
+            <span className="truncate text-[10px] text-muted-foreground max-w-[120px]">
+              {groupName}
+            </span>
+            {onDetach && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDetach();
+                }}
+                className="rounded-sm p-0 text-muted-foreground/50 hover:text-foreground"
+              >
+                <HugeiconsIcon icon={Cancel01Icon} size={8} />
+              </button>
+            )}
+          </div>
+          <span className="text-muted-foreground/30">|</span>
+        </>
+      )}
+
       {/* Conversations popover trigger (focused panel only) */}
       {isFocused && (
         <ConversationsPopover
@@ -203,13 +235,13 @@ function PanelHeader({
                 onSplit();
               }}
               className={btnClass}
-              aria-label="Split view"
+              aria-label="Add panel"
             />
           }
         >
           <HugeiconsIcon icon={Add01Icon} size={12} />
         </TooltipTrigger>
-        <TooltipContent side="bottom">Split view (⌘\)</TooltipContent>
+        <TooltipContent side="bottom">Add panel (⌘\)</TooltipContent>
       </Tooltip>
 
       {/* Close button (multi-panel only) */}
@@ -240,99 +272,18 @@ function PanelHeader({
 // Workspace — the main horizontally scrolling multi-panel view
 // ---------------------------------------------------------------------------
 
-// ---------------------------------------------------------------------------
-// GroupBar — shows active group name above panels
-// ---------------------------------------------------------------------------
-
-function GroupBar() {
-  const { activeGroupId, activeGroupName, clearGroup, saveAsGroup, panels } =
-    useWorkspace();
-  const [saving, setSaving] = React.useState(false);
-  const [saveName, setSaveName] = React.useState("");
-
-  const hasSessions = panels.some((p) => p.sessionId);
-
-  if (activeGroupId) {
-    return (
-      <div className="flex h-7 shrink-0 items-center gap-1.5 border-b border-border/50 bg-muted/30 px-3 text-xs">
-        <HugeiconsIcon
-          icon={Folder01Icon}
-          size={12}
-          className="text-muted-foreground"
-        />
-        <span className="truncate text-muted-foreground">
-          {activeGroupName ?? "Workspace Group"}
-        </span>
-        <button
-          onClick={clearGroup}
-          className="ml-auto shrink-0 rounded px-1.5 py-0.5 text-[10px] text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-        >
-          Detach
-        </button>
-      </div>
-    );
-  }
-
-  // No active group — show save option when panels have sessions
-  if (!hasSessions || panels.length < 2) return null;
-
-  if (saving) {
-    return (
-      <div className="flex h-7 shrink-0 items-center gap-1.5 border-b border-border/50 bg-muted/30 px-3 text-xs">
-        <input
-          type="text"
-          value={saveName}
-          onChange={(e) => setSaveName(e.target.value)}
-          placeholder="Group name..."
-          className="flex-1 min-w-0 bg-transparent text-xs focus:outline-none"
-          autoFocus
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && saveName.trim()) {
-              void saveAsGroup(saveName.trim());
-              setSaving(false);
-              setSaveName("");
-            }
-            if (e.key === "Escape") {
-              setSaving(false);
-              setSaveName("");
-            }
-          }}
-        />
-        <button
-          onClick={() => {
-            setSaving(false);
-            setSaveName("");
-          }}
-          className="shrink-0 rounded p-0.5 text-muted-foreground hover:text-foreground"
-        >
-          <HugeiconsIcon icon={Cancel01Icon} size={10} />
-        </button>
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex h-7 shrink-0 items-center justify-end border-b border-border/50 bg-muted/30 px-3">
-      <button
-        onClick={() => setSaving(true)}
-        className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-      >
-        <HugeiconsIcon icon={Folder01Icon} size={10} />
-        Save as group
-      </button>
-    </div>
-  );
-}
-
 export function Workspace({ children }: { children: React.ReactNode }) {
   const {
     panels,
     focusedPanelId,
     hasPanels,
+    activeGroupId,
+    activeGroupName,
     closePanel,
     focusPanel,
     updatePanelSession,
-    openNewSession,
+    openNewPanel,
+    clearGroup,
   } = useWorkspace();
   const pathname = usePathname();
 
@@ -362,12 +313,11 @@ export function Workspace({ children }: { children: React.ReactNode }) {
     _sessionId: string,
     _messageUuid: string
   ) => {
-    openNewSession(panelProjectSlug);
+    openNewPanel(panelProjectSlug);
   };
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
-      <GroupBar />
       <div className="flex flex-1 overflow-x-auto overflow-y-hidden">
         <div
           className="flex h-full"
@@ -410,7 +360,11 @@ export function Workspace({ children }: { children: React.ReactNode }) {
                       isFocused={panel.id === focusedPanelId}
                       panelIndex={i}
                       panelCount={panels.length}
-                      onSplit={() => openNewSession(panel.projectSlug)}
+                      groupName={i === 0 ? activeGroupName : null}
+                      onDetach={
+                        i === 0 && activeGroupId ? clearGroup : undefined
+                      }
+                      onSplit={() => openNewPanel(panel.projectSlug)}
                       onClose={() => closePanel(panel.id)}
                     />
                     <SessionPane
