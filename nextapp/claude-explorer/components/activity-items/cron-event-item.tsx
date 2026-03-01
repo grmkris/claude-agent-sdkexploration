@@ -31,7 +31,7 @@ export function CronEventItem({
       className="group border-b border-border/50 last:border-0 cursor-pointer"
       onClick={onOpen}
     >
-      <div className="flex items-start gap-2.5 px-3 py-2.5">
+      <div className="relative flex items-start gap-2.5 px-3 py-2.5">
         {/* Icon */}
         <div
           className={cn(
@@ -112,9 +112,9 @@ export function CronEventItem({
           </p>
         </div>
 
-        {/* Hover actions */}
+        {/* Hover actions — overlay on the right with gradient fade */}
         <div
-          className="shrink-0 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
+          className="absolute right-0 top-0 bottom-0 flex items-center gap-1 pr-2 pl-8 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none group-hover:pointer-events-auto bg-gradient-to-l from-background from-40% to-transparent"
           onClick={(e) => e.stopPropagation()}
         >
           {onAddToTray && (

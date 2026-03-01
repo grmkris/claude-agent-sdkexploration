@@ -502,11 +502,11 @@ export function GitTab({ slug }: { slug: string | null }) {
             <div>
               {gitStatus.changes.map(({ path, status }) => (
                 <div key={path}>
-                  <div className="flex items-center">
+                  <div className="group/file relative">
                     <button
                       type="button"
                       onClick={() => handleFileClick(path)}
-                      className="flex min-w-0 flex-1 items-center gap-2 px-3 py-1.5 text-left text-xs transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                      className="flex w-full min-w-0 items-center gap-2 px-3 py-1.5 text-left text-xs transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                     >
                       {statusBadge(status)}
                       <span className="min-w-0 flex-1 truncate font-mono text-[11px]">
@@ -518,7 +518,7 @@ export function GitTab({ slug }: { slug: string | null }) {
                     </button>
                     <Link
                       href={`/project/${slug}/diff/${path}`}
-                      className="shrink-0 px-2 py-1.5 text-muted-foreground transition-colors hover:text-foreground"
+                      className="absolute right-0 top-0 bottom-0 flex items-center pr-2 pl-6 text-muted-foreground transition-all opacity-0 group-hover/file:opacity-100 pointer-events-none group-hover/file:pointer-events-auto bg-gradient-to-l from-sidebar from-40% to-transparent hover:text-foreground"
                       title="Open full diff"
                     >
                       <ExternalLinkIcon />
@@ -566,11 +566,11 @@ export function GitTab({ slug }: { slug: string | null }) {
                   className="border-b border-sidebar-border last:border-0"
                 >
                   {/* Commit row */}
-                  <div className="flex items-start">
+                  <div className="group/commit relative">
                     <button
                       type="button"
                       onClick={() => handleCommitClick(commit.hash)}
-                      className="flex min-w-0 flex-1 items-start gap-2 px-3 py-2 text-left transition-colors hover:bg-sidebar-accent"
+                      className="flex w-full min-w-0 items-start gap-2 px-3 py-2 text-left transition-colors hover:bg-sidebar-accent"
                     >
                       <span className="mt-0.5 shrink-0 text-[10px] text-muted-foreground">
                         {isExpanded ? "▾" : "▸"}
@@ -610,13 +610,13 @@ export function GitTab({ slug }: { slug: string | null }) {
                       </div>
                     </button>
 
-                    {/* GitHub link */}
+                    {/* GitHub link — overlay on hover */}
                     {githubRepoUrl && (
                       <a
                         href={`${githubRepoUrl}/commit/${commit.hash}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="shrink-0 px-2 py-2 text-muted-foreground transition-colors hover:text-foreground"
+                        className="absolute right-0 top-0 bottom-0 flex items-center pr-2 pl-6 text-muted-foreground transition-all opacity-0 group-hover/commit:opacity-100 pointer-events-none group-hover/commit:pointer-events-auto bg-gradient-to-l from-sidebar from-40% to-transparent hover:text-foreground"
                         title="View on GitHub"
                       >
                         <ExternalLinkIcon />

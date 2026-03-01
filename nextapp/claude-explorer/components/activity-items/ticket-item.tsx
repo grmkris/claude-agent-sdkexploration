@@ -63,7 +63,7 @@ export function TicketItem({
       {/* ── Main row (clickable) ────────────────────────────────────── */}
       <div
         className={cn(
-          "flex items-start px-3 cursor-pointer transition-colors",
+          "relative flex items-start px-3 cursor-pointer transition-colors",
           compact ? "gap-2 py-1.5 hover:bg-muted/5" : "gap-2.5 py-2.5",
           !compact && (isExpanded ? "bg-muted/20" : "hover:bg-muted/10")
         )}
@@ -237,11 +237,13 @@ export function TicketItem({
           </div>
         )}
 
-        {/* Hover actions */}
+        {/* Hover actions — overlay on the right with gradient fade */}
         <div
           className={cn(
-            "shrink-0 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity",
-            compact && "mt-0.5"
+            "absolute right-0 top-0 bottom-0 flex items-center gap-1 pr-2 pl-8 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none group-hover:pointer-events-auto",
+            compact
+              ? "bg-gradient-to-l from-sidebar from-40% to-transparent"
+              : "bg-gradient-to-l from-background from-40% to-transparent"
           )}
         >
           <a
