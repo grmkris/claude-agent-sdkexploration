@@ -3,7 +3,7 @@
 import { Add01Icon, Cancel01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useQuery } from "@tanstack/react-query";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import * as React from "react";
 
 import { ArchiveChatButton } from "@/components/archive-chat-button";
@@ -310,9 +310,9 @@ export function Workspace({ children }: { children: React.ReactNode }) {
     focusPanel,
     updatePanelSession,
     openNewPanel,
+    openForkPanel,
   } = useWorkspace();
   const pathname = usePathname();
-  const router = useRouter();
   const isMobile = useIsMobile();
 
   // Show workspace when we have panels AND the URL is a session/chat route
@@ -338,10 +338,10 @@ export function Workspace({ children }: { children: React.ReactNode }) {
 
   const handleFork = (
     panelProjectSlug: string | undefined,
-    _sessionId: string,
+    sessionId: string,
     _messageUuid: string
   ) => {
-    openNewPanel(panelProjectSlug);
+    openForkPanel(sessionId, panelProjectSlug);
   };
 
   return (
@@ -411,13 +411,7 @@ export function Workspace({ children }: { children: React.ReactNode }) {
                       onClose={() => closePanel(panel.id)}
                       onFork={() => {
                         if (!panel.sessionId) return;
-                        const forkId = crypto.randomUUID();
-                        const base = panel.projectSlug
-                          ? `/project/${panel.projectSlug}/chat`
-                          : "/chat";
-                        router.push(
-                          `${base}?_fork=1&parentSessionId=${panel.sessionId}&forkSessionId=${forkId}`
-                        );
+                        openForkPanel(panel.sessionId, panel.projectSlug);
                       }}
                     />
                     <SessionPane
@@ -430,6 +424,7 @@ export function Workspace({ children }: { children: React.ReactNode }) {
                       onFork={(sid, msgUuid) =>
                         handleFork(panel.projectSlug, sid, msgUuid)
                       }
+                      forkParams={panel.forkParams}
                     />
                   </div>
                 </ResizablePanel>

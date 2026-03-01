@@ -10,10 +10,16 @@ import { client } from "./orpc-client";
 // Types
 // ---------------------------------------------------------------------------
 
+export type WorkspaceForkParams = {
+  parentSessionId: string;
+  forkSessionId: string;
+};
+
 export type WorkspacePanel = {
   id: string;
   sessionId: string | null; // null = new session (not yet started)
   projectSlug?: string; // undefined = root session
+  forkParams?: WorkspaceForkParams; // set when panel is a fork
 };
 
 type WorkspaceState = {
@@ -35,6 +41,8 @@ type WorkspaceContextProps = {
   openNewSession: (projectSlug?: string) => string; // returns panelId
   /** Additive — adds panel, auto-creates group when going multi-panel */
   openNewPanel: (projectSlug?: string) => string; // returns panelId
+  /** Additive — adds fork panel alongside existing ones */
+  openForkPanel: (parentSessionId: string, projectSlug?: string) => string;
   /** Replace — clears all panels, shows single session */
   replaceSession: (sessionId: string, projectSlug?: string) => void;
   /** Replace — clears all panels, shows single new session */
@@ -270,6 +278,30 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
 
     return panelId;
   }, []);
+
+  const openForkPanel = React.useCallback(
+    (parentSessionId: string, projectSlug?: string): string => {
+      const panelId = crypto.randomUUID();
+      const forkSessionId = crypto.randomUUID();
+
+      setState((prev) => {
+        const newPanel: WorkspacePanel = {
+          id: panelId,
+          sessionId: null,
+          projectSlug,
+          forkParams: { parentSessionId, forkSessionId },
+        };
+        return {
+          ...prev,
+          panels: [...prev.panels, newPanel],
+          focusedPanelId: newPanel.id,
+        };
+      });
+
+      return panelId;
+    },
+    []
+  );
 
   const replaceSession = React.useCallback(
     (sessionId: string, projectSlug?: string) => {
@@ -554,6 +586,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       openSession,
       openNewSession,
       openNewPanel,
+      openForkPanel,
       replaceSession,
       replaceNewSession,
       closePanel,
@@ -572,6 +605,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       openSession,
       openNewSession,
       openNewPanel,
+      openForkPanel,
       replaceSession,
       replaceNewSession,
       closePanel,
