@@ -109,13 +109,6 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
             activeGroupId: group.id,
             activeGroupName: group.name,
           });
-
-          // Prevent URL sync from destroying the hydrated multi-panel state.
-          // Mark the current URL as already synced so the URL effect skips it.
-          const currentUrl =
-            window.location.pathname +
-            (window.location.search ? window.location.search : "");
-          lastSyncedUrl.current = currentUrl;
         }
         setIsHydrated(true);
       })
@@ -312,16 +305,26 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
 
   const replaceSession = React.useCallback(
     (sessionId: string, projectSlug?: string) => {
+      let didReplace = false;
+
       setState((prev) => {
-        if (
-          prev.panels.length === 1 &&
-          prev.panels[0].sessionId === sessionId &&
-          prev.panels[0].projectSlug === projectSlug
-        ) {
-          if (prev.focusedPanelId === prev.panels[0].id) return prev;
-          return { ...prev, focusedPanelId: prev.panels[0].id };
+        const existing = prev.panels.find((p) => p.sessionId === sessionId);
+        if (existing) {
+          const slugMatch = existing.projectSlug === projectSlug;
+          const focused = prev.focusedPanelId === existing.id;
+          if (slugMatch && focused) return prev;
+          return {
+            ...prev,
+            panels: slugMatch
+              ? prev.panels
+              : prev.panels.map((p) =>
+                  p.id === existing.id ? { ...p, projectSlug } : p
+                ),
+            focusedPanelId: existing.id,
+          };
         }
 
+        didReplace = true;
         const newPanel: WorkspacePanel = {
           id: crypto.randomUUID(),
           sessionId,
@@ -335,7 +338,8 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
         };
       });
 
-      // Create group in DB for this single session
+      if (!didReplace) return;
+
       const groupName = `Workspace ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
       client.workspaceGroups
         .create({ name: groupName, projectSlug })
