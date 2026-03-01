@@ -14,7 +14,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 
 import { AppBreadcrumb } from "@/components/app-breadcrumb";
 import { CursorLogo } from "@/components/open-in-cursor-button";
@@ -98,6 +98,54 @@ function extractProjectSlug(pathname: string): string | null {
   return match ? match[1] : null;
 }
 
+function CopyPathButton({ path }: { path: string }) {
+  const [copied, setCopied] = useState(false);
+  const copy = useCallback(() => {
+    void navigator.clipboard.writeText(path).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
+  }, [path]);
+
+  return (
+    <button
+      onClick={(e) => {
+        e.stopPropagation();
+        copy();
+      }}
+      title={copied ? "Copied!" : `Copy path: ${path}`}
+      className="shrink-0 rounded-sm p-1 text-muted-foreground opacity-0 transition-all hover:bg-muted hover:text-foreground group-hover/row:opacity-100"
+    >
+      {copied ? (
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={2}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className="h-3 w-3 text-green-500"
+        >
+          <path d="M20 6 9 17l-5-5" />
+        </svg>
+      ) : (
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={2}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className="h-3 w-3"
+        >
+          <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+        </svg>
+      )}
+    </button>
+  );
+}
+
 /**
  * Project-name header with two popovers:
  *  1. Project switcher — lists all projects with search, click to navigate.
@@ -177,26 +225,49 @@ function ProjectHeader({ slug }: { slug: string }) {
               const name = p.path.split("/").at(-1) ?? p.slug;
               const isCurrent = p.slug === slug;
               return (
-                <button
+                <div
                   key={p.slug}
-                  onClick={() => router.push(`/project/${p.slug}`)}
-                  className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-xs transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                  className="group/row flex w-full items-center gap-0.5 rounded-sm text-xs transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                 >
-                  <span className="flex-1 truncate text-left">{name}</span>
-                  {isCurrent && (
+                  <button
+                    onClick={() => router.push(`/project/${p.slug}`)}
+                    className="flex min-w-0 flex-1 items-center gap-2 px-2 py-1.5"
+                  >
+                    <span className="flex-1 truncate text-left">{name}</span>
+                    {isCurrent && (
+                      <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth={2.5}
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className="h-3 w-3 shrink-0 text-primary"
+                      >
+                        <path d="M20 6 9 17l-5-5" />
+                      </svg>
+                    )}
+                  </button>
+                  <CopyPathButton path={p.path} />
+                  <Link
+                    href={`/project/${p.slug}/chat?_new=${Date.now()}`}
+                    onClick={(e) => e.stopPropagation()}
+                    title="New conversation"
+                    className="shrink-0 rounded-sm p-1 text-muted-foreground opacity-0 transition-all hover:bg-muted hover:text-foreground group-hover/row:opacity-100"
+                  >
                     <svg
                       viewBox="0 0 24 24"
                       fill="none"
                       stroke="currentColor"
-                      strokeWidth={2.5}
+                      strokeWidth={2}
                       strokeLinecap="round"
                       strokeLinejoin="round"
-                      className="h-3 w-3 shrink-0 text-primary"
+                      className="h-3 w-3"
                     >
-                      <path d="M20 6 9 17l-5-5" />
+                      <path d="M12 5v14M5 12h14" />
                     </svg>
-                  )}
-                </button>
+                  </Link>
+                </div>
               );
             })}
             {filtered.length === 0 && (

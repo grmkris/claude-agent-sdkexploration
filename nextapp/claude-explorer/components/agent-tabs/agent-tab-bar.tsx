@@ -1,7 +1,8 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 import * as React from "react";
 
 import type { LiveSession } from "@/components/resume-session-popover";
@@ -16,6 +17,7 @@ import {
 import { RightSidebarTrigger } from "@/components/ui/right-sidebar-trigger";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { orpc } from "@/lib/orpc";
+import { client } from "@/lib/orpc-client";
 import { useCompact } from "@/lib/session-compact-context";
 import { getTimeAgo } from "@/lib/utils";
 
@@ -128,6 +130,9 @@ function SessionInfoBar({ sessionId }: { sessionId: string }) {
 
 export function AgentTabBar() {
   const { tabs, isMobile, openTab, updateTabTitle, activeTab } = useAgentTabs();
+  const router = useRouter();
+  const pathname = usePathname();
+  const queryClient = useQueryClient();
 
   const [popoverOpen, setPopoverOpen] = React.useState(false);
   const [selectedProjectSlug, setSelectedProjectSlug] = React.useState<
@@ -156,6 +161,30 @@ export function AgentTabBar() {
     }
     return map;
   }, [liveSessions]);
+
+  // Archive all visible (non-live) sessions
+  const archiveAllMutation = useMutation({
+    mutationFn: async () => {
+      const toArchive = recentSessions.filter(
+        (s) => !sessionStateMap.get(s.id)
+      );
+      await Promise.all(
+        toArchive.map((s) => client.sessions.archive({ sessionId: s.id }))
+      );
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        predicate: (q) => {
+          const key = q.queryKey;
+          return (
+            Array.isArray(key) &&
+            key.length >= 1 &&
+            (key[0] === "sessions" || key[0] === "liveState")
+          );
+        },
+      });
+    },
+  });
 
   // Auto-add active live sessions as tabs
   React.useEffect(() => {
@@ -250,8 +279,60 @@ export function AgentTabBar() {
   const popoverContent = (
     <PopoverContent align="center" className="w-96 p-0" sideOffset={4}>
       {/* Header */}
-      <div className="border-b px-3 py-2">
+      <div className="flex items-center justify-between border-b px-3 py-2">
         <p className="text-xs font-semibold">Recent Conversations</p>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => {
+              archiveAllMutation.mutate();
+            }}
+            disabled={
+              archiveAllMutation.isPending || recentSessions.length === 0
+            }
+            title="Archive all non-live conversations"
+            className="flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="h-3 w-3"
+            >
+              <path d="M21 8v13H3V8" />
+              <path d="M1 3h22v5H1z" />
+              <path d="M10 12h4" />
+            </svg>
+            {archiveAllMutation.isPending ? "Archiving..." : "Archive all"}
+          </button>
+          <button
+            onClick={() => {
+              const slugMatch = pathname.match(/^\/project\/([^/]+)/);
+              const slug = slugMatch?.[1];
+              const url = slug
+                ? `/project/${slug}/chat?_new=${Date.now()}`
+                : `/chat?_new=${Date.now()}`;
+              setPopoverOpen(false);
+              router.push(url);
+            }}
+            className="flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="h-3 w-3"
+            >
+              <path d="M12 5v14M5 12h14" />
+            </svg>
+            New
+          </button>
+        </div>
       </div>
 
       {/* Project filter chips */}
