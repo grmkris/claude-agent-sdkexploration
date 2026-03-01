@@ -3,6 +3,7 @@
 import type { IconSvgElement } from "@hugeicons/react";
 
 import {
+  Add01Icon,
   Archive01Icon,
   ArchiveIcon,
   ArrowDown01Icon,
@@ -180,6 +181,7 @@ function SessionRow({
   unarchiveButton?: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const { activeGroupId, panels, openSession } = useWorkspace();
 
   const sessionUrl = session.projectSlug
     ? `/project/${session.projectSlug}/chat/${session.id}`
@@ -191,6 +193,7 @@ function SessionRow({
   const timeAgo = getTimeAgo(session.lastModified ?? session.timestamp);
 
   const isActive = session.sessionState === "active";
+  const alreadyInGroup = panels.some((p) => p.sessionId === session.id);
 
   return (
     <SidebarMenuItem>
@@ -222,7 +225,19 @@ function SessionRow({
           </SidebarMenuButton>
         </Link>
         {unarchiveButton ?? (
-          <div className="ml-auto flex shrink-0 items-center pr-1">
+          <div className="ml-auto flex shrink-0 items-center gap-0.5 pr-1">
+            {activeGroupId && !alreadyInGroup && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openSession(session.id, session.projectSlug ?? undefined);
+                }}
+                className="rounded p-0.5 text-muted-foreground/50 opacity-0 group-hover:opacity-100 transition-opacity hover:text-foreground"
+                title="Add to workspace group"
+              >
+                <HugeiconsIcon icon={Add01Icon} size={12} />
+              </button>
+            )}
             <SessionStateBadge sessionId={session.id} compact />
           </div>
         )}
@@ -302,7 +317,7 @@ function WorkspaceGroupsSection({
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
 
-  const { data: groups = [], isLoading } = useQuery({
+  const { data: groups = [] } = useQuery({
     ...orpc.workspaceGroups.list.queryOptions({
       input: projectPath ? { projectPath } : {},
     }),
@@ -333,7 +348,7 @@ function WorkspaceGroupsSection({
     },
   });
 
-  if (isLoading && groups.length === 0) return null;
+  if (groups.length === 0) return null;
 
   return (
     <div className="border-b border-border pb-1.5">
@@ -343,93 +358,84 @@ function WorkspaceGroupsSection({
         </span>
       </div>
 
-      {/* Group list */}
-      {groups.length > 0 && (
-        <SidebarMenu>
-          {groups.map((group) => (
-            <SidebarMenuItem key={group.id}>
-              <div className="group flex items-center">
-                {renamingId === group.id ? (
-                  <div className="flex-1 min-w-0 px-2 py-0.5">
-                    <input
-                      type="text"
-                      value={renameValue}
-                      onChange={(e) => setRenameValue(e.target.value)}
-                      className="w-full rounded border border-border bg-background px-1.5 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
-                      autoFocus
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" && renameValue.trim()) {
-                          renameMutation.mutate({
-                            id: group.id,
-                            name: renameValue.trim(),
-                          });
-                        }
-                        if (e.key === "Escape") {
-                          setRenamingId(null);
-                          setRenameValue("");
-                        }
-                      }}
-                      onBlur={() => {
+      <SidebarMenu>
+        {groups.map((group) => (
+          <SidebarMenuItem key={group.id}>
+            <div className="group flex items-center">
+              {renamingId === group.id ? (
+                <div className="flex-1 min-w-0 px-2 py-0.5">
+                  <input
+                    type="text"
+                    value={renameValue}
+                    onChange={(e) => setRenameValue(e.target.value)}
+                    className="w-full rounded border border-border bg-background px-1.5 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+                    autoFocus
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && renameValue.trim()) {
+                        renameMutation.mutate({
+                          id: group.id,
+                          name: renameValue.trim(),
+                        });
+                      }
+                      if (e.key === "Escape") {
                         setRenamingId(null);
                         setRenameValue("");
-                      }}
-                    />
-                  </div>
-                ) : (
+                      }
+                    }}
+                    onBlur={() => {
+                      setRenamingId(null);
+                      setRenameValue("");
+                    }}
+                  />
+                </div>
+              ) : (
+                <button
+                  onClick={() => void loadGroup(group.id, projectSlug)}
+                  className="min-w-0 flex-1"
+                >
+                  <SidebarMenuButton isActive={activeGroupId === group.id}>
+                    <div className="flex min-w-0 flex-1 items-center gap-1.5">
+                      <HugeiconsIcon
+                        icon={Folder01Icon}
+                        size={12}
+                        className="shrink-0 text-muted-foreground"
+                      />
+                      <span className="truncate text-sm">{group.name}</span>
+                      <span className="ml-auto shrink-0 text-[10px] text-muted-foreground tabular-nums">
+                        {group.sessionCount}
+                      </span>
+                    </div>
+                  </SidebarMenuButton>
+                </button>
+              )}
+              {/* Inline actions — visible on hover */}
+              {renamingId !== group.id && (
+                <div className="flex shrink-0 items-center gap-0.5 pr-1 opacity-0 group-hover:opacity-100 transition-opacity">
                   <button
-                    onClick={() => void loadGroup(group.id, projectSlug)}
-                    className="min-w-0 flex-1"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setRenamingId(group.id);
+                      setRenameValue(group.name);
+                    }}
+                    className="rounded p-0.5 text-muted-foreground hover:text-foreground transition-colors"
                   >
-                    <SidebarMenuButton isActive={activeGroupId === group.id}>
-                      <div className="flex min-w-0 flex-1 items-center gap-1.5">
-                        <HugeiconsIcon
-                          icon={Folder01Icon}
-                          size={12}
-                          className="shrink-0 text-muted-foreground"
-                        />
-                        <span className="truncate text-sm">{group.name}</span>
-                        <span className="ml-auto shrink-0 text-[10px] text-muted-foreground tabular-nums">
-                          {group.sessionCount}
-                        </span>
-                      </div>
-                    </SidebarMenuButton>
+                    <HugeiconsIcon icon={PencilEdit01Icon} size={10} />
                   </button>
-                )}
-                {/* Inline actions — visible on hover */}
-                {renamingId !== group.id && (
-                  <div className="flex shrink-0 items-center gap-0.5 pr-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setRenamingId(group.id);
-                        setRenameValue(group.name);
-                      }}
-                      className="rounded p-0.5 text-muted-foreground hover:text-foreground transition-colors"
-                    >
-                      <HugeiconsIcon icon={PencilEdit01Icon} size={10} />
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        deleteMutation.mutate({ id: group.id });
-                      }}
-                      className="rounded p-0.5 text-muted-foreground hover:text-destructive transition-colors"
-                    >
-                      <HugeiconsIcon icon={Cancel01Icon} size={10} />
-                    </button>
-                  </div>
-                )}
-              </div>
-            </SidebarMenuItem>
-          ))}
-        </SidebarMenu>
-      )}
-
-      {groups.length === 0 && (
-        <div className="px-3 pb-1 text-[10px] text-muted-foreground">
-          No workspace groups yet
-        </div>
-      )}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      deleteMutation.mutate({ id: group.id });
+                    }}
+                    className="rounded p-0.5 text-muted-foreground hover:text-destructive transition-colors"
+                  >
+                    <HugeiconsIcon icon={Cancel01Icon} size={10} />
+                  </button>
+                </div>
+              )}
+            </div>
+          </SidebarMenuItem>
+        ))}
+      </SidebarMenu>
     </div>
   );
 }

@@ -1,10 +1,6 @@
 "use client";
 
-import {
-  Add01Icon,
-  Cancel01Icon,
-  Folder01Icon,
-} from "@hugeicons/core-free-icons";
+import { Add01Icon, Cancel01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useQuery } from "@tanstack/react-query";
 import { usePathname } from "next/navigation";
@@ -46,8 +42,7 @@ function PanelHeader({
   isFocused,
   panelIndex,
   panelCount,
-  groupName,
-  onDetach,
+  isLast,
   onSplit,
   onClose,
 }: {
@@ -55,8 +50,7 @@ function PanelHeader({
   isFocused: boolean;
   panelIndex: number;
   panelCount: number;
-  groupName?: string | null;
-  onDetach?: () => void;
+  isLast: boolean;
   onSplit: () => void;
   onClose: () => void;
 }) {
@@ -100,34 +94,6 @@ function PanelHeader({
         isFocused ? "h-8 bg-muted/50 border-b-primary/20" : "h-8 bg-background"
       )}
     >
-      {/* Group indicator (first panel only) */}
-      {panelIndex === 0 && groupName && (
-        <>
-          <div className="flex shrink-0 items-center gap-1 rounded bg-muted/60 px-1.5 py-0.5">
-            <HugeiconsIcon
-              icon={Folder01Icon}
-              size={10}
-              className="text-muted-foreground"
-            />
-            <span className="truncate text-[10px] text-muted-foreground max-w-[120px]">
-              {groupName}
-            </span>
-            {onDetach && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onDetach();
-                }}
-                className="rounded-sm p-0 text-muted-foreground/50 hover:text-foreground"
-              >
-                <HugeiconsIcon icon={Cancel01Icon} size={8} />
-              </button>
-            )}
-          </div>
-          <span className="text-muted-foreground/30">|</span>
-        </>
-      )}
-
       {/* Conversations popover trigger (focused panel only) */}
       {isFocused && (
         <ConversationsPopover
@@ -225,24 +191,26 @@ function PanelHeader({
         </button>
       )}
 
-      {/* Split button */}
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onSplit();
-              }}
-              className={btnClass}
-              aria-label="Add panel"
-            />
-          }
-        >
-          <HugeiconsIcon icon={Add01Icon} size={12} />
-        </TooltipTrigger>
-        <TooltipContent side="bottom">Add panel (⌘\)</TooltipContent>
-      </Tooltip>
+      {/* Add panel button (last panel only) */}
+      {isLast && (
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSplit();
+                }}
+                className={btnClass}
+                aria-label="Add panel"
+              />
+            }
+          >
+            <HugeiconsIcon icon={Add01Icon} size={12} />
+          </TooltipTrigger>
+          <TooltipContent side="bottom">Add panel (⌘\)</TooltipContent>
+        </Tooltip>
+      )}
 
       {/* Close button (multi-panel only) */}
       {panelCount > 1 && (
@@ -277,13 +245,10 @@ export function Workspace({ children }: { children: React.ReactNode }) {
     panels,
     focusedPanelId,
     hasPanels,
-    activeGroupId,
-    activeGroupName,
     closePanel,
     focusPanel,
     updatePanelSession,
     openNewPanel,
-    clearGroup,
   } = useWorkspace();
   const pathname = usePathname();
 
@@ -360,10 +325,7 @@ export function Workspace({ children }: { children: React.ReactNode }) {
                       isFocused={panel.id === focusedPanelId}
                       panelIndex={i}
                       panelCount={panels.length}
-                      groupName={i === 0 ? activeGroupName : null}
-                      onDetach={
-                        i === 0 && activeGroupId ? clearGroup : undefined
-                      }
+                      isLast={i === panels.length - 1}
                       onSplit={() => openNewPanel(panel.projectSlug)}
                       onClose={() => closePanel(panel.id)}
                     />
