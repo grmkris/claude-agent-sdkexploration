@@ -276,7 +276,8 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       setState((prev) => {
         if (
           prev.panels.length === 1 &&
-          prev.panels[0].sessionId === sessionId
+          prev.panels[0].sessionId === sessionId &&
+          prev.panels[0].projectSlug === projectSlug
         ) {
           if (prev.focusedPanelId === prev.panels[0].id) return prev;
           return { ...prev, focusedPanelId: prev.panels[0].id };
