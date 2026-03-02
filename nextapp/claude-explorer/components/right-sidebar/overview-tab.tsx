@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 
 import { ActivityFeed } from "@/components/activity-feed";
+import { RailwayDeploymentStatus } from "@/components/right-sidebar/railway-deployment-status";
 import { WorktreeInfoSection } from "@/components/right-sidebar/worktree-info-section";
 import { TmuxSessionsPanel } from "@/components/tmux-sessions-panel";
 import { orpc } from "@/lib/orpc";
@@ -41,6 +42,9 @@ export function OverviewTab({
 
   return (
     <div className="flex flex-col gap-2 py-2">
+      {/* Railway deployment status (active builds / failures) */}
+      <RailwayDeploymentStatus slug={slug} />
+
       {/* Git worktrees (only visible when 2+ worktrees exist) */}
       <WorktreeInfoSection slug={slug} />
 

@@ -32,6 +32,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { useRailwayDeployments } from "@/hooks/use-railway-deployments";
 import { orpc } from "@/lib/orpc";
 
 type TabValue = "overview" | "skills" | "git" | "files" | "automations";
@@ -92,6 +93,9 @@ export function ProjectExplorerPanel({ slug }: { slug: string }) {
   });
   const gitChangeCount = gitStatus?.changes?.length ?? 0;
 
+  const { hasActive: hasActiveDeployment, hasFailed: hasFailedDeployment } =
+    useRailwayDeployments(slug);
+
   // ── Collapsed: icon rail that links to full pages ──────────────────────────
   if (isCollapsed) {
     return (
@@ -118,6 +122,14 @@ export function ProjectExplorerPanel({ slug }: { slug: string }) {
                 {value === "git" && gitChangeCount > 0 && (
                   <span className="absolute top-0.5 right-0.5 h-1.5 w-1.5 rounded-full bg-yellow-400" />
                 )}
+                {value === "overview" && hasFailedDeployment && (
+                  <span className="absolute top-0.5 right-0.5 h-1.5 w-1.5 rounded-full bg-red-400" />
+                )}
+                {value === "overview" &&
+                  !hasFailedDeployment &&
+                  hasActiveDeployment && (
+                    <span className="absolute top-0.5 right-0.5 h-1.5 w-1.5 rounded-full bg-yellow-400 animate-pulse" />
+                  )}
                 <span className="sr-only">{label}</span>
               </TooltipTrigger>
               <TooltipContent side="right">
@@ -127,6 +139,14 @@ export function ProjectExplorerPanel({ slug }: { slug: string }) {
                     {gitChangeCount} change{gitChangeCount !== 1 ? "s" : ""}
                   </span>
                 )}
+                {value === "overview" && hasFailedDeployment && (
+                  <span className="ml-1.5 text-red-400">Deploy failed</span>
+                )}
+                {value === "overview" &&
+                  !hasFailedDeployment &&
+                  hasActiveDeployment && (
+                    <span className="ml-1.5 text-yellow-400">Deploying…</span>
+                  )}
               </TooltipContent>
             </Tooltip>
           );
@@ -165,6 +185,14 @@ export function ProjectExplorerPanel({ slug }: { slug: string }) {
                 {value === "git" && gitChangeCount > 0 && (
                   <span className="absolute -top-0.5 -right-0.5 h-1.5 w-1.5 rounded-full bg-yellow-400" />
                 )}
+                {value === "overview" && hasFailedDeployment && (
+                  <span className="absolute -top-0.5 -right-0.5 h-1.5 w-1.5 rounded-full bg-red-400" />
+                )}
+                {value === "overview" &&
+                  !hasFailedDeployment &&
+                  hasActiveDeployment && (
+                    <span className="absolute -top-0.5 -right-0.5 h-1.5 w-1.5 rounded-full bg-yellow-400 animate-pulse" />
+                  )}
                 <span className="sr-only">{label}</span>
               </TooltipTrigger>
               <TooltipContent
