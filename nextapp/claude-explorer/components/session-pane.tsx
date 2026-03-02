@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { ContextChip } from "@/lib/context-chips";
+import type { SessionInitMeta } from "@/lib/types";
 import type { SessionMcpConfig } from "@/lib/workspace-context";
 
 import { ChatInput } from "@/components/chat-input";
@@ -52,6 +53,8 @@ export type SessionPaneProps = {
   forkParams?: ForkParams;
   /** Per-session MCP overrides chosen at session creation. */
   sessionMcpConfig?: SessionMcpConfig;
+  /** Called when session init message provides metadata (MCPs, skills, etc). */
+  onSessionMeta?: (meta: SessionInitMeta) => void;
 };
 
 // ---------------------------------------------------------------------------
@@ -68,6 +71,7 @@ function ProjectSessionPane({
   initialChips,
   forkParams,
   sessionMcpConfig,
+  onSessionMeta,
 }: SessionPaneProps & { projectSlug: string }) {
   const queryClient = useQueryClient();
   const isNewSession = sessionId === null;
@@ -109,6 +113,7 @@ function ProjectSessionPane({
     error,
     toolProgress,
     currentPermissionMode,
+    sessionMeta,
   } = useChatStream({
     ...(sessionId ? { resume: sessionId } : {}),
     cwd: resolved?.path,
@@ -190,6 +195,11 @@ function ProjectSessionPane({
       send(initialPrompt, undefined, resolved.path);
     }
   }, [initialPrompt, forkParams, resolved?.path, send]);
+
+  // Notify parent of session metadata from init message
+  useEffect(() => {
+    if (sessionMeta) onSessionMeta?.(sessionMeta);
+  }, [sessionMeta, onSessionMeta]);
 
   // Notify parent when session ID becomes known (new sessions)
   const didNotifySessionCreated = useRef(false);
@@ -305,6 +315,7 @@ function RootSessionPane({
   onFork,
   forkParams,
   sessionMcpConfig,
+  onSessionMeta,
 }: SessionPaneProps) {
   const queryClient = useQueryClient();
   const isNewSession = sessionId === null;
@@ -340,6 +351,7 @@ function RootSessionPane({
     error,
     toolProgress,
     currentPermissionMode,
+    sessionMeta,
   } = useRootChatStream({
     ...(sessionId ? { resume: sessionId } : {}),
     permissionMode: settings.planMode ? "plan" : "bypassPermissions",
@@ -405,6 +417,11 @@ function RootSessionPane({
       send("");
     }
   }, [forkParams, send]);
+
+  // Notify parent of session metadata from init message
+  useEffect(() => {
+    if (sessionMeta) onSessionMeta?.(sessionMeta);
+  }, [sessionMeta, onSessionMeta]);
 
   // Notify parent when session ID becomes known
   const didNotifySessionCreated = useRef(false);

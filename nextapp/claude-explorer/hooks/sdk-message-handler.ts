@@ -1,6 +1,7 @@
 import type {
   ParsedMessage,
   SDKMessage,
+  SessionInitMeta,
   ContentBlock,
   ResultBlock,
   SystemEventBlock,
@@ -38,7 +39,8 @@ export function handleSDKMessage(
   streamingRef: React.MutableRefObject<boolean>,
   toolProgressRef: React.MutableRefObject<Map<string, ToolProgressEntry>>,
   bumpProgressTick: () => void,
-  setCurrentPermissionMode?: (mode: string) => void
+  setCurrentPermissionMode?: (mode: string) => void,
+  setSessionMeta?: (meta: SessionInitMeta) => void
 ) {
   switch ((msg as { type: string }).type) {
     case "heartbeat": {
@@ -52,11 +54,29 @@ export function handleSDKMessage(
         session_id?: string;
         message?: string;
         permissionMode?: string;
+        mcp_servers?: Array<{ name: string; status: string }>;
+        slash_commands?: string[];
+        skills?: string[];
+        tools?: string[];
+        cwd?: string;
+        claude_code_version?: string;
+        model?: string;
       };
       if (sysMsg.subtype === "init") {
         setSessionId(sysMsg.session_id!);
         if (setCurrentPermissionMode && sysMsg.permissionMode) {
           setCurrentPermissionMode(sysMsg.permissionMode);
+        }
+        if (setSessionMeta) {
+          setSessionMeta({
+            mcpServers: sysMsg.mcp_servers ?? [],
+            slashCommands: sysMsg.slash_commands ?? [],
+            skills: sysMsg.skills ?? [],
+            tools: sysMsg.tools ?? [],
+            cwd: sysMsg.cwd ?? "",
+            claudeCodeVersion: sysMsg.claude_code_version ?? "",
+            model: sysMsg.model ?? "",
+          });
         }
       } else if (sysMsg.subtype === "compact_boundary") {
         const compactMsg = msg as {

@@ -6,8 +6,11 @@ import { useQuery } from "@tanstack/react-query";
 import { usePathname } from "next/navigation";
 import * as React from "react";
 
+import type { SessionInitMeta } from "@/lib/types";
+
 import { ArchiveChatButton } from "@/components/archive-chat-button";
 import { ACTIVE_STATES, formatTokens } from "@/components/context-bar";
+import { SessionOverviewSheet } from "@/components/session-overview-sheet";
 import { SessionPane } from "@/components/session-pane";
 import {
   ResizableHandle,
@@ -74,6 +77,7 @@ function PanelHeader({
   onClose,
   onFork,
   onArchive,
+  sessionMeta,
 }: {
   panel: WorkspacePanel;
   isFocused: boolean;
@@ -84,7 +88,9 @@ function PanelHeader({
   onClose: () => void;
   onFork: () => void;
   onArchive: () => void;
+  sessionMeta?: SessionInitMeta | null;
 }) {
+  const [overviewOpen, setOverviewOpen] = React.useState(false);
   const { onCompact } = useCompact();
   const activeCount = useActiveCount();
   const { setOpen: openCommandPalette } = useCommandPalette();
@@ -120,181 +126,192 @@ function PanelHeader({
     "shrink-0 rounded p-0.5 text-muted-foreground/50 transition-colors hover:bg-muted hover:text-foreground";
 
   return (
-    <div
-      className={cn(
-        "flex shrink-0 items-center gap-1.5 border-b px-2 text-xs",
-        isFocused ? "h-8 bg-muted/50 border-b-primary/20" : "h-8 bg-background"
-      )}
-    >
-      {/* Command palette trigger (focused panel only) */}
-      {isFocused && (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            openCommandPalette(true);
-          }}
-          className={cn(
-            "flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-xs text-muted-foreground transition-colors hover:text-foreground",
-            activeCount === 0 && "opacity-40"
-          )}
-        >
-          {activeCount > 0 ? (
-            <>
-              <span className="inline-block h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
-              <span>{activeCount}</span>
-            </>
-          ) : (
-            <span className="text-[10px]">☰</span>
-          )}
-        </button>
-      )}
-
-      {/* Activity dot */}
-      {isActive && (
-        <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-green-500 animate-pulse" />
-      )}
-
-      {/* Panel index indicator (multi-panel only) */}
-      {panelCount > 1 && (
-        <span className="shrink-0 rounded bg-muted px-1 py-0.5 font-mono text-[9px] text-foreground/40">
-          {panelIndex + 1}/{panelCount}
-        </span>
-      )}
-
-      {/* Title */}
-      <span className="flex-1 truncate text-foreground/80 min-w-0">
-        {title}
-      </span>
-
-      {/* Model pill */}
-      {modelShort && (
-        <span className="shrink-0 rounded bg-muted px-1 py-0.5 font-mono text-[9px] text-foreground/60">
-          {modelShort}
-        </span>
-      )}
-
-      {/* Context window % (focused panel only) */}
-      {isFocused && pct !== null && (
-        <span
-          className={`shrink-0 tabular-nums text-[10px] ${
-            pct >= 0.9
-              ? "font-medium text-red-500"
-              : pct >= 0.7
-                ? "text-yellow-500"
-                : "text-muted-foreground"
-          }`}
-        >
-          {(pct * 100).toFixed(0)}%
-        </span>
-      )}
-
-      {/* Token counts (focused panel only) */}
-      {isFocused && data?.input_tokens != null && (
-        <span className="shrink-0 text-[10px] text-muted-foreground tabular-nums">
-          <span className="text-muted-foreground/60">in </span>
-          {formatTokens(data.input_tokens)}
-          {data.output_tokens != null && (
-            <>
-              <span className="text-muted-foreground/60"> out </span>
-              {formatTokens(data.output_tokens)}
-            </>
-          )}
-        </span>
-      )}
-
-      {/* Compact button (focused panel only) */}
-      {isFocused && (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            if (canCompact) onCompact?.();
-          }}
-          disabled={!canCompact}
-          title={
-            canCompact
-              ? "Compact context (summarise history to free up context window)"
-              : "Cannot compact while session is active"
-          }
-          className="shrink-0 flex items-center gap-0.5 rounded px-1 py-0.5 text-[10px] text-muted-foreground transition-colors disabled:cursor-not-allowed disabled:opacity-40 enabled:hover:bg-muted enabled:hover:text-foreground"
-        >
-          <span>⟳</span>
-          <span>Compact</span>
-        </button>
-      )}
-
-      {/* Archive button (focused panel with existing session only) */}
-      {isFocused && panel.sessionId && (
-        <ArchiveChatButton
-          size="sm"
-          sessionId={panel.sessionId}
-          projectSlug={panel.projectSlug}
-          onArchived={onArchive}
-        />
-      )}
-
-      {/* Fork button (focused panel with existing session only) */}
-      {isFocused && panel.sessionId && (
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onFork();
-                }}
-                className={btnClass}
-                aria-label="Fork session"
-              />
-            }
+    <>
+      <div
+        onClick={() => setOverviewOpen(true)}
+        className={cn(
+          "flex shrink-0 items-center gap-1.5 border-b px-2 text-xs cursor-pointer transition-colors hover:bg-muted/70",
+          isFocused
+            ? "h-8 bg-muted/50 border-b-primary/20"
+            : "h-8 bg-background"
+        )}
+      >
+        {/* Command palette trigger (focused panel only) */}
+        {isFocused && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              openCommandPalette(true);
+            }}
+            className={cn(
+              "flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-xs text-muted-foreground transition-colors hover:text-foreground",
+              activeCount === 0 && "opacity-40"
+            )}
           >
-            <ForkIcon className="h-3 w-3" />
-          </TooltipTrigger>
-          <TooltipContent side="bottom">Fork session</TooltipContent>
-        </Tooltip>
-      )}
+            {activeCount > 0 ? (
+              <>
+                <span className="inline-block h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
+                <span>{activeCount}</span>
+              </>
+            ) : (
+              <span className="text-[10px]">☰</span>
+            )}
+          </button>
+        )}
 
-      {/* Add panel button (last panel only) */}
-      {isLast && (
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onSplit();
-                }}
-                className={btnClass}
-                aria-label="Add panel"
-              />
-            }
-          >
-            <HugeiconsIcon icon={Add01Icon} size={12} />
-          </TooltipTrigger>
-          <TooltipContent side="bottom">Add panel (⌘\)</TooltipContent>
-        </Tooltip>
-      )}
+        {/* Activity dot */}
+        {isActive && (
+          <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-green-500 animate-pulse" />
+        )}
 
-      {/* Close button (multi-panel only) */}
-      {panelCount > 1 && (
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onClose();
-                }}
-                className={btnClass}
-                aria-label="Close panel"
-              />
-            }
+        {/* Panel index indicator (multi-panel only) */}
+        {panelCount > 1 && (
+          <span className="shrink-0 rounded bg-muted px-1 py-0.5 font-mono text-[9px] text-foreground/40">
+            {panelIndex + 1}/{panelCount}
+          </span>
+        )}
+
+        {/* Title */}
+        <span className="flex-1 truncate text-foreground/80 min-w-0">
+          {title}
+        </span>
+
+        {/* Model pill */}
+        {modelShort && (
+          <span className="shrink-0 rounded bg-muted px-1 py-0.5 font-mono text-[9px] text-foreground/60">
+            {modelShort}
+          </span>
+        )}
+
+        {/* Context window % (focused panel only) */}
+        {isFocused && pct !== null && (
+          <span
+            className={`shrink-0 tabular-nums text-[10px] ${
+              pct >= 0.9
+                ? "font-medium text-red-500"
+                : pct >= 0.7
+                  ? "text-yellow-500"
+                  : "text-muted-foreground"
+            }`}
           >
-            <HugeiconsIcon icon={Cancel01Icon} size={12} />
-          </TooltipTrigger>
-          <TooltipContent side="bottom">Close panel (⌘W)</TooltipContent>
-        </Tooltip>
-      )}
-    </div>
+            {(pct * 100).toFixed(0)}%
+          </span>
+        )}
+
+        {/* Token counts (focused panel only) */}
+        {isFocused && data?.input_tokens != null && (
+          <span className="shrink-0 text-[10px] text-muted-foreground tabular-nums">
+            <span className="text-muted-foreground/60">in </span>
+            {formatTokens(data.input_tokens)}
+            {data.output_tokens != null && (
+              <>
+                <span className="text-muted-foreground/60"> out </span>
+                {formatTokens(data.output_tokens)}
+              </>
+            )}
+          </span>
+        )}
+
+        {/* Compact button (focused panel only) */}
+        {isFocused && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              if (canCompact) onCompact?.();
+            }}
+            disabled={!canCompact}
+            title={
+              canCompact
+                ? "Compact context (summarise history to free up context window)"
+                : "Cannot compact while session is active"
+            }
+            className="shrink-0 flex items-center gap-0.5 rounded px-1 py-0.5 text-[10px] text-muted-foreground transition-colors disabled:cursor-not-allowed disabled:opacity-40 enabled:hover:bg-muted enabled:hover:text-foreground"
+          >
+            <span>⟳</span>
+            <span>Compact</span>
+          </button>
+        )}
+
+        {/* Archive button (focused panel with existing session only) */}
+        {isFocused && panel.sessionId && (
+          <ArchiveChatButton
+            size="sm"
+            sessionId={panel.sessionId}
+            projectSlug={panel.projectSlug}
+            onArchived={onArchive}
+          />
+        )}
+
+        {/* Fork button (focused panel with existing session only) */}
+        {isFocused && panel.sessionId && (
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onFork();
+                  }}
+                  className={btnClass}
+                  aria-label="Fork session"
+                />
+              }
+            >
+              <ForkIcon className="h-3 w-3" />
+            </TooltipTrigger>
+            <TooltipContent side="bottom">Fork session</TooltipContent>
+          </Tooltip>
+        )}
+
+        {/* Add panel button (last panel only) */}
+        {isLast && (
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onSplit();
+                  }}
+                  className={btnClass}
+                  aria-label="Add panel"
+                />
+              }
+            >
+              <HugeiconsIcon icon={Add01Icon} size={12} />
+            </TooltipTrigger>
+            <TooltipContent side="bottom">Add panel (⌘\)</TooltipContent>
+          </Tooltip>
+        )}
+
+        {/* Close button (multi-panel only) */}
+        {panelCount > 1 && (
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onClose();
+                  }}
+                  className={btnClass}
+                  aria-label="Close panel"
+                />
+              }
+            >
+              <HugeiconsIcon icon={Cancel01Icon} size={12} />
+            </TooltipTrigger>
+            <TooltipContent side="bottom">Close panel (⌘W)</TooltipContent>
+          </Tooltip>
+        )}
+      </div>
+      <SessionOverviewSheet
+        open={overviewOpen}
+        onOpenChange={setOverviewOpen}
+        sessionId={panel.sessionId}
+        sessionMeta={sessionMeta ?? null}
+      />
+    </>
   );
 }
 
@@ -319,6 +336,11 @@ export function Workspace({ children }: { children: React.ReactNode }) {
   // Show workspace when we have panels AND the URL is a session/chat route
   const isSessionRoute = /\/chat(\/|$)/.test(pathname);
   const showWorkspace = hasPanels && isSessionRoute;
+
+  // Per-panel session metadata (from SDK init message)
+  const sessionMetaMap = React.useRef<Map<string, SessionInitMeta>>(new Map());
+  // Force re-render when sessionMeta changes
+  const [, setMetaTick] = React.useState(0);
 
   // Ref for scroll-into-view on new panels
   const panelRefs = React.useRef<Map<string, HTMLDivElement>>(new Map());
@@ -415,6 +437,7 @@ export function Workspace({ children }: { children: React.ReactNode }) {
                         openForkPanel(panel.sessionId, panel.projectSlug);
                       }}
                       onArchive={() => closePanel(panel.id)}
+                      sessionMeta={sessionMetaMap.current.get(panel.id)}
                     />
                     <SessionPane
                       sessionId={panel.sessionId}
@@ -428,6 +451,10 @@ export function Workspace({ children }: { children: React.ReactNode }) {
                       }
                       forkParams={panel.forkParams}
                       sessionMcpConfig={panel.sessionMcpConfig}
+                      onSessionMeta={(meta) => {
+                        sessionMetaMap.current.set(panel.id, meta);
+                        setMetaTick((t) => t + 1);
+                      }}
                     />
                   </div>
                 </ResizablePanel>

@@ -163,6 +163,17 @@ export type NotificationSettings = {
   webhookTriggered: boolean;
 };
 
+/** Metadata captured from the SDK init message at session start. */
+export type SessionInitMeta = {
+  mcpServers: Array<{ name: string; status: string }>;
+  slashCommands: string[];
+  skills: string[];
+  tools: string[];
+  cwd: string;
+  claudeCodeVersion: string;
+  model: string;
+};
+
 export type RawUserMessage = {
   type: "user";
   uuid: string;

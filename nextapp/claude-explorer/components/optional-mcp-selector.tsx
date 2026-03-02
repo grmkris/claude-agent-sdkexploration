@@ -53,6 +53,15 @@ export function OptionalMcpSelector({
   // Don't render if there are no MCPs at all
   if (allServers.length === 0) return null;
 
+  const hasOverrides =
+    settings.disabledDefaultMcps.length > 0 ||
+    settings.enabledOptionalMcps.length > 0;
+
+  // Hide chip entirely when all MCPs are in default state. The user can still
+  // configure MCPs via the session config popup ("+" dropdown) or the session
+  // overview sheet (clickable panel header).
+  if (!hasOverrides) return null;
+
   // Compute effective on/off state for each server
   function isServerEnabled(server: {
     name: string;
@@ -107,9 +116,6 @@ export function OptionalMcpSelector({
 
   const enabledCount = allServers.filter((s) => isServerEnabled(s)).length;
   const totalCount = allServers.length;
-  const hasOverrides =
-    settings.disabledDefaultMcps.length > 0 ||
-    settings.enabledOptionalMcps.length > 0;
 
   // Group by scope
   const byScope = new Map<string, typeof allServers>();

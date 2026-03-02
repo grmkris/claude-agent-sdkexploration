@@ -6,6 +6,7 @@ import type {
   AttachedImage,
   ContentBlock,
   ParsedMessage,
+  SessionInitMeta,
   UserImageBlock,
 } from "@/lib/types";
 
@@ -35,6 +36,7 @@ type UseRootChatStreamReturn = {
   error: string | null;
   toolProgress: Map<string, ToolProgressEntry>;
   currentPermissionMode: string | null;
+  sessionMeta: SessionInitMeta | null;
 };
 
 export type RootChatStreamOpts = {
@@ -69,6 +71,9 @@ export function useRootChatStream(
   const [currentPermissionMode, setCurrentPermissionMode] = useState<
     string | null
   >(null);
+  const [sessionMeta, setSessionInitMeta] = useState<SessionInitMeta | null>(
+    null
+  );
   const [, setProgressTick] = useState(0);
   const streamingRef = useRef(false);
   const toolProgressRef = useRef<Map<string, ToolProgressEntry>>(new Map());
@@ -180,7 +185,8 @@ export function useRootChatStream(
               streamingRef,
               toolProgressRef,
               () => setProgressTick((t) => t + 1),
-              setCurrentPermissionMode
+              setCurrentPermissionMode,
+              setSessionInitMeta
             );
           }
 
@@ -281,5 +287,6 @@ export function useRootChatStream(
     error,
     toolProgress: toolProgressRef.current,
     currentPermissionMode,
+    sessionMeta,
   };
 }
