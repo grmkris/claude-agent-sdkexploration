@@ -63,16 +63,8 @@ function SessionInfoBar({
 
   const { data } = useQuery({
     ...orpc.liveState.session.queryOptions({ input: { sessionId } }),
-    refetchInterval: 5_000,
+    // SSE handles real-time updates — no polling needed
   });
-
-  // Tick every second while session is active so elapsed time is live
-  const [, setTick] = React.useState(0);
-  React.useEffect(() => {
-    if (!data || !ACTIVE_STATES.has(data.state)) return;
-    const id = setInterval(() => setTick((t) => t + 1), 1000);
-    return () => clearInterval(id);
-  }, [data?.state]);
 
   if (!data) return null;
 
@@ -186,7 +178,7 @@ export function AgentTabBar() {
 
   const { data: liveSessions = [] } = useQuery({
     ...orpc.liveState.active.queryOptions(),
-    refetchInterval: 10_000,
+    refetchInterval: 30_000,
   });
 
   const { data: projects = [] } = useQuery(orpc.projects.list.queryOptions());

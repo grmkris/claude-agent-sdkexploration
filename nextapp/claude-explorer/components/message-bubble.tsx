@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { memo, useState } from "react";
 
 import type { ToolProgressEntry } from "@/hooks/use-chat-stream";
 import type { ContentBlock, ThinkingBlock, UserImageBlock } from "@/lib/types";
@@ -121,7 +121,7 @@ function ToolGroup({
   );
 }
 
-export function MessageBubble({
+export const MessageBubble = memo(function MessageBubble({
   role,
   content,
   timestamp,
@@ -389,4 +389,4 @@ export function MessageBubble({
       </div>
     </div>
   );
-}
+});

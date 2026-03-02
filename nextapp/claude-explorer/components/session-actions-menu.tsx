@@ -132,7 +132,7 @@ export function SessionActionsMenu({
           {children ?? <EllipsisIcon className="h-3.5 w-3.5" />}
         </DropdownMenuTrigger>
         <DropdownMenuContent side="bottom" align="end">
-          <DropdownMenuItem onSelect={handleCopyResume}>
+          <DropdownMenuItem onClick={handleCopyResume}>
             {copiedResume ? (
               <CheckIcon className="h-3.5 w-3.5 text-green-400" />
             ) : (
@@ -141,7 +141,7 @@ export function SessionActionsMenu({
             Copy resume command
           </DropdownMenuItem>
           {tmuxCmd && (
-            <DropdownMenuItem onSelect={handleCopyTmux}>
+            <DropdownMenuItem onClick={handleCopyTmux}>
               {copiedTmux ? (
                 <CheckIcon className="h-3.5 w-3.5 text-green-400" />
               ) : (
@@ -151,7 +151,7 @@ export function SessionActionsMenu({
             </DropdownMenuItem>
           )}
           {onFork && (
-            <DropdownMenuItem onSelect={() => onFork(session.sessionId)}>
+            <DropdownMenuItem onClick={() => onFork(session.sessionId)}>
               <span className="h-3.5 w-3.5 text-center text-[11px]">⑂</span>
               Fork session
             </DropdownMenuItem>
@@ -159,7 +159,7 @@ export function SessionActionsMenu({
           {onArchive && (
             <>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onSelect={onArchive} variant="destructive">
+              <DropdownMenuItem onClick={onArchive} variant="destructive">
                 <span className="h-3.5 w-3.5 text-center text-[11px]">☰</span>
                 Archive session
               </DropdownMenuItem>

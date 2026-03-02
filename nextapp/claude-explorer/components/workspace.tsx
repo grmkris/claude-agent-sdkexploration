@@ -67,7 +67,7 @@ function ForkIcon({ className }: { className?: string }) {
 // PanelHeader — compact header per panel (enriched for focused panel)
 // ---------------------------------------------------------------------------
 
-function PanelHeader({
+const PanelHeader = React.memo(function PanelHeader({
   panel,
   isFocused,
   panelIndex,
@@ -100,7 +100,7 @@ function PanelHeader({
       input: { sessionId: panel.sessionId ?? "" },
     }),
     enabled: !!panel.sessionId,
-    refetchInterval: 5_000,
+    // SSE handles real-time updates — no polling needed
   });
 
   const title =
@@ -313,7 +313,7 @@ function PanelHeader({
       />
     </>
   );
-}
+});
 
 // ---------------------------------------------------------------------------
 // Workspace — the main horizontally scrolling multi-panel view

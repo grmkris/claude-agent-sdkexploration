@@ -15,7 +15,7 @@ export function SessionList({ projectSlug }: { projectSlug: string }) {
   const queryClient = useQueryClient();
   const { data: sessions, isLoading } = useQuery({
     ...orpc.sessions.list.queryOptions({ input: { slug: projectSlug } }),
-    refetchInterval: 15000,
+    refetchInterval: 30_000,
   });
   const { data: favorites } = useQuery(orpc.favorites.get.queryOptions());
 
@@ -28,8 +28,8 @@ export function SessionList({ projectSlug }: { projectSlug: string }) {
     enabled: sessionIds.length > 0,
     // Re-read facet files periodically so auto-generated titles appear
     // within ~30s of the first message (title gen takes ~6s via Haiku).
-    staleTime: 20_000,
-    refetchInterval: 30_000,
+    staleTime: 30_000,
+    refetchInterval: 60_000,
   });
   const facetMap = useMemo(() => {
     const m = new Map<

@@ -5,7 +5,7 @@ import {
   ArrowReloadHorizontalIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { useEffect, useRef, useCallback, useState } from "react";
+import { memo, useEffect, useRef, useCallback, useState } from "react";
 
 import type { ToolProgressEntry } from "@/hooks/use-chat-stream";
 import type { ParsedMessage } from "@/lib/types";
@@ -13,7 +13,7 @@ import type { ParsedMessage } from "@/lib/types";
 import { MessageBubble } from "./message-bubble";
 import { SessionStateBadge } from "./session-state-badge";
 
-export function ChatView({
+export const ChatView = memo(function ChatView({
   messages,
   isStreaming,
   toolProgress,
@@ -153,4 +153,4 @@ export function ChatView({
       )}
     </div>
   );
-}
+});

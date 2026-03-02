@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useRef } from "react";
 
 import { orpc } from "@/lib/orpc";
 
@@ -17,21 +17,44 @@ export function formatCost(usd: number): string {
   return `$${usd.toFixed(2)}`;
 }
 
-function formatElapsed(startedAt: string): string {
-  const elapsed = Math.floor(
-    (Date.now() - new Date(startedAt).getTime()) / 1000
-  );
-  if (elapsed < 60) return `${elapsed}s`;
-  const m = Math.floor(elapsed / 60);
-  const s = elapsed % 60;
-  return `${m}m${s.toString().padStart(2, "0")}s`;
-}
-
 /** Derive bar color from fill percentage */
 export function barColor(pct: number): string {
   if (pct >= 0.9) return "bg-red-500";
   if (pct >= 0.7) return "bg-yellow-500";
   return "bg-green-500";
+}
+
+/** Elapsed time display that updates via direct DOM mutation (no React re-renders). */
+function ElapsedTime({ startedAt }: { startedAt: string }) {
+  const ref = useRef<HTMLSpanElement>(null);
+
+  useEffect(() => {
+    const startMs = new Date(startedAt).getTime();
+    let raf: number;
+    let lastText = "";
+
+    const tick = () => {
+      const elapsed = Math.floor((Date.now() - startMs) / 1000);
+      let text: string;
+      if (elapsed < 60) {
+        text = `${elapsed}s`;
+      } else {
+        const m = Math.floor(elapsed / 60);
+        const s = elapsed % 60;
+        text = `${m}m${s.toString().padStart(2, "0")}s`;
+      }
+      if (text !== lastText && ref.current) {
+        ref.current.textContent = text;
+        lastText = text;
+      }
+      raf = requestAnimationFrame(tick);
+    };
+
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [startedAt]);
+
+  return <span ref={ref} className="tabular-nums" />;
 }
 
 export const ACTIVE_STATES = new Set([
@@ -56,13 +79,7 @@ export function ContextBar({
     orpc.liveState.session.queryOptions({ input: { sessionId } })
   );
 
-  // Tick elapsed time every second while session is active
-  const [, setTick] = useState(0);
-  useEffect(() => {
-    if (!data || !ACTIVE_STATES.has(data.state)) return;
-    const id = setInterval(() => setTick((t) => t + 1), 1000);
-    return () => clearInterval(id);
-  }, [data?.state]);
+  // Elapsed time is rendered via the ElapsedTime component (no React re-renders)
 
   if (!data) return null;
 
@@ -152,7 +169,7 @@ export function ContextBar({
       {isActive && data.started_at && (
         <>
           <span className="text-border">·</span>
-          <span className="tabular-nums">{formatElapsed(data.started_at)}</span>
+          <ElapsedTime startedAt={data.started_at} />
         </>
       )}
 

@@ -41,7 +41,7 @@ export function SessionOverviewSheet({
       input: { sessionId: sessionId ?? "" },
     }),
     enabled: !!sessionId && open,
-    refetchInterval: 5_000,
+    // SSE handles real-time updates — no polling needed
   });
 
   const contextWindow = data?.context_window ?? null;
