@@ -57,6 +57,8 @@ import {
   getGitWorktrees,
   gitClone,
   runShellCommand,
+  removeProjectFromConfig,
+  removeProjectSessionDir,
 } from "./claude-fs";
 import { sendEmail } from "./email";
 import {
@@ -77,9 +79,12 @@ import {
   setMcpPreference,
   saveSessionMcpSelections,
   getSessionMcpSelections,
+  saveSessionDisabledMcps,
+  getSessionDisabledMcps,
   getSessionForks,
   getSessionAncestry,
   searchSessions as dbSearchSessions,
+  deleteProjectDbData,
   createWorkspaceGroup as dbCreateWorkspaceGroup,
   listWorkspaceGroups as dbListWorkspaceGroups,
   getWorkspaceGroup as dbGetWorkspaceGroup,
@@ -136,6 +141,7 @@ import {
   addSavedPrompt,
   updateSavedPrompt,
   removeSavedPrompt,
+  deleteProjectData,
 } from "./explorer-store";
 import {
   getProvider,
@@ -662,6 +668,14 @@ const chatProc = os
           })
         )
         .optional(),
+      disabledDefaultMcps: z
+        .array(
+          z.object({
+            name: z.string(),
+            scope: z.enum(["user", "project", "local"]),
+          })
+        )
+        .optional(),
       forkSession: z.boolean().optional(),
       resumeSessionAt: z.string().optional(),
       forkSessionId: z.string().optional(),
@@ -708,6 +722,7 @@ const chatProc = os
       // --- Build merged MCP servers via shared resolver ---
       // Resolves explorer + user + project + local MCPs, applying preferences.
       let enabledOptionalMcps = input.enabledOptionalMcps;
+      let disabledDefaultMcps = input.disabledDefaultMcps;
       if (!enabledOptionalMcps && input.resume) {
         // For resumed sessions without explicit selections, load saved ones
         const saved = getSessionMcpSelections(input.resume);
@@ -716,8 +731,16 @@ const chatProc = os
           scope: s.scope as "user" | "project" | "local",
         }));
       }
+      if (!disabledDefaultMcps && input.resume) {
+        const savedDisabled = getSessionDisabledMcps(input.resume);
+        disabledDefaultMcps = savedDisabled.map((s) => ({
+          name: s.server_name,
+          scope: s.scope as "user" | "project" | "local",
+        }));
+      }
       const finalMcpServers = await resolveAllMcpServers(input.cwd, {
         enabledOptionalMcps,
+        disabledDefaultMcps,
       });
 
       // --- Build agent context for system prompt ---
@@ -1019,6 +1042,13 @@ const chatProc = os
             input.enabledOptionalMcps?.length
           ) {
             saveSessionMcpSelections(sessionId, input.enabledOptionalMcps);
+          }
+          // Save disabled-default MCP selections for session resume
+          if (
+            (!input.resume || input.forkSession) &&
+            input.disabledDefaultMcps?.length
+          ) {
+            saveSessionDisabledMcps(sessionId, input.disabledDefaultMcps);
           }
         }
         // Capture result metrics
@@ -1457,6 +1487,30 @@ const createProjectProc = os
     return { slug, path: projectPath };
   });
 
+const deleteProjectProc = os
+  .input(z.object({ slug: z.string() }))
+  .output(z.object({ success: z.boolean() }))
+  .handler(async ({ input }) => {
+    const projectPath = await resolveSlugToPath(input.slug);
+
+    // 1. Clean up explorer.json (crons, webhooks, favorites, messages, etc.)
+    await deleteProjectData(input.slug);
+
+    // 2. Clean up SQLite (sessions, mcp_preferences, workspace_groups, etc.)
+    deleteProjectDbData(projectPath);
+
+    // 3. Remove from ~/.claude.json
+    await removeProjectFromConfig(projectPath);
+
+    // 4. Remove ~/.claude/projects/<slug>/ directory (JSONL session files)
+    await removeProjectSessionDir(input.slug);
+
+    // 5. Invalidate the slug cache
+    invalidateSlugCache();
+
+    return { success: true };
+  });
+
 const listDirProc = os
   .input(z.object({ slug: z.string(), subpath: z.string().optional() }))
   .output(
@@ -1872,6 +1926,14 @@ const rootChatProc = os
           })
         )
         .optional(),
+      disabledDefaultMcps: z
+        .array(
+          z.object({
+            name: z.string(),
+            scope: z.enum(["user", "project", "local"]),
+          })
+        )
+        .optional(),
       forkSession: z.boolean().optional(),
       resumeSessionAt: z.string().optional(),
       forkSessionId: z.string().optional(),
@@ -1906,6 +1968,7 @@ const rootChatProc = os
       // --- Build merged MCP servers for root chat (user-scope only) ---
       // --- Build merged MCP servers for root workspace via shared resolver ---
       let rootEnabledOptionalMcps = input.enabledOptionalMcps;
+      let rootDisabledDefaultMcps = input.disabledDefaultMcps;
       if (!rootEnabledOptionalMcps && input.resume) {
         const saved = getSessionMcpSelections(input.resume);
         rootEnabledOptionalMcps = saved.map((s) => ({
@@ -1913,9 +1976,17 @@ const rootChatProc = os
           scope: s.scope as "user" | "project" | "local",
         }));
       }
+      if (!rootDisabledDefaultMcps && input.resume) {
+        const savedDisabled = getSessionDisabledMcps(input.resume);
+        rootDisabledDefaultMcps = savedDisabled.map((s) => ({
+          name: s.server_name,
+          scope: s.scope as "user" | "project" | "local",
+        }));
+      }
       // Root workspace has no project cwd — only user-level MCPs + explorer
       const rootFinalMcpServers = await resolveAllMcpServers(undefined, {
         enabledOptionalMcps: rootEnabledOptionalMcps,
+        disabledDefaultMcps: rootDisabledDefaultMcps,
       });
 
       // Build root workspace context for system prompt
@@ -2187,6 +2258,13 @@ const rootChatProc = os
             input.enabledOptionalMcps?.length
           ) {
             saveSessionMcpSelections(sessionId, input.enabledOptionalMcps);
+          }
+          // Save disabled-default MCP selections for session resume
+          if (
+            (!input.resume || input.forkSession) &&
+            input.disabledDefaultMcps?.length
+          ) {
+            saveSessionDisabledMcps(sessionId, input.disabledDefaultMcps);
           }
         }
         if ("type" in msg && msg.type === "result" && sessionId) {
@@ -3896,6 +3974,7 @@ export const router = {
     readFile: readFileProc,
     createDir: createDirProc,
     create: createProjectProc,
+    delete: deleteProjectProc,
     getEnv: getProjectEnvProc,
     setEnv: setProjectEnvProc,
     gitStatus: gitStatusProc,

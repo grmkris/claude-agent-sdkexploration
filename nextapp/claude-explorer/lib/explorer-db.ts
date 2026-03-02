@@ -182,6 +182,17 @@ function getDB(): Database {
     CREATE INDEX IF NOT EXISTS idx_sms_session ON session_mcp_selections(session_id);
   `);
 
+  // Migration: session_disabled_mcps table (default MCPs disabled per session)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS session_disabled_mcps (
+      session_id   TEXT NOT NULL,
+      server_name  TEXT NOT NULL,
+      scope        TEXT NOT NULL,
+      PRIMARY KEY (session_id, server_name, scope)
+    );
+    CREATE INDEX IF NOT EXISTS idx_sdm_session ON session_disabled_mcps(session_id);
+  `);
+
   // Migration: workspace groups tables
   db.exec(`
     CREATE TABLE IF NOT EXISTS workspace_groups (
@@ -792,6 +803,37 @@ export function getSessionMcpSelections(
     .all(sessionId);
 }
 
+/**
+ * Save the disabled-default MCP selections for a session.
+ */
+export function saveSessionDisabledMcps(
+  sessionId: string,
+  selections: Array<{ name: string; scope: string }>
+): void {
+  const d = getDB();
+  const stmt = d.query(
+    `INSERT INTO session_disabled_mcps (session_id, server_name, scope)
+     VALUES (?, ?, ?)
+     ON CONFLICT(session_id, server_name, scope) DO NOTHING`
+  );
+  for (const sel of selections) {
+    stmt.run(sessionId, sel.name, sel.scope);
+  }
+}
+
+/**
+ * Get the disabled-default MCP selections for a session (for resume).
+ */
+export function getSessionDisabledMcps(
+  sessionId: string
+): SessionMcpSelectionRow[] {
+  return getDB()
+    .query<SessionMcpSelectionRow, [string]>(
+      "SELECT * FROM session_disabled_mcps WHERE session_id = ?"
+    )
+    .all(sessionId);
+}
+
 // --- Search ---
 
 // --- Workspace Groups ---
@@ -972,4 +1014,51 @@ export function searchSessions(query: string, limit = 20): SessionRow[] {
        LIMIT ?4`
     )
     .all(pattern, pattern, pattern, limit);
+}
+
+export function deleteProjectDbData(projectPath: string): void {
+  const d = getDB();
+
+  // Get all session IDs for this project (exact match + subdirectory match)
+  const sessionIds = d
+    .query<{ session_id: string }, [string, string]>(
+      "SELECT session_id FROM sessions WHERE project_path = ? OR project_path LIKE ?"
+    )
+    .all(projectPath, projectPath + "/%")
+    .map((r) => r.session_id);
+
+  // Delete session-scoped data
+  for (const sid of sessionIds) {
+    d.query("DELETE FROM pending_questions WHERE session_id = ?").run(sid);
+    d.query("DELETE FROM pending_exit_plan_mode WHERE session_id = ?").run(sid);
+    d.query("DELETE FROM session_mcp_selections WHERE session_id = ?").run(sid);
+    d.query("DELETE FROM session_disabled_mcps WHERE session_id = ?").run(sid);
+    d.query("DELETE FROM workspace_group_sessions WHERE session_id = ?").run(
+      sid
+    );
+  }
+
+  // Delete sessions themselves
+  d.query(
+    "DELETE FROM sessions WHERE project_path = ? OR project_path LIKE ?"
+  ).run(projectPath, projectPath + "/%");
+
+  // Delete MCP preferences for this project
+  d.query("DELETE FROM mcp_preferences WHERE project_path = ?").run(
+    projectPath
+  );
+
+  // Delete workspace groups scoped to this project
+  const groupIds = d
+    .query<{ id: string }, [string]>(
+      "SELECT id FROM workspace_groups WHERE project_path = ?"
+    )
+    .all(projectPath)
+    .map((r) => r.id);
+  for (const gid of groupIds) {
+    d.query("DELETE FROM workspace_group_sessions WHERE group_id = ?").run(gid);
+  }
+  d.query("DELETE FROM workspace_groups WHERE project_path = ?").run(
+    projectPath
+  );
 }

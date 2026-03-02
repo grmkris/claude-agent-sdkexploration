@@ -11,7 +11,7 @@ import {
   WebhookIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
@@ -21,6 +21,16 @@ import { CursorLogo } from "@/components/open-in-cursor-button";
 import { ProjectExplorerPanel } from "@/components/project-explorer-panel";
 import { PushNotificationManager } from "@/components/push-notification-manager";
 import { TmuxLauncher } from "@/components/tmux-launcher";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   Popover,
   PopoverContent,
@@ -40,6 +50,7 @@ import {
 } from "@/components/ui/sidebar";
 import { generateCursorUrl } from "@/lib/cursor-urls";
 import { orpc } from "@/lib/orpc";
+import { client } from "@/lib/orpc-client";
 
 const GLOBAL_NAV = [
   {
@@ -156,10 +167,22 @@ function CopyPathButton({ path }: { path: string }) {
  */
 function ProjectHeader({ slug }: { slug: string }) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   const { data: projects } = useQuery(orpc.projects.list.queryOptions());
   const { data: serverConfig } = useQuery(orpc.server.config.queryOptions());
+
+  const deleteProject = useMutation({
+    mutationFn: (s: string) => client.projects.delete({ slug: s }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: orpc.projects.list.queryOptions().queryKey,
+      });
+      router.push("/");
+    },
+  });
   const project = projects?.find((p) => p.slug === slug);
   const projectName = project
     ? project.path.split("/").at(-1)
@@ -320,9 +343,49 @@ function ProjectHeader({ slug }: { slug: string }) {
             {/* SSH / Tmux launcher */}
             <div className="mb-2.5 text-xs font-medium">Connect</div>
             <TmuxLauncher slug={slug} projectPath={project.path} />
+            <div className="my-2 border-t" />
+            <button
+              onClick={() => setShowDeleteDialog(true)}
+              className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-xs text-destructive transition-colors hover:bg-destructive/10"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={2}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="h-3.5 w-3.5 shrink-0"
+              >
+                <path d="M3 6h18" />
+                <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+                <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+              </svg>
+              Remove Project
+            </button>
           </PopoverContent>
         </Popover>
       )}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent size="sm">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove project?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will unregister the project from Claude Explorer and remove
+              all session history. Your source code will not be deleted.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() => deleteProject.mutate(slug)}
+            >
+              Remove
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -18,6 +18,16 @@ import {
   inferMcpsForStack,
   inferSkillsForStack,
 } from "@/components/stack-builder";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -26,6 +36,12 @@ import {
   CardDescription,
   CardContent,
 } from "@/components/ui/card";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PROJECT_TEMPLATES } from "@/lib/mcp-catalog";
@@ -490,12 +506,26 @@ function UnifiedProjectGrid() {
     refetchInterval: 30000,
   });
 
+  const [deleteSlug, setDeleteSlug] = useState<string | null>(null);
+
   const toggleProject = useMutation({
     mutationFn: (slug: string) => client.favorites.toggleProject({ slug }),
     onSuccess: () =>
       queryClient.invalidateQueries({
         queryKey: orpc.favorites.get.queryOptions().queryKey,
       }),
+  });
+
+  const deleteProject = useMutation({
+    mutationFn: (slug: string) => client.projects.delete({ slug }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: orpc.projects.list.queryOptions().queryKey,
+      });
+      void queryClient.invalidateQueries({
+        queryKey: orpc.favorites.get.queryOptions().queryKey,
+      });
+    },
   });
 
   const tmuxBySlug = new Map<string, TmuxPane[]>();
@@ -609,7 +639,7 @@ function UnifiedProjectGrid() {
           const isFav = favSlugs.has(project.slug);
           const panes = tmuxBySlug.get(project.slug);
           return (
-            <div key={project.slug} className="relative">
+            <div key={project.slug} className="group/card relative">
               <Link href={`/project/${project.slug}`}>
                 <Card
                   size="sm"
@@ -662,21 +692,71 @@ function UnifiedProjectGrid() {
                   </CardContent>
                 </Card>
               </Link>
-              <button
-                onClick={() => toggleProject.mutate(project.slug)}
-                className="absolute right-2 top-2 rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
-                title={isFav ? "Remove from favorites" : "Add to favorites"}
-              >
-                {isFav ? (
-                  <StarFilledIcon className="h-3.5 w-3.5 text-yellow-500" />
-                ) : (
-                  <StarIcon className="h-3.5 w-3.5" />
-                )}
-              </button>
+              <div className="absolute right-2 top-2 flex items-center gap-0.5">
+                <button
+                  onClick={() => toggleProject.mutate(project.slug)}
+                  className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
+                  title={isFav ? "Remove from favorites" : "Add to favorites"}
+                >
+                  {isFav ? (
+                    <StarFilledIcon className="h-3.5 w-3.5 text-yellow-500" />
+                  ) : (
+                    <StarIcon className="h-3.5 w-3.5" />
+                  )}
+                </button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger className="rounded p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-accent hover:text-foreground group-hover/card:opacity-100">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 24 24"
+                      fill="currentColor"
+                      className="h-3.5 w-3.5"
+                    >
+                      <circle cx="12" cy="5" r="1.5" />
+                      <circle cx="12" cy="12" r="1.5" />
+                      <circle cx="12" cy="19" r="1.5" />
+                    </svg>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem
+                      className="text-destructive focus:text-destructive"
+                      onClick={() => setDeleteSlug(project.slug)}
+                    >
+                      Remove Project
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
             </div>
           );
         })}
       </div>
+      <AlertDialog
+        open={!!deleteSlug}
+        onOpenChange={(open) => !open && setDeleteSlug(null)}
+      >
+        <AlertDialogContent size="sm">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove project?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will unregister the project from Claude Explorer and remove
+              all session history. Your source code will not be deleted.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() => {
+                if (deleteSlug) deleteProject.mutate(deleteSlug);
+                setDeleteSlug(null);
+              }}
+            >
+              Remove
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </section>
   );
 }

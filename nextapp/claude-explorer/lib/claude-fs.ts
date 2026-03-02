@@ -722,6 +722,36 @@ export async function writeProjectEnv(
   configCache = null;
 }
 
+export async function removeProjectFromConfig(
+  projectPath: string
+): Promise<void> {
+  let raw: Record<string, unknown> = {};
+  try {
+    raw = JSON.parse(await readFile(CLAUDE_CONFIG_PATH, "utf-8")) as Record<
+      string,
+      unknown
+    >;
+  } catch {
+    return; // file doesn't exist, nothing to remove
+  }
+
+  const projects = (raw.projects ?? {}) as Record<string, unknown>;
+  delete projects[projectPath];
+  raw.projects = projects;
+
+  await writeFile(CLAUDE_CONFIG_PATH, JSON.stringify(raw, null, 2), "utf-8");
+  configCache = null;
+}
+
+export async function removeProjectSessionDir(slug: string): Promise<void> {
+  const dirPath = join(CLAUDE_PROJECTS_DIR, slug);
+  try {
+    await rm(dirPath, { recursive: true, force: true });
+  } catch {
+    // Directory may not exist — that's fine
+  }
+}
+
 export async function readProjectClaudeMd(
   projectPath: string
 ): Promise<string | null> {

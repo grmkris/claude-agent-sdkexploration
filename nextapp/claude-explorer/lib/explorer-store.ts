@@ -725,3 +725,61 @@ export async function removeSavedPrompt(id: string): Promise<boolean> {
   await writeStore(store);
   return true;
 }
+
+// --- Project Deletion ---
+
+export async function deleteProjectData(projectSlug: string): Promise<void> {
+  const store = await readStore();
+
+  // Remove from favorites
+  store.favorites.projects = store.favorites.projects.filter(
+    (s) => s !== projectSlug
+  );
+
+  // Remove project-scoped crons and their events
+  const cronIds = new Set(
+    store.crons.filter((c) => c.projectSlug === projectSlug).map((c) => c.id)
+  );
+  store.crons = store.crons.filter((c) => c.projectSlug !== projectSlug);
+  if (cronIds.size > 0) {
+    store.cronEvents = (store.cronEvents ?? []).filter(
+      (e) => !cronIds.has(e.cronId)
+    );
+  }
+
+  // Remove project-scoped webhooks and their events
+  const webhookIds = new Set(
+    (store.webhooks ?? [])
+      .filter((w) => w.projectSlug === projectSlug)
+      .map((w) => w.id)
+  );
+  store.webhooks = (store.webhooks ?? []).filter(
+    (w) => w.projectSlug !== projectSlug
+  );
+  if (webhookIds.size > 0) {
+    store.webhookEvents = (store.webhookEvents ?? []).filter(
+      (e) => !webhookIds.has(e.webhookId)
+    );
+  }
+
+  // Remove messages to/from this project
+  store.messages = store.messages.filter(
+    (m) =>
+      m.from.projectSlug !== projectSlug && m.to.projectSlug !== projectSlug
+  );
+
+  // Remove project-scoped integrations
+  store.integrations = (store.integrations ?? []).filter(
+    (i) => i.projectSlug !== projectSlug
+  );
+
+  // Remove email configs and events
+  store.emailConfigs = (store.emailConfigs ?? []).filter(
+    (e) => e.projectSlug !== projectSlug
+  );
+  store.emailEvents = (store.emailEvents ?? []).filter(
+    (e) => e.projectSlug !== projectSlug
+  );
+
+  await writeStore(store);
+}
