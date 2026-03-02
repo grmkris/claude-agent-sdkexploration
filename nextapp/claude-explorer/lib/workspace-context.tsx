@@ -4,6 +4,8 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { useRouter } from "next/navigation";
 import * as React from "react";
 
+import type { McpSelection } from "@/components/chat-settings-bar";
+
 import { client } from "./orpc-client";
 
 // ---------------------------------------------------------------------------
@@ -15,11 +17,18 @@ export type WorkspaceForkParams = {
   forkSessionId: string;
 };
 
+/** Per-session MCP configuration chosen before session creation. */
+export type SessionMcpConfig = {
+  disabledDefaultMcps: McpSelection[]; // default MCPs to exclude
+  enabledOptionalMcps: McpSelection[]; // optional MCPs to include
+};
+
 export type WorkspacePanel = {
   id: string;
   sessionId: string | null; // null = new session (not yet started)
   projectSlug?: string; // undefined = root session
   forkParams?: WorkspaceForkParams; // set when panel is a fork
+  sessionMcpConfig?: SessionMcpConfig; // per-session MCP overrides
 };
 
 type WorkspaceState = {
@@ -46,7 +55,10 @@ type WorkspaceContextProps = {
   /** Replace — clears all panels, shows single session */
   replaceSession: (sessionId: string, projectSlug?: string) => void;
   /** Replace — clears all panels, shows single new session */
-  replaceNewSession: (projectSlug?: string) => string; // returns panelId
+  replaceNewSession: (
+    projectSlug?: string,
+    mcpConfig?: SessionMcpConfig
+  ) => string; // returns panelId
   closePanel: (panelId: string) => void;
   focusPanel: (panelId: string) => void;
   updatePanelSession: (panelId: string, sessionId: string) => void;
@@ -139,7 +151,15 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     // /project/[slug]/chat
     const projectNewMatch = pathname.match(/^\/project\/([^/]+)\/chat$/);
     if (projectNewMatch) {
-      replaceNewSession(projectNewMatch[1]);
+      // Skip if we already have a new-session panel for this slug (e.g. from
+      // the session config popup which calls replaceNewSession before navigating)
+      const slug = projectNewMatch[1];
+      const alreadyHasNew = state.panels.some(
+        (p) => p.sessionId === null && p.projectSlug === slug
+      );
+      if (!alreadyHasNew) {
+        replaceNewSession(slug);
+      }
       return;
     }
 
@@ -152,7 +172,12 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
 
     // /chat
     if (pathname === "/chat") {
-      replaceNewSession();
+      const alreadyHasNew = state.panels.some(
+        (p) => p.sessionId === null && !p.projectSlug
+      );
+      if (!alreadyHasNew) {
+        replaceNewSession();
+      }
       return;
     }
   }, [pathname, searchParams, isHydrated]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -285,11 +310,16 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       const forkSessionId = crypto.randomUUID();
 
       setState((prev) => {
+        // Inherit MCP config from parent panel
+        const parentPanel = prev.panels.find(
+          (p) => p.sessionId === parentSessionId
+        );
         const newPanel: WorkspacePanel = {
           id: panelId,
           sessionId: null,
           projectSlug,
           forkParams: { parentSessionId, forkSessionId },
+          sessionMcpConfig: parentPanel?.sessionMcpConfig,
         };
         return {
           ...prev,
@@ -360,13 +390,14 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
   );
 
   const replaceNewSession = React.useCallback(
-    (projectSlug?: string): string => {
+    (projectSlug?: string, mcpConfig?: SessionMcpConfig): string => {
       const panelId = crypto.randomUUID();
       setState(() => {
         const newPanel: WorkspacePanel = {
           id: panelId,
           sessionId: null,
           projectSlug,
+          sessionMcpConfig: mcpConfig,
         };
         return {
           panels: [newPanel],

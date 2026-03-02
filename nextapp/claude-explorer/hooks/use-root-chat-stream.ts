@@ -50,6 +50,10 @@ export type RootChatStreamOpts = {
     name: string;
     scope: "user" | "project" | "local";
   }>;
+  disabledDefaultMcps?: Array<{
+    name: string;
+    scope: "user" | "project" | "local";
+  }>;
   forkSession?: boolean;
   resumeSessionAt?: string;
   forkSessionId?: string;
@@ -151,6 +155,9 @@ export function useRootChatStream(
               ...(opts?.enabledOptionalMcps?.length
                 ? { enabledOptionalMcps: opts.enabledOptionalMcps }
                 : {}),
+              ...(opts?.disabledDefaultMcps?.length
+                ? { disabledDefaultMcps: opts.disabledDefaultMcps }
+                : {}),
               // Only include fork-specific params on the initial fork send
               ...(isForking ? { forkSession: true } : {}),
               ...(isForking && opts?.resumeSessionAt
@@ -201,6 +208,7 @@ export function useRootChatStream(
       opts?.permissionMode,
       opts?.model,
       opts?.enabledOptionalMcps,
+      opts?.disabledDefaultMcps,
       // Fork params are intentionally omitted — they are only consumed on
       // the first send() and gated by the didFork ref.
     ]

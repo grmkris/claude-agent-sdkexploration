@@ -15,8 +15,14 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import * as React from "react";
 
+import { SessionConfigPopup } from "@/components/session-config-popup";
 import { SessionsPanel } from "@/components/sessions-panel";
 import { Button } from "@/components/ui/button";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { useRightSidebar } from "@/components/ui/right-sidebar-context";
 import { RightSidebarTrigger } from "@/components/ui/right-sidebar-trigger";
 import {
@@ -39,6 +45,7 @@ import {
 } from "@/components/ui/tooltip";
 import { orpc } from "@/lib/orpc";
 import { getTimeAgo } from "@/lib/utils";
+import { useWorkspace } from "@/lib/workspace-context";
 
 const RIGHT_SIDEBAR_WIDTH = "17rem";
 const RIGHT_SIDEBAR_WIDTH_ICON = "3rem";
@@ -175,6 +182,8 @@ function RightSidebarInner() {
   const pathname = usePathname();
   const router = useRouter();
   const activeSlug = extractSlug(pathname);
+  const workspace = useWorkspace();
+  const [configOpen, setConfigOpen] = React.useState(false);
 
   if (!isMobile && state === "collapsed") {
     return <CollapsedRightSidebar activeSlug={activeSlug} />;
@@ -188,40 +197,76 @@ function RightSidebarInner() {
         <div className="flex h-9 items-center gap-1.5">
           <RightSidebarTrigger className="-ml-0.5 shrink-0" />
           <span className="flex-1 text-sm font-semibold">Sessions</span>
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="h-6 w-6 text-muted-foreground hover:text-foreground"
-                  render={
-                    <Link
-                      href={
-                        activeSlug
-                          ? `/project/${activeSlug}/chat?_new=${Date.now()}`
-                          : "/chat"
-                      }
-                      onClick={(e) => {
-                        if (!e.metaKey && !e.ctrlKey) {
-                          e.preventDefault();
-                          router.push(
-                            activeSlug
-                              ? `/project/${activeSlug}/chat?_new=${Date.now()}`
-                              : "/chat"
-                          );
+          {/* Split button: New Session + Config dropdown */}
+          <div className="flex items-center">
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-6 w-6 rounded-r-none text-muted-foreground hover:text-foreground"
+                    render={
+                      <Link
+                        href={
+                          activeSlug
+                            ? `/project/${activeSlug}/chat?_new=${Date.now()}`
+                            : "/chat"
                         }
-                      }}
-                    />
-                  }
+                        onClick={(e) => {
+                          if (!e.metaKey && !e.ctrlKey) {
+                            e.preventDefault();
+                            router.push(
+                              activeSlug
+                                ? `/project/${activeSlug}/chat?_new=${Date.now()}`
+                                : "/chat"
+                            );
+                          }
+                        }}
+                      />
+                    }
+                  >
+                    <HugeiconsIcon icon={Add01Icon} size={14} strokeWidth={2} />
+                    <span className="sr-only">New Conversation</span>
+                  </Button>
+                }
+              />
+              <TooltipContent side="bottom">New Conversation</TooltipContent>
+            </Tooltip>
+            <Popover open={configOpen} onOpenChange={setConfigOpen}>
+              <PopoverTrigger className="flex h-6 w-4 items-center justify-center rounded-r-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
+                <svg
+                  width="8"
+                  height="8"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
                 >
-                  <HugeiconsIcon icon={Add01Icon} size={14} strokeWidth={2} />
-                  <span className="sr-only">New Conversation</span>
-                </Button>
-              }
-            />
-            <TooltipContent side="bottom">New Conversation</TooltipContent>
-          </Tooltip>
+                  <polyline points="6,9 12,15 18,9" />
+                </svg>
+              </PopoverTrigger>
+              <PopoverContent align="end" side="bottom" className="w-auto p-0">
+                <SessionConfigPopup
+                  slug={activeSlug ?? undefined}
+                  onCreateSession={(config) => {
+                    setConfigOpen(false);
+                    workspace.replaceNewSession(
+                      activeSlug ?? undefined,
+                      config
+                    );
+                    router.push(
+                      activeSlug
+                        ? `/project/${activeSlug}/chat?_new=${Date.now()}`
+                        : `/chat?_new=${Date.now()}`
+                    );
+                  }}
+                />
+              </PopoverContent>
+            </Popover>
+          </div>
         </div>
       </SidebarHeader>
       <SidebarContent>

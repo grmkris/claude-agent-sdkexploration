@@ -427,6 +427,7 @@ export function Workspace({ children }: { children: React.ReactNode }) {
                         handleFork(panel.projectSlug, sid, msgUuid)
                       }
                       forkParams={panel.forkParams}
+                      sessionMcpConfig={panel.sessionMcpConfig}
                     />
                   </div>
                 </ResizablePanel>

@@ -26,12 +26,14 @@ export type ChatSettings = {
   planMode: boolean;
   model: string;
   enabledOptionalMcps: McpSelection[];
+  disabledDefaultMcps: McpSelection[];
 };
 
 export const DEFAULT_CHAT_SETTINGS: ChatSettings = {
   planMode: false,
   model: "claude-opus-4-6",
   enabledOptionalMcps: [],
+  disabledDefaultMcps: [],
 };
 
 // ---------------------------------------------------------------------------

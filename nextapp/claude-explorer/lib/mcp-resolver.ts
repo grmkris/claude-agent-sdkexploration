@@ -59,6 +59,8 @@ export function buildExplorerMcpConfig(): {
 export interface McpResolveOptions {
   /** Explicit set of optional MCPs the user enabled (scope:name pairs). */
   enabledOptionalMcps?: Array<{ scope: string; name: string }>;
+  /** Default-mode MCPs to exclude from this session. */
+  disabledDefaultMcps?: Array<{ scope: string; name: string }>;
 }
 
 /**
@@ -89,6 +91,14 @@ export async function resolveAllMcpServers(
       }
     }
 
+    // Build set of explicitly disabled default MCPs
+    const disabledDefaultSet = new Set<string>();
+    if (opts?.disabledDefaultMcps) {
+      for (const m of opts.disabledDefaultMcps) {
+        disabledDefaultSet.add(`${m.scope}:${m.name}`);
+      }
+    }
+
     // Get preferences from DB
     const prefs = getMcpPreferences(cwd ?? undefined);
     const prefMap = new Map(
@@ -97,9 +107,11 @@ export async function resolveAllMcpServers(
 
     function shouldInclude(name: string, scope: string): boolean {
       if (name === explorer.name) return false; // already included
-      const mode = prefMap.get(`${scope}:${name}`) ?? "default";
+      const key = `${scope}:${name}`;
+      if (disabledDefaultSet.has(key)) return false;
+      const mode = prefMap.get(key) ?? "default";
       if (mode === "default") return true;
-      return enabledOptionalSet.has(`${scope}:${name}`);
+      return enabledOptionalSet.has(key);
     }
 
     for (const [name, config] of Object.entries(userMcps)) {

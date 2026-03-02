@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { ContextChip } from "@/lib/context-chips";
+import type { SessionMcpConfig } from "@/lib/workspace-context";
 
 import { ChatInput } from "@/components/chat-input";
 import {
@@ -49,6 +50,8 @@ export type SessionPaneProps = {
   initialChips?: ContextChip[];
   /** Fork params for forked sessions. */
   forkParams?: ForkParams;
+  /** Per-session MCP overrides chosen at session creation. */
+  sessionMcpConfig?: SessionMcpConfig;
 };
 
 // ---------------------------------------------------------------------------
@@ -64,6 +67,7 @@ function ProjectSessionPane({
   initialPrompt,
   initialChips,
   forkParams,
+  sessionMcpConfig,
 }: SessionPaneProps & { projectSlug: string }) {
   const queryClient = useQueryClient();
   const isNewSession = sessionId === null;
@@ -84,7 +88,15 @@ function ProjectSessionPane({
     refetchInterval: false,
   });
 
-  const [settings, setSettings] = useState<ChatSettings>(DEFAULT_CHAT_SETTINGS);
+  const [settings, setSettings] = useState<ChatSettings>(() => ({
+    ...DEFAULT_CHAT_SETTINGS,
+    ...(sessionMcpConfig?.enabledOptionalMcps?.length
+      ? { enabledOptionalMcps: sessionMcpConfig.enabledOptionalMcps }
+      : {}),
+    ...(sessionMcpConfig?.disabledDefaultMcps?.length
+      ? { disabledDefaultMcps: sessionMcpConfig.disabledDefaultMcps }
+      : {}),
+  }));
 
   const {
     messages: streamMessages,
@@ -103,6 +115,7 @@ function ProjectSessionPane({
     permissionMode: settings.planMode ? "plan" : "bypassPermissions",
     model: settings.model,
     enabledOptionalMcps: settings.enabledOptionalMcps,
+    disabledDefaultMcps: settings.disabledDefaultMcps,
     ...(forkParams
       ? {
           resume: forkParams.parentSessionId,
@@ -291,6 +304,7 @@ function RootSessionPane({
   onSessionCreated,
   onFork,
   forkParams,
+  sessionMcpConfig,
 }: SessionPaneProps) {
   const queryClient = useQueryClient();
   const isNewSession = sessionId === null;
@@ -305,7 +319,15 @@ function RootSessionPane({
     refetchInterval: false,
   });
 
-  const [settings, setSettings] = useState<ChatSettings>(DEFAULT_CHAT_SETTINGS);
+  const [settings, setSettings] = useState<ChatSettings>(() => ({
+    ...DEFAULT_CHAT_SETTINGS,
+    ...(sessionMcpConfig?.enabledOptionalMcps?.length
+      ? { enabledOptionalMcps: sessionMcpConfig.enabledOptionalMcps }
+      : {}),
+    ...(sessionMcpConfig?.disabledDefaultMcps?.length
+      ? { disabledDefaultMcps: sessionMcpConfig.disabledDefaultMcps }
+      : {}),
+  }));
 
   const {
     messages: streamMessages,
@@ -323,6 +345,7 @@ function RootSessionPane({
     permissionMode: settings.planMode ? "plan" : "bypassPermissions",
     model: settings.model,
     enabledOptionalMcps: settings.enabledOptionalMcps,
+    disabledDefaultMcps: settings.disabledDefaultMcps,
     ...(forkParams
       ? {
           resume: forkParams.parentSessionId,
