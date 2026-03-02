@@ -127,6 +127,9 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       .catch(() => {
         setIsHydrated(true);
       });
+
+    // Clean up orphaned empty groups on startup
+    client.workspaceGroups.cleanupEmpty().catch(() => {});
   }, []);
 
   // ── URL sync effect — fixes navigation bug ────────────────────────────
@@ -368,23 +371,9 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
         };
       });
 
-      if (!didReplace) return;
-
-      const groupName = `Workspace ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
-      client.workspaceGroups
-        .create({ name: groupName, projectSlug })
-        .then(({ id: groupId }) => {
-          client.workspaceGroups.setActive({ groupId }).catch(() => {});
-          client.workspaceGroups
-            .addSession({ groupId, sessionId })
-            .catch(() => {});
-          setState((current) => ({
-            ...current,
-            activeGroupId: groupId,
-            activeGroupName: groupName,
-          }));
-        })
-        .catch(() => {});
+      if (didReplace) {
+        client.workspaceGroups.clearActive().catch(() => {});
+      }
     },
     []
   );
@@ -407,19 +396,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
         };
       });
 
-      // Create group in DB
-      const groupName = `Workspace ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
-      client.workspaceGroups
-        .create({ name: groupName, projectSlug })
-        .then(({ id: groupId }) => {
-          client.workspaceGroups.setActive({ groupId }).catch(() => {});
-          setState((current) => ({
-            ...current,
-            activeGroupId: groupId,
-            activeGroupName: groupName,
-          }));
-        })
-        .catch(() => {});
+      client.workspaceGroups.clearActive().catch(() => {});
 
       return panelId;
     },
@@ -450,7 +427,9 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
         // Clear group if no panels left
         if (remaining.length === 0) {
           client.workspaceGroups.clearActive().catch(() => {});
-          router.push("/");
+          router.push(
+            panel?.projectSlug ? `/project/${panel.projectSlug}` : "/"
+          );
           return {
             panels: [],
             focusedPanelId: null,

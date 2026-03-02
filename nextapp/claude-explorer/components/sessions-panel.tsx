@@ -322,6 +322,7 @@ function WorkspaceGroupsSection({
       input: projectPath ? { projectPath } : {},
     }),
     refetchInterval: 15_000,
+    select: (data) => data.filter((g) => g.sessionCount > 0),
   });
 
   const deleteMutation = useMutation({

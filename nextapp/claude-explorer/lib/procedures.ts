@@ -95,6 +95,7 @@ import {
   getActiveWorkspaceGroup as dbGetActiveWorkspaceGroup,
   setActiveWorkspaceGroup as dbSetActiveWorkspaceGroup,
   clearActiveWorkspaceGroup as dbClearActiveWorkspaceGroup,
+  deleteEmptyWorkspaceGroups as dbDeleteEmptyWorkspaceGroups,
 } from "./explorer-db";
 import {
   getFavorites,
@@ -3965,6 +3966,13 @@ const clearActiveGroupProc = os
     return { ok: true };
   });
 
+const cleanupEmptyGroupsProc = os
+  .output(z.object({ deleted: z.number() }))
+  .handler(async () => {
+    const deleted = dbDeleteEmptyWorkspaceGroups();
+    return { deleted };
+  });
+
 export const router = {
   projects: {
     list: listProjectsProc,
@@ -4130,5 +4138,6 @@ export const router = {
     getActive: getActiveGroupProc,
     setActive: setActiveGroupProc,
     clearActive: clearActiveGroupProc,
+    cleanupEmpty: cleanupEmptyGroupsProc,
   },
 };

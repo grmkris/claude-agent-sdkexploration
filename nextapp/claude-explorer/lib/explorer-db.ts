@@ -1001,6 +1001,17 @@ export function clearActiveWorkspaceGroup(): void {
   getDB().query("UPDATE workspace_groups SET is_active = 0").run();
 }
 
+export function deleteEmptyWorkspaceGroups(): number {
+  const result = getDB()
+    .query(
+      `DELETE FROM workspace_groups WHERE id NOT IN (
+         SELECT DISTINCT group_id FROM workspace_group_sessions
+       )`
+    )
+    .run();
+  return result.changes;
+}
+
 // --- Search ---
 
 export function searchSessions(query: string, limit = 20): SessionRow[] {
